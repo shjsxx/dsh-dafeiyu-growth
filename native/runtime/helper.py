@@ -256,8 +256,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
     try:
         from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QPoint, QPointF, QRectF, Qt, QTimer, QUrl, Signal
         from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QPainter, QPen, QPixmap, QPolygonF
-        from PySide6.QtWidgets import QApplication, QMenu, QWidget
+        from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMenu, QWidget, QWidgetAction
         from growth_native import GrowthReader, GrowthDialog
+        from growth_theme import MENU_QSS, icon as theme_icon
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -2243,48 +2244,80 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self._stop_motion()
             self._refresh_growth()
             menu = QMenu(self)
+            menu.setStyleSheet(MENU_QSS)
+            menu.setFont(QFont("Microsoft YaHei UI", 10))
+            menu.setMinimumWidth(252)
+            menu.setToolTipsVisible(True)
+            menu.setSeparatorsCollapsible(False)
+            def menu_header(text):
+                holder = QWidget(menu)
+                holder.setStyleSheet("background: transparent;")
+                row = QHBoxLayout(holder)
+                row.setContentsMargins(14, 7, 14, 2)
+                label = QLabel(text, holder)
+                label.setStyleSheet("color:#7A939B;font-family:'Microsoft YaHei UI';font-size:11px;font-weight:700;background:transparent;")
+                row.addWidget(label)
+                action = QWidgetAction(menu)
+                action.setDefaultWidget(holder)
+                action.setText(text)
+                action.setEnabled(False)
+                menu.addAction(action)
             level = self.growth_state.get("level") if self.growth_state else None
-            growth_action = menu.addAction(f"查看成长卡（Lv.{level}）" if level else "查看成长卡")
+            growth_action = menu.addAction(theme_icon("growth", size=18),
+                                           f"查看成长卡（Lv.{level}）" if level else "查看成长卡")
             growth_action.setObjectName("dafeiyu-growth-card")
-            chat_action = menu.addAction("和云岚聊天…")
+            growth_action.setToolTip("打开成长卡：属性、回顾、权限与训练记录")
+            chat_action = menu.addAction(theme_icon("chat", size=18), "和云岚聊天…")
             chat_action.setObjectName("dafeiyu-chat")
-            spin_action = menu.addAction("转一圈")
+            chat_action.setToolTip("打开本地聊天窗口")
+            spin_action = menu.addAction(theme_icon("spin", size=18), "转一圈")
             spin_action.setObjectName("yunlan-spin")
-            feedback_yes = menu.addAction("喜欢刚才的动作")
-            feedback_no = menu.addAction("这个动作不太行")
+            feedback_yes = menu.addAction(theme_icon("heart", size=18), "喜欢刚才的动作")
+            feedback_no = menu.addAction(theme_icon("heart", "#9AAFB5", 18), "这个动作不太行")
             feedback_yes.setEnabled(self.last_neural is not None)
             feedback_no.setEnabled(self.last_neural is not None)
             menu.addSeparator()
+            menu_header("外观")
             size_menu = menu.addMenu("大小")
+            size_menu.setStyleSheet(MENU_QSS)
+            size_menu.setFont(QFont("Microsoft YaHei UI", 10))
             size_actions = {}
             for label, scale in (("迷你", 0.6), ("小", 0.8), ("标准", 1.0), ("大", 1.25)):
                 action = size_menu.addAction(label)
                 action.setCheckable(True)
                 action.setChecked(abs(self.scale - scale) < 0.05)
+                if action.isChecked():
+                    action.setIcon(theme_icon("check", size=16))
                 size_actions[action] = scale
             bubble_size_menu = menu.addMenu("气泡大小")
+            bubble_size_menu.setStyleSheet(MENU_QSS)
+            bubble_size_menu.setFont(QFont("Microsoft YaHei UI", 10))
             bubble_size_actions = {}
             for label, bubble_scale in (("小", 0.8), ("标准", 1.0), ("大", 1.2)):
                 action = bubble_size_menu.addAction(label)
                 action.setCheckable(True)
                 action.setChecked(abs(self.bubble_scale - bubble_scale) < 0.05)
+                if action.isChecked():
+                    action.setIcon(theme_icon("check", size=16))
                 bubble_size_actions[action] = bubble_scale
-            roam_action = menu.addAction("桌面漫游")
+            menu_header("陪伴")
+            roam_action = menu.addAction(theme_icon("check" if self.motion_enabled else "spin", size=18), "桌面漫游")
             roam_action.setCheckable(True)
             roam_action.setChecked(self.motion_enabled)
-            talk_action = menu.addAction("主动搭话")
+            talk_action = menu.addAction(theme_icon("check" if self.chatter_enabled else "chat", size=18), "主动搭话")
             talk_action.setCheckable(True)
             talk_action.setChecked(self.chatter_enabled)
-            reduced_action = menu.addAction("减少动态")
+            reduced_action = menu.addAction(theme_icon("check" if self.reduced_motion else "spark", size=18), "减少动态")
             reduced_action.setCheckable(True)
             reduced_action.setChecked(self.reduced_motion)
             collapse_action = None
             if self._bubble_visible() and self._idle_only():
-                collapse_action = menu.addAction("展开气泡" if self._compact_mode() else "收起气泡")
-            open_webui_action = menu.addAction(self.open_label)
+                collapse_action = menu.addAction(theme_icon("history", size=18),
+                                                 "展开气泡" if self._compact_mode() else "收起气泡")
             menu.addSeparator()
-            hide_action = menu.addAction("本次隐藏")
-            exit_action = menu.addAction("本次关闭")
+            open_webui_action = menu.addAction(theme_icon("arrow", size=18), self.open_label)
+            hide_action = menu.addAction(theme_icon("hide", "#627B84", 18), "本次隐藏")
+            exit_action = menu.addAction(theme_icon("close", "#AF4C56", 18), "本次关闭")
             self.menu_open = True
             try:
                 selected = menu.exec(event.globalPos())

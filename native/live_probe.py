@@ -90,7 +90,7 @@ if not menu:
 capture(menu, 'menu.png')
 # Growth is deliberately the first enabled action, so Home+Return tests the
 # actual menu selection without moving the owner's pointer.
-item_point = 48 | (12 << 16)
+item_point = 60 | (28 << 16)
 win32gui.PostMessage(menu, win32con.WM_MOUSEMOVE, 0, item_point)
 win32gui.PostMessage(menu, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, item_point)
 win32gui.PostMessage(menu, win32con.WM_LBUTTONUP, 0, item_point)

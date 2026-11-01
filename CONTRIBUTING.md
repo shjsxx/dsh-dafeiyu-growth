@@ -10,7 +10,7 @@
 
 ```powershell
 $env:QT_QPA_PLATFORM = 'offscreen'
-python -m unittest discover -s native -p "test_*.py" -v   # 659 项
+python -m unittest discover -s native -p "test_*.py" -v   # 660 项
 npm test                                                  # 36 项
 python native/realtime_probe.py                           # 本机回环，不开麦
 ```

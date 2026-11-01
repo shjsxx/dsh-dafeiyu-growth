@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QSignalSpy
 from growth_native import GrowthDialog, derive
-from growth_theme import PALETTE, icon
+from growth_theme import MENU_QSS, PALETTE, icon
 
 APP = QApplication.instance() or QApplication([])
 
@@ -29,8 +29,15 @@ class GrowthDesignTests(unittest.TestCase):
         for state in (':focus', ':hover', ':pressed', ':disabled', ':checked', ':selected'):
             self.assertIn(state, sheet)
     def test_original_vector_icons_are_available(self):
-        for name in ('growth','history','emotion','training','data','voice','shield','reset'):
+        for name in ('growth','history','emotion','training','data','voice','shield','reset',
+                     'chat','spin','heart','hide','close','spark','check','arrow'):
             self.assertFalse(icon(name).isNull(), name)
+    def test_context_menu_has_readable_states_and_sections(self):
+        for token in ('QMenu::item:selected', 'QMenu::item:disabled', 'QMenu::separator',
+                      'QMenu::indicator:checked', 'QMenu::right-arrow'):
+            self.assertIn(token, MENU_QSS)
+        self.assertIn('font-size:13px', MENU_QSS)
+        self.assertIn('#187E83', MENU_QSS)
     def test_four_traits_remain_exactly_the_original_numeric_values(self):
         self.dialog.update_state(derive({'xp':3265, 'counters':{'turns':24,'toolCalls':90}}))
         expected = derive({'xp':3265, 'counters':{'turns':24,'toolCalls':90}})['traits']

@@ -46,6 +46,30 @@ def icon(name, color='#187E83', size=20):
         p.drawLine(12, 19, 12, 22); p.drawLine(8, 22, 16, 22)
     elif name == 'arrow':
         p.drawLine(5, 12, 19, 12); p.drawLine(14, 7, 19, 12); p.drawLine(19, 12, 14, 17)
+    elif name == 'chat':
+        p.drawRoundedRect(QRectF(3, 5, 18, 13), 4, 4)
+        p.drawLine(8, 18, 7, 21); p.drawLine(7, 21, 12, 18)
+        p.drawLine(8, 10, 16, 10); p.drawLine(8, 13, 13, 13)
+    elif name == 'spin':
+        p.drawArc(QRectF(4, 4, 16, 16), 40 * 16, 280 * 16)
+        p.drawLine(19, 3, 19, 8); p.drawLine(19, 8, 14, 8)
+    elif name == 'heart':
+        path = QPainterPath(QPointF(12, 20))
+        path.cubicTo(3, 14, 2, 7, 7, 5); path.cubicTo(10, 4, 11, 6, 12, 8)
+        path.cubicTo(13, 6, 15, 4, 18, 6); path.cubicTo(22, 9, 19, 15, 12, 20)
+        p.drawPath(path)
+    elif name == 'hide':
+        p.drawEllipse(QRectF(3, 7, 18, 10)); p.drawEllipse(QRectF(10, 10, 4, 4))
+        p.drawLine(5, 20, 19, 4)
+    elif name == 'close':
+        p.drawLine(6, 6, 18, 18); p.drawLine(18, 6, 6, 18)
+    elif name == 'check':
+        p.drawLine(5, 12, 10, 17); p.drawLine(10, 17, 19, 7)
+    elif name == 'spark':
+        p.drawLine(12, 3, 12, 9); p.drawLine(12, 15, 12, 21)
+        p.drawLine(3, 12, 9, 12); p.drawLine(15, 12, 21, 12)
+        p.drawLine(6, 6, 9, 9); p.drawLine(15, 15, 18, 18)
+        p.drawLine(18, 6, 15, 9); p.drawLine(9, 15, 6, 18)
     elif name == 'reset':
         p.drawArc(QRectF(5, 5, 15, 15), -40 * 16, 290 * 16)
         p.drawLine(4, 4, 4, 10); p.drawLine(4, 10, 10, 10)
@@ -54,6 +78,21 @@ def icon(name, color='#187E83', size=20):
     p.end()
     return QIcon(image)
 
+
+MENU_QSS = """
+QMenu { background:#FFFFFF; border:1px solid #D9E6E8; border-radius:12px; padding:8px; }
+QMenu::item { padding:8px 30px 8px 34px; margin:1px 4px; border-radius:8px;
+    color:#284B54; font-family:'Microsoft YaHei UI'; font-size:13px; }
+QMenu::item:selected { background:#EFF8F5; color:#11595F; }
+QMenu::item:disabled { color:#9AAFB5; }
+QMenu::separator { height:1px; background:#E5EEEE; margin:7px 12px; }
+QMenu::section { padding:10px 26px 3px 34px; color:#7A939B; font-size:11px; font-weight:700; }
+QMenu::indicator { width:13px; height:13px; margin-left:10px; }
+QMenu::indicator:unchecked { border:1px solid #B9CFD3; border-radius:4px; background:#FFFFFF; }
+QMenu::indicator:checked { background:#187E83; border:3px solid #B6D9D8; border-radius:4px; }
+QMenu::right-arrow { width:8px; height:8px; margin-right:10px; }
+QMenu::scroller { height:18px; }
+"""
 
 DIALOG_QSS = """
 QDialog#growthJournal { background:#F3F6F7; }
