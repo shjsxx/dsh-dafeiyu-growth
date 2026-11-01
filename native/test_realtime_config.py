@@ -55,11 +55,12 @@ class RealtimeConfigTests(unittest.TestCase):
         env = {"DSH_DAFEIYU_REALTIME_FILE": str(root / "explicit.json"),
                "DSH_DAFEIYU_GROWTH_FILE": str(root / "profile" / "growth.json"),
                "DSH_HOME": str(root / "home"), "DSH_DAFEIYU_CLOUD_FILE": "ignored"}
-        self.assertEqual(rc.default_path(env), root / "explicit.json")
+        # Windows can return 8.3 short names (RUNNER~1) for temp paths.
+        self.assertEqual(rc.default_path(env).resolve(), (root / "explicit.json").resolve())
         env.pop("DSH_DAFEIYU_REALTIME_FILE")
-        self.assertEqual(rc.default_path(env), root / "profile" / "realtime.json")
+        self.assertEqual(rc.default_path(env).resolve(), (root / "profile" / "realtime.json").resolve())
         env.pop("DSH_DAFEIYU_GROWTH_FILE")
-        self.assertEqual(rc.default_path(env), root / "home" / "dsh-dafeiyu-growth" / "realtime.json")
+        self.assertEqual(rc.default_path(env).resolve(), (root / "home" / "dsh-dafeiyu-growth" / "realtime.json").resolve())
         self.assertEqual(rc.load_config(env=env)["path"], str(rc.default_path(env)))
 
     def test_endpoint_normalization_and_custom_exact_paths(self):
