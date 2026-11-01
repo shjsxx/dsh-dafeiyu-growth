@@ -1,0 +1,54 @@
+# Local build outputs (never commit a built helper)
+native/.build/
+native/dist/
+*.spec
+build/
+dist/
+
+# Local backup of the upstream helper, created by install.ps1 on first run
+native/backup/
+
+# Verification screenshots/results may contain personal usage statistics
+native/verification/
+audit-backup/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log*
+*.log
+
+# Local runtime data (configuration, keys, profiles, audits)
+realtime.json
+cloud.json
+profile.json
+training.json
+training.json.bak
+behavior.json
+neural.json
+emotion.json
+learning.json
+online.json
+knowledge.json
+companion.json
+result.json
+process.log
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,4 @@
+# Maintainer-only tools (live window probes / screenshots)
+# These scripts drive the real installed pet and are not needed by users.
+-r requirements-native.txt
+Pillow>=10

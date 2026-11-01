@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "createdAt": "2026-10-01T00:00:00.000Z",
+  "updatedAt": "2026-11-01T00:00:00.000Z",
+  "xp": 8100,
+  "counters": {
+    "events": 120,
+    "turns": 24,
+    "okTurns": 22,
+    "errorTurns": 2,
+    "toolCalls": 64,
+    "toolErrors": 3,
+    "approvals": 2,
+    "recoveries": 2
+  },
+  "tools": {
+    "read": 18,
+    "edit": 9,
+    "pwsh": 12,
+    "web_fetch": 4
+  },
+  "projects": {
+    "示例项目": 12
+  },
+  "hours": [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 2, 1, 2, 3, 4, 3, 2, 1, 0, 0, 0, 0, 0],
+  "days": {
+    "2026-10-31": 8,
+    "2026-11-01": 6
+  },
+  "activeMs": 7200000,
+  "errorStreak": 0,
+  "errorStreaks": {},
+  "unattributedErrorStreak": 0,
+  "bestErrorStreak": 2,
+  "learned": [
+    {
+      "id": "streak-2",
+      "text": "已经连续使用 2 天"
+    }
+  ],
+  "diary": [
+    {
+      "at": "2026-10-31T09:00:00.000Z",
+      "text": "今天完成了本地布局检查。"
+    }
+  ],
+  "lastReviewAt": "2026-10-31T09:00:00.000Z",
+  "recentEvents": [
+    "session-fixture-0001"
+  ],
+  "queueRecords": [],
+  "queueBatch": ""
+}

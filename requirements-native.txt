@@ -1,0 +1,10 @@
+# Native helper dependencies (Windows 10/11, Python 3.11)
+# Install:  python -m pip install -r requirements-native.txt
+PySide6>=6.8,<7
+pywin32>=306
+# Real-time voice (OpenAI Realtime protocol). Without it the native app still
+# runs, but the realtime channel fails closed with dependency_unavailable.
+websockets>=15,<17
+
+# Build-only dependency for native/build.ps1
+PyInstaller>=6.10

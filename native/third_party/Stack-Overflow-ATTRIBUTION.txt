@@ -1,0 +1,30 @@
+Stack Overflow reviewed Q&A adaptations — CC BY-SA 4.0
+
+The three Chinese summaries in native/knowledge_sources.py under
+REVIEWED_ANSWERS are edited/abridged translations and explanations derived from:
+
+1. Aaron Hall and subsequent contributors, answer 26853961
+   "How can I merge two Python dictionaries in a single expression?"
+   https://stackoverflow.com/a/26853961
+2. Bite code and subsequent contributors, answer 6581949
+   "What are metaclasses in Python?"
+   https://stackoverflow.com/a/6581949
+3. Du D. and subsequent contributors, answer 36798076
+   "@staticmethod vs @classmethod in Python"
+   https://stackoverflow.com/a/36798076
+
+Source API: https://api.stackexchange.com/docs/answers-by-ids
+The reader accepts only these exact answer/question/author ids and the
+content_license value "CC BY-SA 4.0". Source text is inspected for reviewed
+markers; unreviewed instructions, profiles, scores, comments, code and links
+are not persisted or executed. These checks detect schema changes, not prove
+factual truth. No endorsement by Stack Exchange or the authors is implied.
+
+The three Chinese adaptations are offered under the same Creative Commons
+Attribution-ShareAlike 4.0 International license:
+https://creativecommons.org/licenses/by-sa/4.0/
+Legal text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+Changes: translated to Chinese, abridged and rephrased; historical/version-
+specific examples omitted. Attribution and license links remain in each
+indexed answer. Only these adaptations, not unrelated application code,
+are covered by this notice. Supplied AS IS, without warranty; see license.

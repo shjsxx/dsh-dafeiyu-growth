@@ -1,0 +1,6 @@
+- insert:
+    - id: dsh-dafeiyu-growth
+      name: dsh-dafeiyu-growth
+      config:
+        enabled: true
+        showCard: true
