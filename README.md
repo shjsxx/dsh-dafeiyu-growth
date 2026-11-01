@@ -333,3 +333,7 @@ python -m pip install -r requirements-native.txt
 
 本项目以 **MIT License** 发布，见 [LICENSE](LICENSE)。它派生自 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)（MIT，Copyright © 2026 QCYTSN），并保留其许可全文于 `native/upstream-LICENSE`。内置表情词典来自 Unicode CLDR（Unicode License V3），Stack Overflow 问答摘要按 CC BY-SA 4.0 归属；完整第三方许可见 [NOTICE.md](NOTICE.md) 与 `native/third_party/`。
 
+**角色素材不由本仓库分发。** 上游 `assets/pet/`（PC2005-cloud/dsh-pet，MIT）、`legacy/dafeiyu/` 旧 BigFish 帧（不在 MIT 范围）、Chromium BSD-3-Clause 光标与提示音都随你安装的 `dsh-dafeiyu` 提供，须遵守其 [ASSET_LICENSE.md](https://github.com/QCYTSN/dsh-dafeiyu/blob/main/ASSET_LICENSE.md)；请勿把旧 BigFish 帧单独再分发。本仓库截图只含自绘矢量图标与合成测试数据。
+
+本项目是**非官方粉丝作品**，与 DeepSeek 无隶属或背书关系；名称、商标与角色权利归各自权利人。
+

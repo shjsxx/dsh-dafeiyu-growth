@@ -9,6 +9,23 @@
 
 本项目自身代码同样以 **MIT License** 发布，见根目录 `LICENSE`。
 
+`native/runtime/` 与 `native/helper.py` 中部分代码派生自上游 0.1.23，按上游 MIT 许可保留
+Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留根目录 `LICENSE` 和
+`native/upstream-LICENSE`。
+
+## 角色素材不在本仓库
+
+本仓库**不分发**上游的任何角色帧、光标或音效：`assets/pet/`（来自
+[PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)，MIT）、
+`legacy/dafeiyu/`（BigFish 旧帧，**不在 MIT 范围**）、Chromium BSD-3-Clause 光标和
+程序生成提示音都由你安装的 `dsh-dafeiyu` 提供，适用其
+[ASSET_LICENSE.md](https://github.com/QCYTSN/dsh-dafeiyu/blob/main/ASSET_LICENSE.md)。
+运行本补丁前请自行确认已合法获得该上游包；本仓库的截图只包含我们自绘的矢量图标和
+合成测试数据，不含上述角色素材。
+
+本项目是非官方粉丝作品，与 DeepSeek 无隶属或背书关系；相关名称、商标与角色权利归
+各自权利人。
+
 ## 原生目录中的第三方资料
 
 | 文件 | 内容 | 许可 |
