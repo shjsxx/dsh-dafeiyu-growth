@@ -100,16 +100,17 @@ class NeuralBrainTests(unittest.TestCase):
         env = {"DSH_DAFEIYU_NEURAL_FILE": "", "DSH_DAFEIYU_GROWTH_FILE": "",
                "DSH_HOME": "", "DSH_DAFEIYU_BEHAVIOR_FILE": "ignored.json"}
         with mock.patch.dict(os.environ, env), mock.patch.object(Path, "home", return_value=self.root):
-            self.assertEqual(neural.default_path(), self.root / ".dsh" / "dsh-dafeiyu-growth" / "neural.json")
+            # Windows temp paths may use 8.3 short names; compare resolved paths.
+            self.assertEqual(neural.default_path().resolve(), (self.root / ".dsh" / "dsh-dafeiyu-growth" / "neural.json").resolve())
             os.environ["DSH_HOME"] = str(self.root / "custom-home")
-            self.assertEqual(neural.default_path(), self.root / "custom-home" / "dsh-dafeiyu-growth" / "neural.json")
+            self.assertEqual(neural.default_path().resolve(), (self.root / "custom-home" / "dsh-dafeiyu-growth" / "neural.json").resolve())
             os.environ["DSH_DAFEIYU_GROWTH_FILE"] = str(self.root / "profile" / "growth.json")
-            self.assertEqual(neural.default_path(), self.root / "profile" / "neural.json")
+            self.assertEqual(neural.default_path().resolve(), (self.root / "profile" / "neural.json").resolve())
             os.environ["DSH_DAFEIYU_NEURAL_FILE"] = str(self.root / "override.json")
-            self.assertEqual(neural.default_path(), self.root / "override.json")
+            self.assertEqual(neural.default_path().resolve(), (self.root / "override.json").resolve())
             brain = NeuralBrain(seed=4)
             self.brains.append(brain)
-            self.assertEqual(brain.path, self.root / "override.json")
+            self.assertEqual(brain.path.resolve(), (self.root / "override.json").resolve())
             self.assertFalse(brain.path.exists())
 
     def test_deterministic_initialization_and_no_constructor_writes(self):
