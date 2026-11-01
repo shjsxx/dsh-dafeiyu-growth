@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import time
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QCheckBox, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 LABELS = {"joy": "开心", "sad": "低落", "anger": "生气", "anxious": "焦虑", "tired": "疲惫", "calm": "平静", "neutral": "线索不足"}
 
@@ -44,11 +44,16 @@ class OnlinePanel(QFrame):
         super().__init__(parent)
         self.setObjectName("liveOnlinePanel")
         self.setStyleSheet('''
-            QFrame#liveOnlinePanel { background: #EDF5F6; border: 1px solid #CDDFE4; border-radius: 11px; }
-            QFrame#liveOnlinePanel QLabel { font-family: "Microsoft YaHei UI"; font-size: 13px; color: #304F62; background: transparent; border: none; }
-            QFrame#liveOnlinePanel QLabel#liveHeading { font-size: 14px; font-weight: 700; color: #193C4F; }
-            QFrame#liveOnlinePanel QPushButton { font-size: 13px; padding: 5px 9px; color: #23566A; background: white; border: 1px solid #BFD7DF; border-radius: 6px; }
-            QFrame#liveOnlinePanel QCheckBox { font-family: "Microsoft YaHei UI"; font-size: 13px; color: #244A5D; }
+            QFrame#liveOnlinePanel { background:#FFFFFF; border:1px solid #D9E6E8; border-radius:12px; }
+            QFrame#liveOnlinePanel QLabel { font-family:"Microsoft YaHei UI"; font-size:13px; color:#435E68; background:transparent; border:none; }
+            QFrame#liveOnlinePanel QLabel#liveHeading { font-size:14px; font-weight:700; color:#11595F; background:#EFF8F5; padding:9px; border-radius:8px; }
+            QFrame#liveOnlinePanel QLabel#liveHeading[state="warning"] { color:#A77739; background:#FFF5E5; }
+            QFrame#liveOnlinePanel QLabel#liveHeading[state="error"] { color:#AF4C56; background:#FFF5E5; }
+            QFrame#liveOnlinePanel QLabel[caption="true"] { font-size:12px; color:#627B84; }
+            QFrame#liveOnlinePanel QPushButton { font-size:13px; padding:6px 9px; color:#11595F; background:white; border:1px solid #D9E6E8; border-radius:6px; }
+            QFrame#liveOnlinePanel QPushButton:focus, QFrame#liveOnlinePanel QCheckBox:focus { border:2px solid #187E83; }
+            QFrame#liveOnlinePanel QPushButton:disabled { color:#627B84; background:#F3F6F7; }
+            QFrame#liveOnlinePanel QCheckBox { font-family:"Microsoft YaHei UI"; font-size:13px; color:#17343D; }
         ''')
         root = QVBoxLayout(self)
         root.setContentsMargins(11, 9, 11, 9)
@@ -67,7 +72,22 @@ class OnlinePanel(QFrame):
         self.timing = self._label("")
         self.comparison = self._label("情感对照：等待你直接说话；不上传原句。")
         self.note = self._label("动态源每5分钟；词典/课程每小时复核。模型在本机适应，收录不等于训练。")
-        for item in (self.status, self.timing, self.comparison, self.note):
+        root.addWidget(self.status)
+        self.timing.hide()  # Compatibility text; the visible presentation is a time grid.
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(4)
+        self.time_values = {}
+        for index, (key, caption) in enumerate((('source', '来源更新'), ('checked', '本机校验'), ('next', '下次检查'))):
+            title = self._label(caption)
+            title.setProperty('caption', True)
+            value = self._label('尚无')
+            grid.addWidget(title, index, 0)
+            grid.addWidget(value, index, 1)
+            self.time_values[key] = value
+        root.addLayout(grid)
+        self.note.setProperty('caption', True)
+        for item in (self.comparison, self.note):
             root.addWidget(item)
         root.addWidget(self.curriculum_button, 0, Qt.AlignmentFlag.AlignLeft)
 
@@ -105,6 +125,12 @@ class OnlinePanel(QFrame):
         else:
             state = "动态公开联网已开启 · 等待首次更新"
         self.status.setText(state)
+        self.status.setProperty('state', 'error' if enabled and live.get('errorCode') else 'warning' if not enabled or not seconds(live.get('lastSuccess')) else 'ready')
+        self.status.style().unpolish(self.status)
+        self.status.style().polish(self.status)
+        self.time_values['source'].setText(stamp(millis(live.get('sourceUpdatedAtMs'))))
+        self.time_values['checked'].setText(stamp(live.get('lastSuccess')))
+        self.time_values['next'].setText(stamp(live.get('nextCheck')))
         self.timing.setText("来源更新 " + stamp(millis(live.get("sourceUpdatedAtMs")))
                             + "\n本机校验 " + stamp(live.get("lastSuccess")) + " · 下次 " + stamp(live.get("nextCheck")))
         model, public = comparison.get("modelLabel"), comparison.get("publicLabel")

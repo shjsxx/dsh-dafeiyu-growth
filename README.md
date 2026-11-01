@@ -6,9 +6,11 @@
 
 ## 界面预览
 
-| 成长卡 | 连续语音与权限 | 实时语音 API 设置 |
+| 成长概览 | 情感工作台 | 训练总览 |
 | --- | --- | --- |
-| ![成长卡概览](docs/screenshots/overview.png) | ![连续语音与安全权限](docs/screenshots/voice-tools.png) | ![实时语音 API 设置](docs/screenshots/realtime-settings.png) |
+| ![成长概览](docs/screenshots/growth-overview.png) | ![情感工作台](docs/screenshots/growth-emotion.png) | ![训练总览](docs/screenshots/growth-training.png) |
+
+[查看七页重设计与验证说明](docs/growth-redesign.md)
 
 截图使用合成测试档案和隔离数据，不含真实使用记录。
 
@@ -22,6 +24,14 @@
 4. 可选：按「自行构建与测试」构建并运行 `native\install.ps1` 安装原生补丁；0.5.0 以后的原生成长卡、连续语音、电脑操作和实时语音都依赖这一步。
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
+
+## 0.10.0 · 岚青成长工作台
+
+- 完整统一七页原生成长卡：岚青主色、浅雾底色、白色卡片、原生矢量图标；正文与数字分级，关键操作、危险操作和禁用状态明确区分。
+- 概览的成长属性改为2×2卡片，陪伴记录分主次；本领页整理练习与动作模型，回顾页使用日期时间线，权限页统一隐私边界与配置入口。
+- 情感工作台、训练总览/记录/来源、数据知识/情感视图，以及语音/电脑操作数字审计统一样式。公开资料状态保留文字说明，不仅靠颜色表达正常、忙碌、未连接或错误。
+- 保持默认456×640、最小420×480，页内独立滚动、固定关闭栏；刷新保留当前子页、记录选择与滚动。不改变任何模型、档案结构、网络开关、电脑许可或确认逻辑。
+- 合成预览覆盖空白/有数据/错误 × 12个页面或子视图 × 两个窗口尺寸，共72张截图；不会读取主人档案、密钥或音频。运行 `python native/render_growth_preview.py` 可重现，输出位于已忽略的 `native/verification/redesign/`。
 
 ## 0.9.0 · 独立 OpenAI Realtime 语音 API
 
@@ -292,7 +302,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（640 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（654 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

@@ -356,12 +356,13 @@ class _CloudSeal(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(88, 88)
+        self.setFixedSize(72, 72)
         self.setAccessibleName("云岚的云月徽记")
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.scale(self.width() / 88, self.height() / 88)
         painter.setPen(QPen(QColor(210, 218, 247, 45), 1))
         painter.setBrush(QColor(255, 255, 255, 7))
         painter.drawEllipse(QRectF(5, 5, 78, 78))
@@ -406,8 +407,8 @@ class _MoodOrb(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(6, 6, self.width() - 12, self.height() - 12)
-        base = QColor("#DCECF6") if self.valence >= 0 else QColor("#E7E4F2")
-        glow = QColor("#78B7C9") if self.energy >= .5 else QColor("#B7A7C7")
+        base = QColor("#D4EAE3") if self.valence >= 0 else QColor("#E1E9EB")
+        glow = QColor("#65AAA0") if self.energy >= .5 else QColor("#9EACB2")
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(glow.red(), glow.green(), glow.blue(), 45))
         painter.drawEllipse(rect.adjusted(-4, -4, 4, 4))
@@ -416,7 +417,7 @@ class _MoodOrb(QFrame):
         painter.setBrush(QColor("#FFFFFF"))
         painter.drawEllipse(QRectF(26, 27, 8, 9))
         painter.drawEllipse(QRectF(48, 27, 8, 9))
-        painter.setPen(QPen(QColor("#5B7690"), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.setPen(QPen(QColor("#376C6B"), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         if self.valence >= 0:
             painter.drawArc(QRectF(28, 31, 27, 24), 205 * 16, 130 * 16)
         else:
@@ -429,13 +430,13 @@ class _JournalCover(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         gradient = QLinearGradient(0, 0, self.width(), self.height())
-        gradient.setColorAt(0, QColor("#29374F"))
-        gradient.setColorAt(1, QColor("#45476D"))
+        gradient.setColorAt(0, QColor("#143D47"))
+        gradient.setColorAt(1, QColor("#1E686E"))
         painter.setBrush(gradient)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(QRectF(self.rect()), 18, 18)
         painter.setClipPath(self._clip())
-        painter.setPen(QPen(QColor(221, 225, 247, 18), 1))
+        painter.setPen(QPen(QColor(190, 230, 224, 25), 1))
         for offset in (0, 20, 40):
             painter.drawEllipse(QRectF(self.width() - 150 + offset, self.height() - 60 + offset, 215, 115))
         painter.end()
@@ -488,17 +489,17 @@ class _DiaryTimeline(QWidget):
             row = QHBoxLayout(frame)
             row.setContentsMargins(14, 13, 15, 14)
             row.setSpacing(12)
-            marker = _label("◇", "diaryMarker", False)
-            marker.setStyleSheet("color: #A98F63; font-size: 18px;")
+            marker = _label("", "diaryMarker", False)
+            marker.setPixmap(theme_icon("history", size=18).pixmap(18, 18))
             marker.setFixedWidth(18)
             row.addWidget(marker, 0, Qt.AlignmentFlag.AlignTop)
             words = QVBoxLayout()
             words.setSpacing(7)
             stamp = _label(date or "成长留影", "diaryDate")
-            stamp.setStyleSheet("color: #66707F; font-size: 11px;")
+            stamp.setStyleSheet("color: #627B84; font-size: 12px;")
             body = _label(text, "diaryBody")
             body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            body.setStyleSheet("font-size: 13px; color: #2F3948;")
+            body.setStyleSheet("font-size: 13px; color: #284B54;")
             words.addWidget(stamp)
             words.addWidget(body)
             row.addLayout(words, 1)
@@ -506,66 +507,8 @@ class _DiaryTimeline(QWidget):
         self.updateGeometry()
 
 
-DIALOG_QSS = """
-    QDialog#growthJournal { background: #F6F5F2; }
-    QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
-    QWidget#growthContent { background: transparent; }
-    QLabel { color: #1F2837; font-family: "Microsoft YaHei UI"; font-size: 14px; background: transparent; }
-    QLabel#coverEyebrow { color: #CDD4E8; font-size: 11px; letter-spacing: 2px; }
-    QLabel#coverName { color: #FFFFFF; font-size: 30px; font-weight: 700; }
-    QLabel#growthLevel { color: #EEDFBC; font-size: 15px; font-weight: 600; }
-    QLabel#growthTitle { color: #D6DCEC; font-size: 12px; }
-    QLabel#growthXp { color: #DCE2F0; font-size: 11px; }
-    QLabel#coverProgressHint { color: #DCE2F0; font-size: 11px; }
-    QLabel[heading="true"] { font-size: 14px; font-weight: 600; color: #1D2637; }
-    QLabel#sectionAside { color: #616978; font-size: 12px; }
-    QFrame[journalCard="true"] { background: #FFFEFC; border: 1px solid #E8E5DF; border-radius: 13px; }
-    QFrame#heroCard { background: transparent; border: none; }
-    QProgressBar { border: none; background: #ECEAF0; border-radius: 3px; }
-    QProgressBar::chunk { border-radius: 3px; background: #8D90BB; }
-    QProgressBar#growthXpProgress { background: #535C77; border-radius: 2px; }
-    QProgressBar#growthXpProgress::chunk { background: #D9C8A6; border-radius: 2px; }
-    QLabel[traitNumber="true"] { font-size: 14px; font-weight: 600; color: #3E4960; }
-    QLabel#memoryStatus { color: #55606F; font-size: 13px; }
-    QLabel#permissionText, QLabel#neuralInfo, QLabel#emotionInfo, QLabel#cloudStatus { color: #333C49; font-size: 14px; }
-    QLabel#growthSkills, QLabel#growthLearned { color: #2C3644; font-size: 14px; }
-    QLabel#emotionName { font-size: 25px; font-weight: 700; color: #244B66; }
-    QLabel#emotionInfo { color: #364F63; font-size: 13px; }
-    QLabel#heardEmotion { color: #28506E; font-size: 20px; font-weight: 600; }
-    QLabel#heardDetail { color: #53687C; font-size: 13px; }
-    QLabel#learningStatus { color: #2B4F66; font-size: 13px; }
-    QLabel#feelingCaption { color: #566A7E; font-size: 13px; }
-    QLabel#feelingValue { color: #1E3852; font-size: 18px; font-weight: 600; }
-    QLabel#emotionFootnote { color: #6B7A8C; font-size: 12px; }
-    QFrame#companionFeelingCard { background: #EDF5F9; border: 1px solid #DDEAF2; border-radius: 16px; }
-    QFrame#emotionCard, QFrame#emotionLearningCard, QFrame#feelingTile { background: #FFFFFF; border: 1px solid #E0E8F0; border-radius: 13px; }
-    QFrame#companionFeelingCard QLabel#memoryStatus, QFrame#emotionCard QLabel#memoryStatus, QFrame#emotionLearningCard QLabel#memoryStatus { color: #5C7186; }
-    QFrame#moodOrb { background: transparent; border: none; }
-    QProgressBar#emotionSignal { background: #E8F0F5; border: none; border-radius: 2px; }
-    QProgressBar#emotionSignal::chunk { background: #75A7C2; border-radius: 2px; }
-    QPushButton#emotionSection { background: #E8EDF3; border: none; color: #556173; padding: 8px; font-size: 13px; }
-    QPushButton#emotionSection:checked { background: #D2E6F2; color: #1D5473; font-weight: 600; }
-    QLabel#footerHint { color: #646C7A; font-size: 12px; }
-    QTabWidget::pane { border: none; background: transparent; top: 7px; }
-    QTabBar { background: #E7E6E4; border-radius: 10px; }
-    QTabBar::tab { color: #444C5C; background: transparent; padding: 9px 6px; margin: 3px 2px; border: none; border-radius: 7px; font-family: "Microsoft YaHei UI"; font-size: 13px; }
-    QTabBar::tab:selected { color: #1E2740; background: #FFFFFF; font-weight: 700; }
-    QTabBar::tab:hover:!selected { color: #262F40; background: #DCDBD9; }
-    QPushButton { background: #FFFEFC; color: #2B3546; border: 1px solid #CDCFD9; border-radius: 8px; padding: 7px 12px; font-family: "Microsoft YaHei UI"; font-size: 13px; }
-    QPushButton:hover { background: #EFEDF5; border-color: #A9A8C2; }
-    QPushButton:pressed { background: #E6E3EF; }
-    QPushButton:disabled { color: #8E8E97; background: #F0EFEE; border-color: #E0DEDB; }
-    QPushButton#closeJournal, QPushButton#emotionLearn { background: #3F4870; border-color: #3F4870; color: #FFFFFF; font-weight: 600; }
-    QPushButton#closeJournal:hover, QPushButton#emotionLearn:hover { background: #55608C; }
-    QPushButton#forgetMemory, QPushButton#neuralReset { color: #8D5A66; }
-    QCheckBox { color: #2B3548; font-family: "Microsoft YaHei UI"; font-size: 14px; spacing: 8px; }
-    QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #A9A8BE; border-radius: 4px; background: #FFFEFC; }
-    QCheckBox::indicator:checked { background: #626A96; border: 3px solid #CBCDE0; }
-    QScrollBar:vertical { background: transparent; width: 6px; margin: 3px 0; }
-    QScrollBar::handle:vertical { background: #D7D5DE; border-radius: 3px; min-height: 32px; }
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
-"""
+from growth_theme import DIALOG_QSS, icon as theme_icon
+
 
 
 class GrowthDialog(QDialog):
@@ -599,18 +542,18 @@ class GrowthDialog(QDialog):
         self.setFont(font)
         self.setStyleSheet(DIALOG_QSS)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(18, 18, 18, 12)
-        outer.setSpacing(12)
+        outer.setContentsMargins(16, 16, 16, 12)
+        outer.setSpacing(10)
         self.hero = _JournalCover()
         self.hero.setObjectName("heroCard")
         hero_layout = QVBoxLayout(self.hero)
-        hero_layout.setContentsMargins(19, 15, 19, 14)
-        hero_layout.setSpacing(8)
+        hero_layout.setContentsMargins(18, 14, 18, 14)
+        hero_layout.setSpacing(7)
         identity = QHBoxLayout()
         identity.setSpacing(8)
         identity_text = QVBoxLayout()
         identity_text.setSpacing(2)
-        identity_text.addWidget(_label("成 长 手 账   /   Y U N L A N", "coverEyebrow", False))
+        identity_text.addWidget(_label("Y U N L A N  /  成长档案", "coverEyebrow", False))
         name_row = QHBoxLayout()
         name_row.setSpacing(12)
         name_row.addWidget(_label("云岚", "coverName", False))
@@ -624,7 +567,7 @@ class GrowthDialog(QDialog):
         self.cloud_seal = _CloudSeal()
         identity.addWidget(self.cloud_seal)
         hero_layout.addLayout(identity)
-        self.xp_progress = self._meter(1000, 4)
+        self.xp_progress = self._meter(1000, 6)
         self.xp_progress.setObjectName("growthXpProgress")
         self.xp_progress.setAccessibleName("本级经验进度")
         hero_layout.addWidget(self.xp_progress)
@@ -650,35 +593,38 @@ class GrowthDialog(QDialog):
         diary_page = self._page("回顾")
         self.scroll = self.page_scrolls[0]
 
-        self._heading(overview, "一点点，长成现在的样子", "四维属性")
+        self._heading(overview, "成长画像", "来自日常积累")
         frame, box = self._card("traitsPanel")
-        box.setSpacing(12)
+        box.setContentsMargins(10, 10, 10, 10)
+        traits_grid = QGridLayout()
+        traits_grid.setSpacing(8)
         self.trait_bars, self.trait_labels = {}, {}
-        trait_colors = ("#9994BA", "#788FB4", "#BA8F9E", "#83A69E")
+        trait_colors = ("#268A88", "#558C9C", "#B28174", "#8E9B65")
         for index, (key, title, _) in enumerate(TRAITS):
-            color = trait_colors[index]
+            tile = QFrame()
+            tile.setProperty("traitTile", True)
+            tile_box = QVBoxLayout(tile)
+            tile_box.setContentsMargins(12, 8, 12, 9)
+            tile_box.setSpacing(6)
             row = QHBoxLayout()
-            row.setSpacing(12)
-            dot = _label("●", f"traitDot-{key}", False)
-            dot.setFixedWidth(11)
-            dot.setStyleSheet(f"color: {color}; font-size: 11px;")
-            row.addWidget(dot)
+            row.setSpacing(8)
             name = _label(title, f"trait-{key}", False)
-            name.setFixedWidth(30)
-            row.addWidget(name)
-            bar = self._meter(100, 5, color)
-            row.addWidget(bar, 1)
+            row.addWidget(name, 1)
             value = _label("0", f"traitValue-{key}", False)
             value.setProperty("traitNumber", True)
-            value.setFixedWidth(30)
-            value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            value.setAlignment(Qt.AlignmentFlag.AlignRight)
             row.addWidget(value)
-            box.addLayout(row)
+            tile_box.addLayout(row)
+            bar = self._meter(100, 4, trait_colors[index])
+            tile_box.addWidget(bar)
+            traits_grid.addWidget(tile, index // 2, index % 2)
             self.trait_bars[key], self.trait_labels[key] = bar, value
+        box.addLayout(traits_grid)
         overview.addWidget(frame)
-        self._heading(overview, "我们一起的日常", "陪伴记录")
+        self._heading(overview, "陪伴足迹", "每一次都算数")
         frame, box = self._card("togetherPanel")
-        box.setSpacing(12)
+        box.setSpacing(9)
+        box.setContentsMargins(14, 10, 14, 10)
         self.stat_values = {}
         specs = (("streak", "连续陪伴 / 天"), ("turns", "聊过的轮次"), ("toolCalls", "工具调用"),
                  ("toolErrors", "工具报错"), ("recoveries", "任务自救"), ("approvals", "授权确认"))
@@ -691,12 +637,12 @@ class GrowthDialog(QDialog):
             value = _label("0", f"statValue-{key}", False)
             value.setAlignment(Qt.AlignmentFlag.AlignCenter)
             value.setStyleSheet(
-                "font-size: 24px; font-weight: 600; color: #2B3450;" if index < 3
-                else "font-size: 14px; font-weight: 600; color: #5A6070;"
+                "font-size: 24px; font-weight: 700; color: #17343D;" if index < 3
+                else "font-size: 16px; font-weight: 600; color: #435E68;"
             )
             label = _label(caption, f"statCaption-{key}")
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setStyleSheet("font-size: 11px; color: #626A78;")
+            label.setStyleSheet("font-size: 12px; color: #627B84;")
             cell.addWidget(value)
             cell.addWidget(label)
             (primary if index < 3 else secondary).addLayout(cell, 1)
@@ -704,20 +650,20 @@ class GrowthDialog(QDialog):
         box.addLayout(primary)
         divider = QFrame()
         divider.setFixedHeight(1)
-        divider.setStyleSheet("background: #EFEBE6; border: none;")
+        divider.setStyleSheet("background: #E5EEEE; border: none;")
         box.addWidget(divider)
         box.addLayout(secondary)
         overview.addWidget(frame)
         self.stats_label = self.stat_values["turns"]
-        self.audit_note = _label("本地活动慢慢积累 · 不代表模型能力评分", "memoryStatus")
+        self.audit_note = _label("这些是日常活动记录，不是模型能力评分。", "memoryStatus")
         self.audit_note.setToolTip("历史异常计数原样保留；这些成长属性不代表动作或模型能力。")
         overview.addWidget(self.audit_note)
         overview.addStretch()
 
-        self._heading(memory, "练习本领")
+        self._heading(memory, "练习与收获", "慢慢熟练")
         frame, box = self._card("card")
         self.skill_bars, self.skill_values = {}, {}
-        for key, title, color in (("agility", "敏捷", "#5C8FBF"), ("balance", "平衡", "#3F9FA8")):
+        for key, title, color in (("agility", "敏捷", "#278A8A"), ("balance", "平衡", "#8E9B65")):
             row = QHBoxLayout()
             row.addWidget(_label(title, f"skill-{key}", False))
             value = _label("0", f"skillValue-{key}", False)
@@ -729,11 +675,11 @@ class GrowthDialog(QDialog):
             self.skill_bars[key], self.skill_values[key] = bar, value
         self.skills_label = _label("尚未解锁本领；完成练习后会记录在这里。", "growthSkills")
         self.bond_label = _label("", "growthBond")
-        self.bond_label.setStyleSheet("font-size: 12px; color: #5B6A7C;")
+        self.bond_label.setStyleSheet("font-size: 12px; color: #627B84; padding:6px; background:#EFF8F5; border-radius:6px;")
         box.addWidget(self.skills_label)
         box.addWidget(self.bond_label)
         memory.addWidget(frame)
-        self._heading(memory, "本地神经网络")
+        self._heading(memory, "动作偏好模型", "本机运行")
         frame, box = self._card("card")
         self.neural_label = _label("等待本地模型初始化。", "neuralInfo")
         box.addWidget(self.neural_label)
@@ -741,6 +687,7 @@ class GrowthDialog(QDialog):
         buttons.setSpacing(8)
         self.neural_rollback = QPushButton("回滚上一版")
         self.neural_rollback.setObjectName("neuralRollback")
+        self.neural_rollback.setIcon(theme_icon("reset", size=16))
         self.neural_rollback.clicked.connect(self.neural_rollback_requested.emit)
         self.neural_reset = QPushButton("重置网络")
         self.neural_reset.setObjectName("neuralReset")
@@ -751,7 +698,7 @@ class GrowthDialog(QDialog):
         box.addLayout(buttons)
         memory.addWidget(frame)
         memory.addWidget(_label("只学习数字化的动作偏好；不读取文字、屏幕或文件，不是语言模型。", "memoryStatus"))
-        self._heading(memory, "观察到的使用习惯")
+        self._heading(memory, "记住的日常", "使用习惯")
         frame, box = self._card("card")
         self.learned_label = _label(name="growthLearned")
         box.addWidget(self.learned_label)
@@ -764,18 +711,19 @@ class GrowthDialog(QDialog):
         memory.addWidget(self.forget_button, 0, Qt.AlignmentFlag.AlignLeft)
         memory.addStretch()
 
-        self._heading(diary_page, "风经过的地方，都留着回忆", "最近 5 条")
+        self._heading(diary_page, "成长回顾", "最近 5 条")
+        diary_page.addWidget(_label("把走过的小小一步，留在这里。", "pageCaption"))
         self.diary_label = _DiaryTimeline()
         diary_page.addWidget(self.diary_label)
         diary_page.addWidget(_label("进阶时自动留下一条记录；其他回顾由你或 agent 编写。", "memoryStatus"))
         diary_page.addStretch()
         permissions = self._page("权限")
-        self._heading(permissions, "安心陪伴的前提", "隐私边界")
+        self._heading(permissions, "你的选择，始终优先", "权限边界")
         frame, box = self._card("privacyCard")
         box.addWidget(_label(
-            "不读取屏幕、剪贴板、你的其他文件、浏览记录或其他会话。\n"
-            "云端默认逐句确认；本次连续授权只含当前窗口的短对话。\n"
-            "动作网络只学习数字反馈；情感模型不保存原句。",
+            "默认不读取屏幕、剪贴板、浏览记录或其他会话。\n"
+            "聊天与语音上传均需另行确认，权限不随成长扩大。\n"
+            "动作模型只学习数字反馈；情感模型不保存原句。",
             "permissionText"))
         permissions.addWidget(frame)
         self._heading(permissions, "云端对话", "每次确认")
@@ -784,6 +732,8 @@ class GrowthDialog(QDialog):
         box.addWidget(self.cloud_status)
         self.cloud_settings_button = QPushButton("云端接口设置")
         self.cloud_settings_button.setObjectName("cloudSettings")
+        self.cloud_settings_button.setProperty("primary", True)
+        self.cloud_settings_button.setIcon(theme_icon("arrow", "#FFFFFF", 16))
         self.cloud_settings_button.clicked.connect(self.cloud_settings_requested.emit)
         box.addWidget(self.cloud_settings_button, 0, Qt.AlignmentFlag.AlignLeft)
         permissions.addWidget(frame)
@@ -796,6 +746,8 @@ class GrowthDialog(QDialog):
         permissions.addWidget(frame)
         self._heading(permissions, "电脑操作", "会话授权 · 逐项确认")
         tools_button = QPushButton('连续语音与安全权限…')
+        tools_button.setProperty("primary", True)
+        tools_button.setIcon(theme_icon("voice", "#FFFFFF", 16))
         tools_button.setAutoDefault(False)
         tools_button.clicked.connect(self.voice_tools_requested.emit)
         permissions.addWidget(tools_button)
@@ -835,7 +787,7 @@ class GrowthDialog(QDialog):
         emotion_page.addWidget(self.emotion_stack)
         emotion_page.addStretch()
         emotion_now, emotion_settings = self.emotion_views
-        self._heading(emotion_now, "云岚自己的天气", "陪伴状态")
+        self._heading(emotion_now, "云岚的心情天气", "陪伴状态")
         frame, box = self._card("companionFeelingCard")
         mood_row = QHBoxLayout()
         self.companion_orb = _MoodOrb()
@@ -857,7 +809,7 @@ class GrowthDialog(QDialog):
         feeling_grid.setHorizontalSpacing(8)
         feeling_grid.setVerticalSpacing(8)
         self.feeling_values, self.feeling_bars = {}, {}
-        for index, (key, caption, color) in enumerate((("valence", "愉悦倾向", "#7E9FD0"), ("energy", "精神", "#75B6AA"), ("trust", "熟悉 / 信任", "#CE9AB0"), ("curiosity", "好奇", "#D2B173"))):
+        for index, (key, caption, color) in enumerate((("valence", "愉悦倾向", "#278A8A"), ("energy", "精神", "#6C9E8C"), ("trust", "熟悉 / 信任", "#AA8A79"), ("curiosity", "好奇", "#A49560"))):
             tile, tile_box = self._card("feelingTile")
             tile_box.setContentsMargins(11, 8, 11, 8)
             tile_box.setSpacing(6)
@@ -881,11 +833,12 @@ class GrowthDialog(QDialog):
         self.emotion_label.hide()
         self.heard_detail = _label("还没有明确线索，你可以慢慢说。", "heardDetail")
         box.addWidget(self.heard_detail)
-        self.emotion_signal = self._meter(100, 4, "#8AA9C4")
+        self.emotion_signal = self._meter(100, 4, "#55A4A5")
         self.emotion_signal.setObjectName("emotionSignal")
         box.addWidget(self.emotion_signal)
         emotion_now.addWidget(frame)
         self.emotion_comparison = _label("情感对照：等待直接对话；不上传原句。", "learningStatus")
+        self.emotion_comparison.setStyleSheet("background:#EAF2F3; padding:10px; border-radius:9px; color:#435E68; font-size:12px;")
         emotion_now.addWidget(self.emotion_comparison)
         emotion_now.addWidget(_label("表达模拟 ≠ 真实意识  ·  情绪线索 ≠ 心理诊断", "emotionFootnote"))
         emotion_now.addStretch()
@@ -944,21 +897,23 @@ class GrowthDialog(QDialog):
         data_page.addWidget(self.data_online_label)
         voice_button = QPushButton('连续语音与安全权限…')
         voice_button.setAutoDefault(False)
+        voice_button.setIcon(theme_icon("voice", size=16))
         voice_button.clicked.connect(self.voice_tools_requested.emit)
         data_page.addWidget(voice_button)
-        self.voice_data_panel = VoiceDataPanel(self)
-        data_page.addWidget(self.voice_data_panel)
         self.data_panel = DataPanel(self)
         data_page.addWidget(self.data_panel)
+        self.voice_data_panel = VoiceDataPanel(self)
+        data_page.addWidget(self.voice_data_panel)
         data_page.addStretch()
         self._emotion_snapshot, self._companion_snapshot, self._training_snapshot = {}, {}, {}
         footer = QHBoxLayout()
-        hint = _label("●  本地记录  ·  私聊上传需确认", "footerHint", False)
+        hint = _label("本地记录 · 上传需确认", "footerHint", False)
+        hint.setToolTip("成长卡只展示本地快照；切换页面不会联网或授权。")
         footer.addWidget(hint)
         footer.addStretch()
         self.close_button = QPushButton("关闭")
         self.close_button.setObjectName("closeJournal")
-        self.close_button.setMinimumWidth(72)
+        self.close_button.setMinimumWidth(82)
         self.close_button.setAutoDefault(False)
         self.close_button.clicked.connect(self.close)
         footer.addWidget(self.close_button)
@@ -1206,7 +1161,12 @@ class GrowthDialog(QDialog):
     @staticmethod
     def _heading(layout, text, aside=""):
         row = QHBoxLayout()
-        row.setSpacing(6)
+        row.setSpacing(8)
+        kind = "shield" if any(key in text for key in ("权限", "选择", "边界", "操作")) else "emotion" if any(key in text for key in ("心情", "天气", "听见")) else "history" if "回顾" in text else "training" if any(key in text for key in ("模型", "网络", "学习", "资料")) else "growth"
+        glyph = _label("", "sectionIcon", False)
+        glyph.setFixedSize(20, 20)
+        glyph.setPixmap(theme_icon(kind, size=18).pixmap(18, 18))
+        row.addWidget(glyph)
         label = _label(text)
         label.setProperty("heading", True)
         row.addWidget(label, 1)

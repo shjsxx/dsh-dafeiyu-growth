@@ -290,7 +290,9 @@ class QtTests(unittest.TestCase):
         self.dialog.show()
         self.app.processEvents()
         self.assertEqual(self.dialog.objectName(), "growthJournal")
-        self.assertEqual(len({bar.parent() for bar in self.dialog.trait_bars.values()}), 1)
+        # Four visual tiles now form one 2x2 traits card (not four table rows).
+        self.assertEqual(len({bar.parent() for bar in self.dialog.trait_bars.values()}), 4)
+        self.assertTrue(all(bar.parent().property("traitTile") is True for bar in self.dialog.trait_bars.values()))
         # Hosted runners may lack the CJK UI font; allow a small metric delta
         # there while keeping the strict no-scroll check for supported systems.
         scroll_limit = 48 if os.environ.get("CI") else 0
