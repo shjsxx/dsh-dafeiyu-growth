@@ -449,6 +449,78 @@ class EmotionModel:
         return {"label": mood, "name": LABELS.get(mood, "平静"), "confidence": round(confidence, 3),
                 "confidence_kind": "heuristic"}
 
+    def learn_dataset(self, rows, holdout=0.2, source="") -> dict:
+        """Bounded, transactional batch learning from labelled public text.
+
+        Rows must be (text, label) pairs already mapped to EMOTIONS. Text is
+        used only to derive hashed features; it is never saved, logged, or
+        returned. A deterministic holdout is scored before and after; if the
+        labelled accuracy does not improve, all weights are rolled back and
+        nothing is persisted.
+        """
+        before = self._state()
+        audit = {"persisted": False, "reason": "", "rows_total": 0, "rows_used": 0,
+                 "skipped": 0, "validation": 0, "accuracy_before": 0.0,
+                 "accuracy_after": 0.0, "changed_weights": 0,
+                 "version_before": before["revision"], "version_after": before["revision"]}
+        if self.status == "protected":
+            audit["reason"] = "protected"
+            return audit
+        clean, seen = [], set()
+        for row in rows if isinstance(rows, (list, tuple)) else []:
+            text = label = None
+            if isinstance(row, dict):
+                text, label = row.get("text"), row.get("label")
+            elif isinstance(row, (list, tuple)) and len(row) == 2:
+                text, label = row
+            audit["rows_total"] += 1
+            if (not isinstance(text, str) or not isinstance(label, str) or label not in EMOTIONS
+                    or not 2 <= len(text.strip()) <= 160
+                    or sum("\u4e00" <= ch <= "\u9fff" for ch in text) < max(2, len(text) // 4)):
+                audit["skipped"] += 1
+                continue
+            compact = " ".join(text.split())
+            digest = _hash(compact)
+            if digest in seen:
+                audit["skipped"] += 1
+                continue
+            seen.add(digest)
+            clean.append((compact, label))
+        clean.sort(key=lambda item: _hash(item[0] + item[1]))
+        if len(clean) < 40:
+            audit["reason"] = "too_few_rows"
+            return audit
+        cut = max(20, int(len(clean) * (1 - max(0.1, min(0.4, holdout)))))
+        train, valid = clean[:cut], clean[cut:]
+        audit["rows_used"] = len(train)
+        audit["validation"] = len(valid)
+        def score(rows_):
+            if not rows_:
+                return 0.0
+            return round(sum(self.classify(text).get("label") == label for text, label in rows_) / len(rows_), 4)
+        audit["accuracy_before"] = score(valid)
+        for text, label in train:
+            self._learn(text, label)
+        audit["accuracy_after"] = score(valid)
+        audit["changed_weights"] = self._changed_weights(before["weights"], self.weights)
+        if audit["changed_weights"] <= 0 or audit["accuracy_after"] < audit["accuracy_before"]:
+            for key, value in before.items():
+                setattr(self, key, value)
+            audit["reason"] = "no_improvement"
+            audit["version_after"] = before["revision"]
+            return audit
+        self.revision += 1
+        self.fit_samples += len(train)
+        self.adaptation_passes += 1
+        if isinstance(source, str) and source:
+            self.source_host = source[:120]
+        persisted = self._commit_candidate(before)
+        audit["persisted"] = persisted is True
+        audit["version_after"] = self.revision if persisted else before["revision"]
+        if not persisted:
+            audit["reason"] = "save_failed"
+        return audit
+
     def merge_lexicon(self, mapping: dict, source_host: str = "") -> int:
         """Commit bounded public cue collection, not a neural training pass.
 

@@ -26,6 +26,15 @@ Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留
 本项目是非官方粉丝作品，与 DeepSeek 无隶属或背书关系；相关名称、商标与角色权利归
 各自权利人。
 
+## 情感数据集
+
+`native/emotion_dataset_update.py` 可选地读取公开许可的中文情感数据集：
+
+- **zzhdbw/Simplified_Chinese_Multi-Emotion_Dialogue_Dataset** — Apache-2.0，修订 `d0d148b971f09c8269bc7afa045e37802a73eaa9`
+- 翻译自 **Johnson8187/Chinese_Multi-Emotion_Dialogue_Dataset** — MIT，修订 `f3854f9489071a4dc0bb69f2366d95095837ce68`
+
+仅用于本地生成哈希特征；原始文本不分发、不写入本仓库，也不加入日志。
+
 ## 原生目录中的第三方资料
 
 | 文件 | 内容 | 许可 |

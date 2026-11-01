@@ -36,6 +36,7 @@ SOURCES = {
     "stackexchange": "Stack Overflow 审阅问答摘要", "usgs_live": "USGS 动态公开监测",
     "elements": "公开元素资料", "planets": "公开行星资料",
     "core_curriculum": "内置基础知识课程", "owner_control": "你的本地设置操作",
+    "public_dataset": "公开许可情感数据集（不保存原文）",
 }
 STATUSES = {"queued": "排队", "running": "进行中", "success": "完成", "no_change": "无新增", "observed": "仅观察", "skipped": "未训练", "failed": "失败", "cancelled": "已取消", "interrupted": "上次中断（提交状态未知）"}
 ERRORS = {"": "", "rate_limit": "公开接口要求稍后再试，已暂停请求", "network": "公开资料暂时不可用", "schema": "资料格式或大小不符", "storage": "本地保存失败", "protected": "存档受保护", "disabled": "自动读取已关闭", "interrupted": "审计未写完，模型提交结果未知", "commit_unknown": "模型提交结果未知，不计为训练成功或已证实失败", "model_rejected": "模型拒绝本次更新", "no_label": "没有明确自述标签，未更新权重", "no_new_data": "资料未变化", "cancelled": "已取消", "rollback": "已回滚模型（并非训练提升）", "reset": "已重置模型（并非训练提升）"}
@@ -47,6 +48,7 @@ METRICS = {
     "valence_before", "valence_after", "energy_before", "energy_after", "trust_before", "trust_after",
     "curiosity_before", "curiosity_after", "event_count", "public_cues_before", "public_cues_after", "characters", "confidence",
     "audio_input_bytes", "audio_output_bytes", "played_ms", "input_tokens", "output_tokens", "input_audio_tokens", "output_audio_tokens", "cached_tokens",
+    "dataset_rows", "dataset_skipped", "dataset_validation", "dataset_accuracy_before", "dataset_accuracy_after", "changed_weights",
 }
 VOICE_EVENTS = {'session_start', 'recognized', 'spoken', 'voice_interrupt', 'voice_reject', 'session_stop', 'voice_error', 'rt_connect', 'rt_start', 'rt_stop', 'rt_usage', 'rt_interrupt', 'rt_error', 'rt_disconnect', 'rt_limit', 'rt_recognized'}
 COMPUTER_ACTIONS = {'open_notepad', 'open_calculator', 'volume_up', 'volume_down', 'volume_mute'}
@@ -69,7 +71,7 @@ MAX_NUMBER = 10 ** 13
 RETENTION_SECONDS = 30 * 24 * 60 * 60
 TOTAL_KEYS = ("runs", "failed", "weight_steps", "emotion_adaptation_passes", "knowledge_added", "interrupted_unknown", "voice_sessions", "voice_segments", "voice_spoken", "voice_interrupted", "voice_rejected", "computer_proposals", "computer_executed", "computer_blocked", "realtime_sessions", "realtime_segments", "realtime_interrupted", "realtime_errors", "realtime_duration_ms", "realtime_audio_input_bytes", "realtime_audio_output_bytes", "realtime_played_ms", "realtime_input_tokens", "realtime_output_tokens", "realtime_input_audio_tokens", "realtime_output_audio_tokens", "realtime_cached_tokens")
 SIGNED_METRICS = {"reward", "valence_before", "valence_after"}
-FRACTION_METRICS = {"confidence", "confidence_before", "confidence_after", "probability_before", "probability_after", "energy_before", "energy_after", "trust_before", "trust_after", "curiosity_before", "curiosity_after"}
+FRACTION_METRICS = {"confidence", "confidence_before", "confidence_after", "probability_before", "probability_after", "energy_before", "energy_after", "trust_before", "trust_after", "curiosity_before", "curiosity_after", "dataset_accuracy_before", "dataset_accuracy_after"}
 CONTINUOUS_METRICS = SIGNED_METRICS | FRACTION_METRICS | {"duration_ms", "loss_before", "loss_after"}
 
 

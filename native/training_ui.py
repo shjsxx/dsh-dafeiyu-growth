@@ -99,6 +99,9 @@ _METRIC_LABELS = {
     "added": "新增条目", "changed": "变更条目", "removed": "移除条目",
     "validated": "校验条目", "rejected": "拒绝条目", "bytes": "资料字节数",
     "duration_ms": "用时（毫秒）", "event_count": "互动计数", "characters": "临时文字字符数（不保存原文）",
+    "dataset_rows": "公开数据行数", "dataset_skipped": "过滤/跳过行数", "dataset_validation": "留出验证行数",
+    "dataset_accuracy": "留出准确率",
+    "dataset_accuracy_before": "更新前留出准确率", "dataset_accuracy_after": "更新后留出准确率", "changed_weights": "变化权重项",
     "audio_input_bytes": "音频发送字节数（交给套接字）", "audio_output_bytes": "收到的音频字节数", "played_ms": "设备实际处理播报（毫秒）",
     "input_tokens": "服务报告输入 tokens", "output_tokens": "服务报告输出 tokens", "input_audio_tokens": "其中音频输入 tokens", "output_audio_tokens": "其中音频输出 tokens", "cached_tokens": "其中缓存输入 tokens",
 }
