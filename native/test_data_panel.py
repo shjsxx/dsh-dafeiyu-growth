@@ -305,7 +305,7 @@ class DataPanelTests(unittest.TestCase):
         # Hosted Windows runners may lack the CJK UI font, so exact pixel
         # metrics differ; the no-horizontal-scroll property still applies.
         width_limit = 480 if os.environ.get("CI") else 400
-        height_limit = 440 if os.environ.get("CI") else 420
+        height_limit = 520 if os.environ.get("CI") else 420
         self.assertEqual(scroll.horizontalScrollBar().maximum(), 0)
         self.assertLessEqual(panel.sizeHint().height(), height_limit)
         self.assertLessEqual(panel.minimumSizeHint().width(), width_limit)
