@@ -75,6 +75,27 @@ def backup_if_exists(path):
 
 
 def main():
+    import argparse
+    import tempfile
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--staging", action="store_true",
+                        help="train into a staging copy; print its path, do not touch the live model")
+    args = parser.parse_args()
+    if args.staging:
+        live = EmotionModel().path
+        stage_dir = Path(tempfile.mkdtemp(prefix="yunlan-emotion-"))
+        stage = stage_dir / "emotion.json"
+        if live.is_file():
+            shutil.copy2(live, stage)
+        model = EmotionModel(stage)
+        rows, stats = parse_csv(download())
+        audit = model.learn_dataset(rows, source="huggingface.co/" + DATASET["id"])
+        print(json.dumps({"ok": bool(audit["persisted"]), "staging": str(stage), "live": str(live),
+                          "rows_used": int(audit["rows_used"]), "validation": int(audit["validation"]),
+                          "accuracy_before": audit["accuracy_before"], "accuracy_after": audit["accuracy_after"],
+                          "changed_weights": int(audit["changed_weights"]), "reason": audit["reason"],
+                          "filtered": stats["filtered"], "unmapped": stats["unmapped"]}, ensure_ascii=False))
+        return 0 if audit["persisted"] else 2
     model = EmotionModel()
     if model.status == "protected":
         print(json.dumps({"ok": False, "reason": "protected"}, ensure_ascii=False))
