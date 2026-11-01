@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from training_ui import TrainingPanel
+from growth_charts import BarChart, RadarChart, DonutChart, GaugeChart, recent_days, activity_days
 from data_panel import DataPanel
 from online_ui import OnlinePanel
 from voice_ui import VoiceDataPanel
@@ -219,6 +220,9 @@ def derive(profile, now=None):
         "streak": streak, "traits": traits, "counters": counters,
         "topTools": sorted(tools.items(), key=lambda item: item[1], reverse=True)[:6],
         "topProjects": sorted(projects.items(), key=lambda item: item[1], reverse=True)[:6],
+        "days": {key: _count(value) for key, value in list(_mapping(profile.get("days")).items())[-400:]
+                 if isinstance(key, str) and len(key) == 10 and key[4] == "-" and key[7] == "-"},
+        "hours": [_count(v) for v in (profile.get("hours") if isinstance(profile.get("hours"), list) else [])][:24],
         "learned": _learned_rows(profile, now if isinstance(now, datetime) else datetime.now(), streak),
         "diary": _rows(profile.get("diary")),
         "lastReviewAt": _text(profile.get("lastReviewAt")) or None,
@@ -593,7 +597,20 @@ class GrowthDialog(QDialog):
         diary_page = self._page("回顾")
         self.scroll = self.page_scrolls[0]
 
+        self._heading(overview, "最近 7 天", "活动节奏")
+        frame, box = self._card("weekCard")
+        self.week_chart = BarChart()
+        box.addWidget(self.week_chart)
+        self.week_caption = _label("还没有活动记录；开始使用后这里会显示每天的变化。", "memoryStatus")
+        box.addWidget(self.week_caption)
+        overview.addWidget(frame)
+
         self._heading(overview, "成长画像", "来自日常积累")
+        frame, box = self._card("traitRadarCard")
+        self.trait_radar = RadarChart()
+        box.addWidget(self.trait_radar)
+        overview.addWidget(frame)
+        self._heading(overview, "四项数值", "同上的数字明细")
         frame, box = self._card("traitsPanel")
         box.setContentsMargins(10, 10, 10, 10)
         traits_grid = QGridLayout()
@@ -661,6 +678,15 @@ class GrowthDialog(QDialog):
         overview.addStretch()
 
         self._heading(memory, "练习与收获", "慢慢熟练")
+        gauge_card, gauge_box = self._card("skillGaugeCard")
+        gauge_row = QHBoxLayout(); gauge_row.setSpacing(8)
+        self.skill_gauges = {}
+        for key, title in (("agility", "敏捷"), ("balance", "平衡")):
+            gauge = GaugeChart(); gauge.set_value(0, title)
+            self.skill_gauges[key] = gauge
+            gauge_row.addWidget(gauge, 1)
+        gauge_box.addLayout(gauge_row)
+        memory.addWidget(gauge_card)
         frame, box = self._card("card")
         self.skill_bars, self.skill_values = {}, {}
         for key, title, color in (("agility", "敏捷", "#278A8A"), ("balance", "平衡", "#8E9B65")):
@@ -712,6 +738,19 @@ class GrowthDialog(QDialog):
         memory.addStretch()
 
         self._heading(diary_page, "成长回顾", "最近 5 条")
+        review_card, review_box = self._card("reviewSummary")
+        review_row = QHBoxLayout(); review_row.setSpacing(8)
+        self.review_total, self.review_stage, self.review_streak = (_label("0", "reviewMetric", False) for _ in range(3))
+        for caption, widget in (("总回顾", self.review_total), ("进阶", self.review_stage), ("连续天数", self.review_streak)):
+            cell = QVBoxLayout(); cell.setSpacing(2)
+            widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            widget.setStyleSheet("font-size:20px;font-weight:700;color:#17343D;")
+            caption_label = _label(caption, "pageCaption")
+            caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cell.addWidget(widget); cell.addWidget(caption_label)
+            review_row.addLayout(cell, 1)
+        review_box.addLayout(review_row)
+        diary_page.addWidget(review_card)
         diary_page.addWidget(_label("把走过的小小一步，留在这里。", "pageCaption"))
         self.diary_label = _DiaryTimeline()
         diary_page.addWidget(self.diary_label)
@@ -726,6 +765,20 @@ class GrowthDialog(QDialog):
             "动作模型只学习数字反馈；情感模型不保存原句。",
             "permissionText"))
         permissions.addWidget(frame)
+        posture, posture_box = self._card("permissionPosture")
+        posture_row = QHBoxLayout(); posture_row.setSpacing(8)
+        self.permission_tiles = {}
+        for key, title, detail in (("local", "本地档案", "仅存本机"), ("cloud", "云端", "逐次确认"), ("tools", "电脑操作", "默认关闭")):
+            tile = QFrame(); tile.setProperty("traitTile", True)
+            tile_box = QVBoxLayout(tile); tile_box.setContentsMargins(10, 8, 10, 8); tile_box.setSpacing(2)
+            name = _label(title, "pageCaption", False); name.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            value = _label(detail, "permissionState", False); value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            value.setStyleSheet("font-size:12px;font-weight:600;color:#187E83;")
+            tile_box.addWidget(name); tile_box.addWidget(value)
+            posture_row.addWidget(tile, 1)
+            self.permission_tiles[key] = value
+        posture_box.addLayout(posture_row)
+        permissions.addWidget(posture)
         self._heading(permissions, "云端对话", "每次确认")
         frame, box = self._card("cloudCard")
         self.cloud_status = _label("云端接口：未配置", "cloudStatus")
@@ -823,6 +876,10 @@ class GrowthDialog(QDialog):
             tile_box.addWidget(meter)
             feeling_grid.addWidget(tile, index // 2, index % 2)
             self.feeling_values[key], self.feeling_bars[key] = number, meter
+        radar_card, radar_box = self._card("emotionRadarCard")
+        self.emotion_radar = RadarChart()
+        radar_box.addWidget(self.emotion_radar)
+        emotion_now.addWidget(radar_card)
         emotion_now.addLayout(feeling_grid)
         self._heading(emotion_now, "我听见的你", "线索推测")
         frame, box = self._card("emotionCard")
@@ -887,6 +944,18 @@ class GrowthDialog(QDialog):
         training_page.addLayout(scope_row)
         self.training_online_label = _label("动态公开联网未连接", "learningStatus")
         training_page.addWidget(self.training_online_label)
+        chart_card, chart_box = self._card("trainingChartCard")
+        self.training_chart_title = _label("最近 14 天训练活动", "dataSection", False)
+        chart_box.addWidget(self.training_chart_title)
+        self.training_activity = BarChart()
+        chart_box.addWidget(self.training_activity)
+        self.training_chart_caption = _label("还没有训练记录。", "memoryStatus")
+        chart_box.addWidget(self.training_chart_caption)
+        domain_row = QHBoxLayout()
+        self.training_domains = DonutChart()
+        domain_row.addWidget(self.training_domains, 1)
+        chart_box.addLayout(domain_row)
+        training_page.addWidget(chart_card)
         self.training_panel = TrainingPanel(self)
         self.training_panel.learning_requested.connect(self.emotion_learning_requested.emit)
         training_page.addWidget(self.training_panel)
@@ -900,6 +969,12 @@ class GrowthDialog(QDialog):
         voice_button.setIcon(theme_icon("voice", size=16))
         voice_button.clicked.connect(self.voice_tools_requested.emit)
         data_page.addWidget(voice_button)
+        chart_card, chart_box = self._card("dataChartCard")
+        self.data_donut = DonutChart()
+        chart_box.addWidget(self.data_donut)
+        self.data_chart_caption = _label("知识分布会随公开资料收录更新。", "memoryStatus")
+        chart_box.addWidget(self.data_chart_caption)
+        data_page.addWidget(chart_card)
         self.data_panel = DataPanel(self)
         data_page.addWidget(self.data_panel)
         self.voice_data_panel = VoiceDataPanel(self)
@@ -1008,7 +1083,9 @@ class GrowthDialog(QDialog):
         model = config.get("model") if isinstance(config.get("model"), str) else ""
         if not endpoint or not model:
             self.cloud_status.setText("云端接口：未配置\n发送方式：不会联网；在设置里配置后，每次发送仍需你确认。")
+            self.permission_tiles["cloud"].setText("未配置")
             return
+        self.permission_tiles["cloud"].setText("已配置")
         host = urllib.parse.urlsplit(endpoint).hostname or "已配置"
         if config.get("key_saved"):
             key_state = "已用 Windows DPAPI 加密保存"
@@ -1078,6 +1155,8 @@ class GrowthDialog(QDialog):
         for key, value in values.items():
             self.feeling_values[key].setText(str(value))
             self.feeling_bars[key].setValue(value)
+        self.emotion_radar.set_data(["愉悦", "精神", "信任", "好奇"],
+            [values["valence"], values["energy"], values["trust"], values["curiosity"]])
         self._update_data_panel()
         self.companion_reason.setToolTip("互动状态会本地保存；不因你离开而降低信任，也不会向你索取陪伴。")
 
@@ -1092,6 +1171,19 @@ class GrowthDialog(QDialog):
     def update_training(self, info):
         self._training_snapshot = dict(info) if isinstance(info, dict) else {}
         self.training_panel.update_data(info)
+        journal = _mapping(info.get("journal"))
+        events = journal.get("events") if isinstance(journal.get("events"), list) else []
+        activity = activity_days(events, 14)
+        self.training_activity.set_data(activity)
+        active = sum(1 for _, value in activity if value)
+        total = sum(value for _, value in activity)
+        self.training_chart_caption.setText(f"14天 {_fmt(total)} 次事件 · {active} 天有训练" if total else "还没有训练记录；完成一次本地训练后会显示。")
+        domains = _mapping(_mapping(info.get("knowledge")).get("domains"))
+        labels = {"geography": "地理", "astronomy": "天文", "chemistry": "化学", "computing": "计算机", "science": "科学", "general": "常识"}
+        self.training_domains.set_data([(labels.get(key, "其他"), _count(value)) for key, value in domains.items()], "知识")
+        self.data_donut.set_data([(labels.get(key, "其他"), _count(value)) for key, value in domains.items()], "知识")
+        knowledge = _mapping(info.get("knowledge"))
+        self.data_chart_caption.setText(f"已收录 {_fmt(_count(knowledge.get('count')))} 条知识 · {len(domains)} 个领域" if domains else "知识分布会随公开资料收录更新。")
         self.voice_data_panel.update_data(self._training_snapshot.get('journal', {}))
         self._update_data_panel()
 
@@ -1189,7 +1281,13 @@ class GrowthDialog(QDialog):
         self.progress_hint.setText(f"向 Lv.{level + 1} 迈进" if level < MAX_LEVEL else "已至云海尽头")
         ratio = max(0, min(1, _number(state.get("ratio"))))
         self.xp_progress.setValue(int(ratio * 1000))
+        days = recent_days(state.get("days"), 7)
+        self.week_chart.set_data(days)
+        active = sum(1 for _, value in days if value)
+        total = sum(value for _, value in days)
+        self.week_caption.setText(f"7天共 {_fmt(total)} 次活动 · {active} 天有记录" if total else "还没有活动记录；开始使用后这里会显示每天的变化。")
         traits = _mapping(state.get("traits"))
+        self.trait_radar.set_data([title for _, title, _ in TRAITS], [max(0, min(100, _number(traits.get(key)))) for key, _, _ in TRAITS])
         for key, _, _ in TRAITS:
             value = max(0, min(100, _number(traits.get(key))))
             self.trait_bars[key].setValue(int(value))
@@ -1199,6 +1297,10 @@ class GrowthDialog(QDialog):
             "\n".join("•  " + row["text"] for row in learned) or "还不够了解你，多用一会儿就会出现。"
         )
         diaries = _rows(state.get("diary"))[:5]
+        all_diary = _rows(state.get("diary"))
+        self.review_total.setText(_fmt(len(all_diary)))
+        self.review_stage.setText(_fmt(sum(1 for row in all_diary if row.get("kind") == "stage")))
+        self.review_streak.setText(_fmt(_count(state.get("streak"))))
         entries = []
         for row in diaries:
             when = row["at"][:16].replace("T", " ")
@@ -1222,6 +1324,7 @@ class GrowthDialog(QDialog):
         for key in ("agility", "balance"):
             value = max(0, min(100, _number(snapshot.get(key))))
             self.skill_bars[key].setValue(int(value))
+            self.skill_gauges[key].set_value(value, "敏捷" if key == "agility" else "平衡")
             self.skill_values[key].setText(_fmt(value))
         rows = snapshot.get("discoveries")
         lines = []

@@ -19,7 +19,8 @@ from PySide6.QtGui import QFontDatabase, QFont
 from PySide6.QtCore import QPoint, QCoreApplication
 from growth_native import GrowthDialog, derive
 
-FIXED_TIME = 1_798_761_600  # Fixed synthetic audit time, not the owner's clock.
+import time as _time
+FIXED_TIME = int(_time.time()) - 3 * 86400  # Synthetic recent audit time; not owner data.
 
 
 def synthetic_fixture(state='populated'):
@@ -139,8 +140,8 @@ def render(out, width=456, height=640):
                 app.processEvents()
                 scroll = dialog.page_scrolls[index]
                 scroll.verticalScrollBar().setValue(0)
-                if index == 6 and section is not None:
-                    scroll.ensureWidgetVisible(dialog.data_panel, 0, 0)
+                if index == 6 and section is None:
+                    scroll.ensureWidgetVisible(dialog.voice_data_panel, 0, 0)
                 # Tab/stack switches post multiple LayoutRequest events. Flush
                 # them deterministically, without timers, sleeps or runtime work.
                 for _ in range(3):
