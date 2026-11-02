@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from training_ui import TrainingPanel
 from growth_charts import BarChart, RadarChart, DonutChart, GaugeChart, recent_days, activity_days
+from ability_model import DIMENSIONS as ABILITY_DIMENSIONS, derive_abilities
 from data_panel import DataPanel
 from online_ui import OnlinePanel
 from voice_ui import VoiceDataPanel
@@ -677,34 +678,77 @@ class GrowthDialog(QDialog):
         overview.addWidget(self.audit_note)
         overview.addStretch()
 
-        self._heading(memory, "练习与收获", "慢慢熟练")
-        gauge_card, gauge_box = self._card("skillGaugeCard")
-        gauge_row = QHBoxLayout(); gauge_row.setSpacing(8)
-        self.skill_gauges = {}
-        for key, title in (("agility", "敏捷"), ("balance", "平衡")):
-            gauge = GaugeChart(); gauge.set_value(0, title)
-            self.skill_gauges[key] = gauge
-            gauge_row.addWidget(gauge, 1)
-        gauge_box.addLayout(gauge_row)
-        memory.addWidget(gauge_card)
-        frame, box = self._card("card")
+        self._heading(memory, "能力雷达", "本地练习指数")
+        radar_card, radar_box = self._card("abilityRadarCard")
+        self.ability_radar = RadarChart()
+        radar_box.addWidget(self.ability_radar)
+        self.ability_summary = _label("六维能力会随着本地练习与互动慢慢变化。", "memoryStatus")
+        radar_box.addWidget(self.ability_summary)
+        memory.addWidget(radar_card)
+
+        self._heading(memory, "能力维度", "六维 · 不是能力认证")
+        frame, box = self._card("abilityGrid")
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        self.ability_tiles = {}
+        for index, spec in enumerate(ABILITY_DIMENSIONS):
+            tile = QFrame()
+            tile.setProperty("traitTile", True)
+            tile_box = QVBoxLayout(tile)
+            tile_box.setContentsMargins(12, 8, 12, 9)
+            tile_box.setSpacing(4)
+            head = QHBoxLayout()
+            head.setSpacing(6)
+            head.addWidget(_label(spec["label"], f"ability-{spec['key']}", False), 1)
+            rank = _label("初识", f"abilityRank-{spec['key']}", False)
+            rank.setStyleSheet("font-size:11px;color:#187E83;font-weight:600;")
+            head.addWidget(rank)
+            tile_box.addLayout(head)
+            value = _label("0", f"abilityValue-{spec['key']}", False)
+            value.setProperty("traitNumber", True)
+            tile_box.addWidget(value)
+            bar = self._meter(100, 4, spec["color"])
+            tile_box.addWidget(bar)
+            grid.addWidget(tile, index // 2, index % 2)
+            self.ability_tiles[spec["key"]] = (value, rank, bar)
+        box.addLayout(grid)
+        memory.addWidget(frame)
+
+        self._heading(memory, "练习记录", "动作与陪伴")
+        frame, box = self._card("practiceCard")
+        practice = QGridLayout()
+        practice.setSpacing(8)
+        self.practice_values = {}
+        for index, (key, caption) in enumerate((("runs", "桌面小跑"), ("jumps", "起跳"),
+                                                ("falls", "摔倒"), ("recoveries", "自己爬起"))):
+            value = _label("0", f"practice-{key}", False)
+            value.setStyleSheet("font-size:20px;font-weight:700;color:#17343D;")
+            value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            caption_label = _label(caption, "pageCaption")
+            caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            practice.addWidget(value, index // 2 * 2, index % 2)
+            practice.addWidget(caption_label, index // 2 * 2 + 1, index % 2)
+            self.practice_values[key] = value
+        box.addLayout(practice)
         self.skill_bars, self.skill_values = {}, {}
+        # Compatibility only: aggregate gauges are replaced by the six-dimension
+        # radar; existing callers still read these bounded practice values.
+        hidden = QWidget()
+        hidden.hide()
+        self._skill_compat = hidden
         for key, title, color in (("agility", "敏捷", "#278A8A"), ("balance", "平衡", "#8E9B65")):
-            row = QHBoxLayout()
-            row.addWidget(_label(title, f"skill-{key}", False))
-            value = _label("0", f"skillValue-{key}", False)
-            value.setAlignment(Qt.AlignmentFlag.AlignRight)
-            row.addWidget(value)
             bar = self._meter(100, 5, color)
-            box.addLayout(row)
-            box.addWidget(bar)
+            bar.setParent(hidden)
+            value = _label("0", f"skillValue-{key}", False)
+            value.setParent(hidden)
             self.skill_bars[key], self.skill_values[key] = bar, value
         self.skills_label = _label("尚未解锁本领；完成练习后会记录在这里。", "growthSkills")
         self.bond_label = _label("", "growthBond")
-        self.bond_label.setStyleSheet("font-size: 12px; color: #627B84; padding:6px; background:#EFF8F5; border-radius:6px;")
+        self.bond_label.setStyleSheet("font-size:12px;color:#627B84;padding:6px;background:#EFF8F5;border-radius:6px;")
         box.addWidget(self.skills_label)
         box.addWidget(self.bond_label)
         memory.addWidget(frame)
+
         self._heading(memory, "动作偏好模型", "本机运行")
         frame, box = self._card("card")
         self.neural_label = _label("等待本地模型初始化。", "neuralInfo")
@@ -981,6 +1025,7 @@ class GrowthDialog(QDialog):
         data_page.addWidget(self.voice_data_panel)
         data_page.addStretch()
         self._emotion_snapshot, self._companion_snapshot, self._training_snapshot = {}, {}, {}
+        self._state_snapshot, self._behavior_snapshot = {}, {}
         footer = QHBoxLayout()
         hint = _label("本地记录 · 上传需确认", "footerHint", False)
         hint.setToolTip("成长卡只展示本地快照；切换页面不会联网或授权。")
@@ -1137,6 +1182,7 @@ class GrowthDialog(QDialog):
         self.emotion_signal.setValue(round(confidence * 100) if confidence > 0 else 0)
         self.heard_detail.setText(f"启发式线索 {round(confidence * 100)}% · 在本地分析，不保存原句" if confidence > 0 else "还没有明确线索，你可以慢慢说。")
         self._update_data_panel()
+        self._refresh_abilities()
         self._emotion_protected = status in ("read_only", "protected")
         self.update_learning(getattr(self, "_learning_info", {}))
 
@@ -1158,6 +1204,7 @@ class GrowthDialog(QDialog):
         self.emotion_radar.set_data(["愉悦", "精神", "信任", "好奇"],
             [values["valence"], values["energy"], values["trust"], values["curiosity"]])
         self._update_data_panel()
+        self._refresh_abilities()
         self.companion_reason.setToolTip("互动状态会本地保存；不因你离开而降低信任，也不会向你索取陪伴。")
 
     def update_online(self, info):
@@ -1185,7 +1232,26 @@ class GrowthDialog(QDialog):
         knowledge = _mapping(info.get("knowledge"))
         self.data_chart_caption.setText(f"已收录 {_fmt(_count(knowledge.get('count')))} 条知识 · {len(domains)} 个领域" if domains else "知识分布会随公开资料收录更新。")
         self.voice_data_panel.update_data(self._training_snapshot.get('journal', {}))
+        self._refresh_abilities()
         self._update_data_panel()
+
+    def _refresh_abilities(self):
+        if not hasattr(self, "ability_radar"):
+            return
+        result = derive_abilities(getattr(self, "_state_snapshot", {}),
+                                  getattr(self, "_behavior_snapshot", {}),
+                                  getattr(self, "_training_snapshot", {}),
+                                  getattr(self, "_emotion_snapshot", {}))
+        self.ability_radar.set_data([row["label"] for row in result["dimensions"]],
+                                    [row["value"] for row in result["dimensions"]])
+        for row in result["dimensions"]:
+            value, rank, bar = self.ability_tiles[row["key"]]
+            value.setText(str(row["value"]))
+            rank.setText(row["rank"])
+            bar.setValue(row["value"])
+        self.ability_summary.setText(
+            f"综合 {result['overall']} · 最强 {result['strongest']['label']} {result['strongest']['value']}"
+            f" · 可练 {result['focus']['label']} {result['focus']['value']}")
 
     def _update_data_panel(self):
         if not hasattr(self, "data_panel"):
@@ -1316,16 +1382,22 @@ class GrowthDialog(QDialog):
         self.stat_values["toolErrors"].setText(count("toolErrors"))
         self.stat_values["recoveries"].setText(count("recoveries"))
         self.stat_values["approvals"].setText(count("approvals"))
+        self._state_snapshot = state if valid else {}
+        self._refresh_abilities()
         self._fit_to_content()
 
     def update_behavior(self, snapshot):
         """Show skills learned from the companion's own practice."""
         snapshot = snapshot if isinstance(snapshot, dict) else {}
+        self._behavior_snapshot = dict(snapshot)
+        for key, caption in (("runs", "桌面小跑"), ("jumps", "起跳"), ("falls", "摔倒"), ("recoveries", "自己爬起")):
+            if key in self.practice_values:
+                self.practice_values[key].setText(_fmt(_count(snapshot.get(key))))
         for key in ("agility", "balance"):
             value = max(0, min(100, _number(snapshot.get(key))))
             self.skill_bars[key].setValue(int(value))
-            self.skill_gauges[key].set_value(value, "敏捷" if key == "agility" else "平衡")
             self.skill_values[key].setText(_fmt(value))
+        self._refresh_abilities()
         rows = snapshot.get("discoveries")
         lines = []
         if isinstance(rows, list):

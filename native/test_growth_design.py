@@ -69,6 +69,18 @@ class GrowthDesignTests(unittest.TestCase):
             self.dialog.update_training({})
             self.settle()
         self.assertTrue(all(spy.count()==0 for spy in spies))
+    def test_ability_page_has_six_dimensions_and_hidden_compatibility_bars(self):
+        self.dialog.update_state(derive({'xp': 3265, 'counters': {'turns': 20},
+                                         'traits': {'affinity': 40, 'stamina': 30}}))
+        self.dialog.update_behavior({'agility': 60, 'balance': 45, 'runs': 8, 'jumps': 3,
+                                     'falls': 1, 'recoveries': 1, 'pets': 4, 'chats': 3})
+        self.settle()
+        self.assertEqual(len(self.dialog.ability_tiles), 6)
+        self.assertEqual(len(self.dialog.ability_radar.values), 6)
+        self.assertGreater(self.dialog.ability_tiles['action'][2].value(), 0)
+        self.assertEqual(self.dialog.skill_bars['agility'].value(), 60)
+        self.assertFalse(self.dialog.skill_bars['agility'].isVisible())
+
     def test_new_data_page_keeps_both_knowledge_and_voice_audit_panels(self):
         page = self.dialog.page_scrolls[6].widget().layout()
         self.assertLess(page.indexOf(self.dialog.data_panel), page.indexOf(self.dialog.voice_data_panel))

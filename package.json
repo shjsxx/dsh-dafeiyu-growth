@@ -1,67 +1,67 @@
-{
-  "name": "dsh-dafeiyu-growth",
-  "version": "0.13.0",
-  "private": true,
-  "license": "MIT",
-  "description": "Growth, habit learning and self-directed desktop behaviour for the DSH companion 云岚.",
-  "type": "module",
-  "main": "src/index.js",
-  "exports": {
-    ".": "./src/index.js",
-    "./client": "./lib/client.js",
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "src/",
-    "lib/",
-    "tools/",
-    "native/*.py",
-    "!native/test_*.py",
-    "!native/live_chat.py",
-    "!native/live_probe.py",
-    "!native/live_voice.py",
-    "!native/verify_*.py",
-    "!native/render_*.py",
-    "native/fixtures/",
-    "docs/screenshots/",
-    "native/*.ps1",
-    "requirements-native.txt",
-    "requirements-dev.txt",
-    "test/",
-    "native/runtime/*.py",
-    "native/upstream-LICENSE",
-    "native/third_party/",
-    "cordis.patch.yml",
-    "README.md",
-    "NOTICE.md",
-    "SECURITY.md",
-    "CONTRIBUTING.md"
-  ],
-  "keywords": [
-    "dsh",
-    "desktop-pet",
-    "plugin",
-    "windows",
-    "pyside6"
-  ],
-  "os": [
-    "win32"
-  ],
-  "scripts": {
-    "test": "node --test test/*.test.js"
-  },
-  "engines": {
-    "node": ">=22.19"
-  },
-  "dsh": {
-    "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-settings-plugins"
-      ],
-      "platform": "web"
-    },
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
-  }
+﻿{
+    "name":  "dsh-dafeiyu-growth",
+    "version":  "0.14.0",
+    "private":  true,
+    "license":  "MIT",
+    "description":  "Growth, habit learning and self-directed desktop behaviour for the DSH companion 浜戝矚.",
+    "type":  "module",
+    "main":  "src/index.js",
+    "exports":  {
+                    ".":  "./src/index.js",
+                    "./client":  "./lib/client.js",
+                    "./package.json":  "./package.json"
+                },
+    "files":  [
+                  "src/",
+                  "lib/",
+                  "tools/",
+                  "native/*.py",
+                  "!native/test_*.py",
+                  "!native/live_chat.py",
+                  "!native/live_probe.py",
+                  "!native/live_voice.py",
+                  "!native/verify_*.py",
+                  "!native/render_*.py",
+                  "native/fixtures/",
+                  "docs/screenshots/",
+                  "native/*.ps1",
+                  "requirements-native.txt",
+                  "requirements-dev.txt",
+                  "test/",
+                  "native/runtime/*.py",
+                  "native/upstream-LICENSE",
+                  "native/third_party/",
+                  "cordis.patch.yml",
+                  "README.md",
+                  "NOTICE.md",
+                  "SECURITY.md",
+                  "CONTRIBUTING.md"
+              ],
+    "keywords":  [
+                     "dsh",
+                     "desktop-pet",
+                     "plugin",
+                     "windows",
+                     "pyside6"
+                 ],
+    "os":  [
+               "win32"
+           ],
+    "scripts":  {
+                    "test":  "node --test test/*.test.js"
+                },
+    "engines":  {
+                    "node":  "\u003e=22.19"
+                },
+    "dsh":  {
+                "client":  {
+                               "inject":  [
+                                              "@deepseek-ai/dsh-client-ui-settings-plugins"
+                                          ],
+                               "platform":  "web"
+                           },
+                "bundle":  {
+                               "patch":  "./cordis.patch.yml"
+                           }
+            }
 }
