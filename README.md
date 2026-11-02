@@ -27,6 +27,14 @@
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
 
+## 0.16.0 · 记忆引擎（本地 + 自动公开学习）
+
+- 新增 `native/memory_engine.py`：独立 `memory.json`，汇总本地回顾/习惯与**公开学习器已抓取并校验**的知识摘要；不另开爬虫、不抓知乎、不绕过现有公开学习开关。
+- 自动联网学习=吸收现有调度器的新知识 revision；你不需要逐条投喂。关闭公开学习后不再产生新的公开记忆，已有记忆保留。
+- 去重、重要度/命中衰减、最多 600 条、文本 240 字；提供本地检索 `recall()`；原子写入 + fsync，坏文件保留原文件并标记受保护。
+- 回顾页新增「记忆引擎」卡：本地/公开条数、最近记忆、自动学习说明和**清除记忆引擎**（不会删除成长档案、知识索引或互动记忆）。
+- 记忆存档含回顾/习惯/公开知识摘要（本地明文），已加入 `.gitignore`；不含聊天原文或 API Key。
+
 ## 0.15.0 · 独立成长引擎
 
 - 新增 `native/growth_engine.py`：独立 `growth.json`（`version:1`），持有等级、阶段、连续天数、里程碑和日活跃账本；概览显示同步版本与里程碑数。
@@ -345,7 +353,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（674 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（683 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

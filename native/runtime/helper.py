@@ -260,6 +260,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from growth_native import GrowthReader, GrowthDialog
         from growth_theme import MENU_QSS, icon as theme_icon
         from growth_engine import GrowthEngine
+        from memory_engine import MemoryEngine
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -479,6 +480,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.brain = NeuralBrain()
             self.emotion = EmotionModel()
             self.learning = LearningHub(self.brain, self.emotion)
+            self.memory = MemoryEngine()
+            self._memory_knowledge_revision = -1
             self.learning_tasks = []
             self.active_learning_source = ""
             self.learning_scope = False
@@ -2210,6 +2213,28 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                                 "status": snapshot["status"], "milestones": snapshot["milestones"]}
             return merged
 
+        def _sync_memory(self) -> None:
+            """Absorb local summaries and already-validated public records."""
+            try:
+                self.memory.ingest_state(self.growth_state)
+                knowledge = self.learning.knowledge.snapshot()
+                revision = knowledge.get("revision", 0)
+                if revision != self._memory_knowledge_revision:
+                    self.memory.ingest_knowledge(self.learning.knowledge.public_records(), revision)
+                    self._memory_knowledge_revision = revision
+            except (OSError, ValueError, TypeError):
+                pass
+            if self.growth_dialog is not None:
+                self.growth_dialog.update_memory(self.memory.snapshot())
+
+        def _clear_memory_engine(self) -> None:
+            ok = self.memory.clear()
+            if self.growth_dialog is not None:
+                self.growth_dialog.update_memory(self.memory.snapshot())
+            self._show_overlay("记忆引擎已清除。" if ok else "无法清除记忆引擎；未改写原文件。",
+                               "云岚 · 记忆", "SUCCESS" if ok else "ERROR", 4200)
+            self._sync_bubble_size()
+
         def _refresh_growth(self) -> None:
             self._refresh_online_ui()
             if self.learner._dirty:
@@ -2221,9 +2246,13 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if next_state is None:
                 return
             next_state = self._with_engine(next_state)
+            knowledge_snapshot = self.learning.knowledge.snapshot()
+            if knowledge_snapshot.get("revision", 0) != self._memory_knowledge_revision:
+                self._sync_memory()
             if next_state == self.growth_state:
                 return
             self.growth_state = next_state
+            self._sync_memory()
             self._sync_bubble_size()
             if self.growth_dialog is not None:
                 self.growth_dialog.update_state(self.growth_state)
@@ -2241,6 +2270,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         def _show_growth_card(self) -> None:
             self._stop_motion()
             self._refresh_growth()
+            self._sync_memory()
             if self.growth_dialog is None:
                 self.growth_dialog = GrowthDialog(self)
                 self.growth_dialog.forget_requested.connect(self._forget_memory)
@@ -2253,11 +2283,13 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.growth_dialog.knowledge_auto_changed.connect(self._set_knowledge_learning)
                 self.growth_dialog.online_enabled_changed.connect(self._set_online_enabled)
                 self.growth_dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
+                self.growth_dialog.memory_clear_requested.connect(self._clear_memory_engine)
             self.growth_dialog.update_state(self.growth_state)
             self.growth_dialog.update_behavior(self.learner.snapshot())
             self.growth_dialog.update_neural(self.brain.info())
             self.growth_dialog.update_cloud(self.cloud_config)
             self.growth_dialog.update_emotion(self.emotion.snapshot())
+            self.growth_dialog.update_memory(self.memory.snapshot())
             self._refresh_learning_ui()
             self.growth_dialog.open_near(self)
 

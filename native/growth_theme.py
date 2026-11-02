@@ -143,7 +143,7 @@ QPushButton#closeJournal, QPushButton#emotionLearn, QPushButton[primary='true'] 
 QPushButton#closeJournal:hover, QPushButton#emotionLearn:hover, QPushButton[primary='true']:hover { background:#115F67; }
 QPushButton#closeJournal:pressed, QPushButton#emotionLearn:pressed, QPushButton[primary='true']:pressed { background:#104F57; }
 QPushButton#emotionLearn:disabled, QPushButton[primary='true']:disabled { background:#DDE9EA; color:#8A9FA6; border-color:#DDE9EA; }
-QPushButton#forgetMemory, QPushButton#neuralReset { color:#AF4C56; background:#FFF9F9; border-color:#E9D9DD; }
+QPushButton#forgetMemory, QPushButton#neuralReset, QPushButton#memoryClear { color:#AF4C56; background:#FFF9F9; border-color:#E9D9DD; }
 QPushButton#forgetMemory:hover, QPushButton#neuralReset:hover { background:#FBECEE; border-color:#D79FA9; }
 QPushButton#emotionSection { background:#E4EDEE; color:#546E77; border:1px solid transparent; padding:7px 12px; }
 QPushButton#emotionSection:checked { background:#FFFFFF; color:#11595F; border-color:#C7DDDE; font-weight:600; }

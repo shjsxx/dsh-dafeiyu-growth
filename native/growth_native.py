@@ -527,6 +527,7 @@ class GrowthDialog(QDialog):
     knowledge_auto_changed = Signal(bool)
     online_enabled_changed = Signal(bool)
     online_refresh_requested = Signal()
+    memory_clear_requested = Signal()
 
     """A passive nonmodal growth journal: only open_near explicitly shows it."""
 
@@ -799,6 +800,19 @@ class GrowthDialog(QDialog):
             review_row.addLayout(cell, 1)
         review_box.addLayout(review_row)
         diary_page.addWidget(review_card)
+        self._heading(diary_page, "记忆引擎", "本地 + 公开")
+        memory_card, memory_box = self._card("memoryEngineCard")
+        self.memory_counts = _label("本地记忆 0 条 · 公开记忆 0 条", "memoryStatus")
+        memory_box.addWidget(self.memory_counts)
+        self.memory_recent = _label("还没有记忆；回顾、习惯和公开知识会自动汇总。", "growthLearned")
+        memory_box.addWidget(self.memory_recent)
+        self.memory_clear = QPushButton("清除记忆引擎")
+        self.memory_clear.setObjectName("memoryClear")
+        self.memory_clear.setAutoDefault(False)
+        self.memory_clear.clicked.connect(self._confirm_memory_clear)
+        memory_box.addWidget(self.memory_clear, 0, Qt.AlignmentFlag.AlignLeft)
+        diary_page.addWidget(memory_card)
+        diary_page.addWidget(_label("本地回顾/习惯与已校验公开知识自动入记忆；不会另开爬虫，也不含聊天原文。", "memoryStatus"))
         diary_page.addWidget(_label("把走过的小小一步，留在这里。", "pageCaption"))
         self.diary_label = _DiaryTimeline()
         diary_page.addWidget(self.diary_label)
@@ -1097,6 +1111,38 @@ class GrowthDialog(QDialog):
         self.tabs.addTab(scroll, title)
         self.page_scrolls.append(scroll)
         return box
+
+    def _confirm_memory_clear(self):
+        answer = QMessageBox.question(
+            self, "清除记忆引擎",
+            "清除记忆引擎中的本地回顾/习惯与公开知识摘要？\n成长档案、知识索引和互动记忆不会被删除。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer == QMessageBox.StandardButton.Yes:
+            self.memory_clear_requested.emit()
+
+    def update_memory(self, snapshot):
+        """Passive memory-engine summary; no file or network access here."""
+        snapshot = snapshot if isinstance(snapshot, dict) else {}
+        status = snapshot.get("status") if isinstance(snapshot.get("status"), str) else "new"
+        counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
+        local = _count(counts.get("habit")) + _count(counts.get("diary"))
+        public = _count(counts.get("public"))
+        if status == "protected":
+            self.memory_counts.setText("记忆引擎存档受保护；未覆盖原文件，也不会自动学习。")
+            self.memory_recent.setText("可在备份后手动检查 memory.json。")
+            self.memory_clear.setEnabled(False)
+            return
+        self.memory_clear.setEnabled(bool(local + public))
+        self.memory_counts.setText(f"本地记忆 {local} 条 · 公开记忆 {public} 条 · 版本 r{_fmt(_count(snapshot.get('revision')))}")
+        rows = snapshot.get("recent") if isinstance(snapshot.get("recent"), list) else []
+        lines = []
+        for row in rows[:3]:
+            if not isinstance(row, dict) or not isinstance(row.get("text"), str):
+                continue
+            label = row.get("kindLabel") if isinstance(row.get("kindLabel"), str) else "记忆"
+            lines.append(f"• {label}：{row['text'][:48]}")
+        self.memory_recent.setText("\n".join(lines) or "还没有记忆；回顾、习惯和公开知识会自动汇总。")
 
     def _confirm_forget(self):
         answer = QMessageBox.question(self, "清除互动记忆", "清除名字、喜好和互动记录？\n等级、经验与跑跳练习会保留。", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)

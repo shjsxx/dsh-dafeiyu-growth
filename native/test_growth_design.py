@@ -91,6 +91,18 @@ class GrowthDesignTests(unittest.TestCase):
         self.dialog.update_state(state)
         self.assertIn('受保护', self.dialog.engine_status.text())
 
+    def test_memory_engine_summary_and_clear_state_are_passive(self):
+        self.dialog.update_memory({'status': 'ready', 'revision': 2,
+            'counts': {'habit': 2, 'diary': 1, 'public': 4},
+            'recent': [{'kindLabel': '习惯', 'text': '喜欢夜里散步'}]})
+        self.assertIn('本地记忆 3 条', self.dialog.memory_counts.text())
+        self.assertIn('公开记忆 4 条', self.dialog.memory_counts.text())
+        self.assertIn('喜欢夜里散步', self.dialog.memory_recent.text())
+        self.assertTrue(self.dialog.memory_clear.isEnabled())
+        self.dialog.update_memory({'status': 'protected'})
+        self.assertIn('受保护', self.dialog.memory_counts.text())
+        self.assertFalse(self.dialog.memory_clear.isEnabled())
+
     def test_new_data_page_keeps_both_knowledge_and_voice_audit_panels(self):
         page = self.dialog.page_scrolls[6].widget().layout()
         self.assertLess(page.indexOf(self.dialog.data_panel), page.indexOf(self.dialog.voice_data_panel))

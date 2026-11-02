@@ -100,6 +100,10 @@ def apply_fixture(dialog, fixture):
     dialog.update_state(state)
     for name in ('behavior', 'neural', 'emotion', 'companion', 'learning', 'training', 'online'):
         getattr(dialog, 'update_' + name)(fixture[name])
+    dialog.update_memory({'status': 'ready', 'revision': 2,
+                          'counts': {'habit': 1, 'diary': 1, 'public': 2},
+                          'recent': [{'kindLabel': '习惯', 'text': '喜欢在夜里散步'},
+                                     {'kindLabel': '公开知识', 'text': '法国：首都是巴黎'}]})
 
 
 def render(out, width=456, height=640):

@@ -28,6 +28,8 @@ npm-debug.log*
 # Local runtime data (configuration, keys, profiles, audits)
 realtime.json
 cloud.json
+memory.json
+growth.json
 profile.json
 training.json
 training.json.bak
