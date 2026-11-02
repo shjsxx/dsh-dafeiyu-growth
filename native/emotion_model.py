@@ -210,7 +210,7 @@ class EmotionModel:
             if number is not None:
                 result[key] = round(_clamp(number, 0.0, 1.0), 4)
         for key in ("support", "rows_used", "validation", "duplicates", "conflicts",
-                    "classes", "min_class", "revision", "at", "accepted"):
+                    "classes", "min_class", "revision", "at", "accepted", "eval_version"):
             result[key] = _counter(raw.get(key))
         if raw.get("reason") in ("accepted", "no_improvement"):
             result["reason"] = raw["reason"]
@@ -349,10 +349,12 @@ class EmotionModel:
         ordered = sorted(scores.values(), reverse=True)
         if peak < 0.55 or (peak < 1.15 and ordered[0] - ordered[1] < 0.15):
             return {"label": "neutral", "confidence": 0.0, "confidence_kind": "heuristic", "scores": scores, "explicit": None}
-        total = sum(math.exp(max(-8.0, min(8.0, value))) for value in scores.values())
-        probabilities = {
-            emotion: math.exp(max(-8.0, min(8.0, value))) / total for emotion, value in scores.items()
-        }
+        # Stable softmax: subtract the maximum, never clip logits individually.
+        # Clipping can tie two classes above 8 and pick by dict order.
+        maximum = peak
+        exponentials = {emotion: math.exp(value - maximum) for emotion, value in scores.items()}
+        total = sum(exponentials.values())
+        probabilities = {emotion: value / total for emotion, value in exponentials.items()}
         label = max(probabilities, key=probabilities.get)
         return {
             "label": label,
@@ -461,6 +463,7 @@ class EmotionModel:
                     self.revision += 1
                     self.fit_samples += 1
                     self.adaptation_passes += 1
+                    self.last_eval = {}
             label = result["label"]
             if explicit:
                 label = explicit["label"]
@@ -556,7 +559,7 @@ class EmotionModel:
                 "quality": {"labels": quality["classes"], "rows": quality["valid"],
                             "skipped": quality["skipped"]},
                 "revision": self.revision, "at": int(time.time()),
-                "accepted": 0, "reason": "no_improvement",
+                "accepted": 0, "reason": "no_improvement", "eval_version": 2,
             }
             try:
                 self.save()
@@ -578,7 +581,7 @@ class EmotionModel:
             "quality": {"labels": quality["classes"], "rows": quality["valid"],
                         "skipped": quality["skipped"]},
             "revision": self.revision, "at": int(time.time()),
-            "accepted": 1, "reason": "accepted",
+            "accepted": 1, "reason": "accepted", "eval_version": 2,
         }
         persisted = self._commit_candidate(before)
         audit["persisted"] = persisted is True
@@ -622,6 +625,7 @@ class EmotionModel:
             self.source_host = source_host[:120]
         if self.weights != before["weights"] or self.extra_cues != before["extra_cues"]:
             self.revision += 1
+            self.last_eval = {}
         persisted = self._commit_candidate(before)
         added = max(0, self.lexicon_count - cues_before) if persisted else 0
         self.last_import.update({
@@ -646,7 +650,12 @@ class EmotionModel:
             "source": self.source_host,
             "status": self.status,
             "error": self.error,
-            "evaluation": self._clean_eval(self.last_eval),
+            "evaluation": (self._clean_eval(self.last_eval)
+                           if self.last_eval.get("revision") == self.revision
+                           and self.last_eval.get("eval_version") == 2 else {}),
+            "evaluation_stale": bool(self.last_eval and (
+                self.last_eval.get("revision") != self.revision
+                or self.last_eval.get("eval_version") != 2)),
         }
 
     def reset(self) -> bool:
@@ -662,6 +671,7 @@ class EmotionModel:
         self.mood_ms = 0.0
         self.lexicon_count = 0
         self.source_host = ""
+        self.last_eval = {}
         self.extra_cues = {emotion: set() for emotion in EMOTIONS}
         self.status = "new"
         self.error = ""

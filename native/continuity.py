@@ -6,6 +6,7 @@ changes personality or memory; it only records/compares revisions.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -40,6 +41,17 @@ def _count(value):
         return int(max(0, min(10 ** 13, value))) if math.isfinite(value) else 0
     except (OverflowError, ValueError):
         return 0
+
+
+def _signature(personality, memory):
+    traits = personality.get("traits") if isinstance(personality.get("traits"), dict) else {}
+    counts = memory.get("counts") if isinstance(memory.get("counts"), dict) else {}
+    payload = json.dumps({
+        "traits": {str(key): _count(value) for key, value in sorted(traits.items())},
+        "counts": {str(key): _count(value) for key, value in sorted(counts.items())},
+        "total": _count(memory.get("total")),
+    }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
 def _pairs(pairs):
@@ -89,8 +101,10 @@ class ContinuityStore:
                     "personality": _count(row.get("personality")),
                     "memory": _count(row.get("memory")),
                     "total": _count(row.get("total")),
+                    "digest": str(row.get("digest") or "")[:32],
                     "counts": {str(key)[:16]: _count(value) for key, value in list(counts.items())[:12]},
-                    "traits": {str(key)[:16]: _count(value) for key, value in list((row.get("traits") or {}).items())[:8]},
+                    "traits": {str(key)[:16]: _count(value) for key, value in list(
+                        (row.get("traits") if isinstance(row.get("traits"), dict) else {}).items())[:8]},
                 }
             self.data = {"version": VERSION, "revision": _count(raw.get("revision")),
                          "startups": min(MAX_STARTUPS, _count(raw.get("startups"))),
@@ -148,7 +162,7 @@ class ContinuityStore:
         traits = personality.get("traits") if isinstance(personality.get("traits"), dict) else {}
         counts = memory.get("counts") if isinstance(memory.get("counts"), dict) else {}
         anchor = {"personality": _count(personality.get("revision")), "memory": _count(memory.get("revision")),
-                   "total": _count(memory.get("total")),
+                   "total": _count(memory.get("total")), "digest": _signature(personality, memory),
                    "counts": {str(key)[:16]: _count(value) for key, value in list(counts.items())[:12]},
                    "traits": {str(key)[:16]: _count(value) for key, value in list(traits.items())[:8]}}
         existing = self.data["anchors"].get(day)
@@ -172,7 +186,8 @@ class ContinuityStore:
         if anchor:
             same = (anchor["personality"] == _count(personality.get("revision"))
                     and anchor["memory"] == _count(memory.get("revision"))
-                    and anchor["total"] == _count(memory.get("total")))
+                    and anchor["total"] == _count(memory.get("total"))
+                    and (not anchor.get("digest") or anchor["digest"] == _signature(personality, memory)))
         return {"version": VERSION, "status": self.status, "error": self.error,
                 "days": len(days), "lastDate": days[-1] if days else "", "today": today,
                 "stable": same, "startups": data["startups"], "revision": data["revision"],

@@ -80,28 +80,39 @@ def stratified_split(clean, holdout=.2):
 
 
 def metrics(truth, predicted, labels=None):
-    """Accuracy, balanced accuracy, macro F1, per-class P/R/F1 and confusion."""
+    """Count every truth row; out-of-taxonomy predictions are abstentions.
+
+    A prediction such as ``neutral`` is NOT silently dropped: it lowers the
+    recall of the true class and is reported as an abstention. Confusion cells
+    only cover the supplied taxonomy; ``abstentions`` is separate.
+    """
     labels = list(labels or sorted(set(truth) | set(predicted)))
-    if not labels:
+    if not labels or len(truth) != len(predicted):
         return {"accuracy": 0.0, "balanced_accuracy": 0.0, "macro_f1": 0.0,
-                "support": 0, "labels": [], "per_class": [], "confusion": []}
+                "macro_f1_supported": 0.0, "support": 0, "abstentions": 0,
+                "labels": [], "per_class": [], "confusion": []}
     confusion = {label: {other: 0 for other in labels} for label in labels}
+    abstentions = 0
     for actual, guess in zip(truth, predicted):
-        if actual in confusion and guess in confusion[actual]:
+        if guess not in labels:
+            abstentions += 1
+        elif actual in confusion:
             confusion[actual][guess] += 1
     support = len(truth)
     per_class = []
     recalls = []
     f1s = []
+    supported_f1s = []
     for label in labels:
         tp = confusion[label][label]
-        predicted_count = sum(confusion[actual][label] for actual in labels)
-        actual_count = sum(confusion[label].values())
+        predicted_count = sum(1 for guess in predicted if guess == label)
+        actual_count = sum(1 for actual in truth if actual == label)
         precision = tp / predicted_count if predicted_count else 0.0
         recall = tp / actual_count if actual_count else 0.0
         f1 = (2 * precision * recall / (precision + recall)) if precision + recall else 0.0
         if actual_count:
             recalls.append(recall)
+            supported_f1s.append(f1)
         f1s.append(f1)
         per_class.append({"label": label, "precision": round(precision, 4),
                           "recall": round(recall, 4), "f1": round(f1, 4),
@@ -111,7 +122,8 @@ def metrics(truth, predicted, labels=None):
         "accuracy": round(correct / support, 4) if support else 0.0,
         "balanced_accuracy": round(sum(recalls) / len(recalls), 4) if recalls else 0.0,
         "macro_f1": round(sum(f1s) / len(f1s), 4) if f1s else 0.0,
-        "support": support, "labels": labels, "per_class": per_class,
+        "macro_f1_supported": round(sum(supported_f1s) / len(supported_f1s), 4) if supported_f1s else 0.0,
+        "support": support, "abstentions": abstentions, "labels": labels, "per_class": per_class,
         "confusion": [[confusion[actual][guess] for guess in labels] for actual in labels],
     }
 

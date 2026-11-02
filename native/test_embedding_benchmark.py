@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from embedding_benchmark import Reranker, evaluate, feature_row, load_fixture
+from embedding_benchmark import Reranker, evaluate, evaluate_production, feature_row, load_fixture
 
 
 class EmbeddingBenchmarkTests(unittest.TestCase):
@@ -41,6 +41,9 @@ class EmbeddingBenchmarkTests(unittest.TestCase):
         self.assertGreaterEqual(result['rerank']['hit1'], result['baseline']['hit1'])
         self.assertGreaterEqual(result['rerank']['mrr'], result['baseline']['mrr'])
         self.assertEqual(result['rerank']['queries'], result['queries'])
+        production = evaluate_production()
+        self.assertEqual(production['queries'], result['queries'])
+        self.assertGreaterEqual(production['hit1'], .9)
 
 
 if __name__ == '__main__':

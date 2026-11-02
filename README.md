@@ -1,4 +1,4 @@
-# 云岚 · DSH 桌宠养成 🐟
+﻿# 云岚 · DSH 桌宠养成 🐟
 
 给 DSH 的桌宠**云岚**加一层养成：真实会话事件换经验，经验换等级与阶段，阶段解锁称号；从你的使用习惯里“学”出稳定结论；空闲时由本地神经网络决定动作，摔倒了会记住。
 
@@ -26,6 +26,17 @@
 4. 可选：按「自行构建与测试」构建并运行 `native\install.ps1` 安装原生补丁；0.5.0 以后的原生成长卡、连续语音、电脑操作和实时语音都依赖这一步。
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
+
+## 0.26.0 · 审计修复：先让指标和真实链路可信
+
+- **情感评估修正**：所有 truth 都计入；`neutral` 等分类外预测明确记为 abstention，不再被 balanced accuracy / macro F1 漏算；旧版评估（无 `eval_version:2`）强制隐藏，避免把旧指标当成当前模型。
+- **softmax 修正**：不再逐项截断 logits；分数 12/18 这类情况不会再被压成并列后按字典序选错。
+- **真实检索修复**：BGE 候选不再只依赖词面 top-40；小库/已预热向量直接全量评分，冷库扩到 80 候选；`MemoryEngine` 内部加入向量预热。合成基准的真实 `MemoryEngine.recall` 结果从审计时的 84.62% 回到 100%（26 条合成查询，仍不等于真实用户语料）。
+- **持久化修正**：人格保存失败会回滚 traits；连续性锚点加入 traits/count 内容摘要，不再只看 revision/总数；记忆保存按字节裁剪，避免 600 条上限写出超过 512KB 后下次加载自锁。
+- **删除防回灌**：清除记忆时写入 blocked tombstone，旧档案/行为/公开知识不会马上被同步回来；“清除互动记忆”同时清除偏好行。
+- **安全修正**：云 API key 绑定 endpoint，改 endpoint 必须重新输入；环境 key 只用于 DeepSeek/localhost 或显式绑定；爬虫在跟随重定向前拒绝；重排器/连续性损坏数据 fail closed。
+- **工程修正**：CI 安装 onnxruntime/numpy；动作反馈复用决策时 context，避免 `chat_open` 造成的训练/服务时序偏斜。
+- 测试增至 **750 项**；新增 `test_audit_fixes.py`、`test_audit_security.py`、`test_memory_deletion.py`。
 
 ## 0.25.0 · 领域重排评估（不是硬调底座）
 
@@ -428,7 +439,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（739 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（750 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

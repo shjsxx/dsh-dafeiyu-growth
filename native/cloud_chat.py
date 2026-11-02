@@ -168,15 +168,23 @@ def load_config(path=None, env=None):
         except CloudConfigError:
             config["max_tokens"] = 256
         protected = raw.get("key_protected")
+        key_endpoint = raw.get("key_endpoint")
         if isinstance(protected, str) and protected:
-            try:
-                config["key"] = unprotect_secret(protected)
-                config["key_saved"] = True
-            except (CloudConfigError, OSError):
-                config["error"] = "saved API key cannot be decrypted; re-enter it"
+            if isinstance(key_endpoint, str) and key_endpoint and key_endpoint != config["endpoint"]:
+                config["error"] = "saved API key belongs to a different endpoint; re-enter it"
+            else:
+                try:
+                    config["key"] = unprotect_secret(protected)
+                    config["key_saved"] = True
+                except (CloudConfigError, OSError):
+                    config["error"] = "saved API key cannot be decrypted; re-enter it"
     if not config["key"]:
         env_key = env.get("DSH_DAFEIYU_CLOUD_KEY", "")
-        if env_key:
+        env_endpoint = env.get("DSH_DAFEIYU_CLOUD_KEY_ENDPOINT", "")
+        host = urllib.parse.urlsplit(config["endpoint"]).hostname if config["endpoint"] else ""
+        env_allowed = (not host or host in ("api.deepseek.com", "localhost", "127.0.0.1")
+                       or (env_endpoint and env_endpoint == config["endpoint"]))
+        if env_key and env_allowed:
             config["key"] = env_key
     return config
 
@@ -197,17 +205,21 @@ def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False)
         previous = {}
     if not isinstance(previous, dict):
         previous = {}
+    previous_endpoint = previous.get("endpoint")
     protected = previous.get("key_protected", "")
     if clear_key:
         protected = ""
     elif key:
         protected = protect_secret(str(key))
+    elif protected and previous_endpoint and previous_endpoint != endpoint:
+        raise CloudConfigError("endpoint changed; re-enter the API key for the new endpoint")
     document = {
         "version": VERSION,
         "endpoint": endpoint,
         "model": model,
         "max_tokens": max_tokens,
         "key_protected": protected,
+        "key_endpoint": endpoint if protected else "",
     }
     selected.parent.mkdir(parents=True, exist_ok=True)
     temporary = selected.with_name(selected.name + ".tmp")

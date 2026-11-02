@@ -64,6 +64,8 @@ class MemoryEngineTests(unittest.TestCase):
         self.assertTrue(engine.clear())
         self.assertEqual(engine.snapshot()['total'], 0)
         self.assertEqual(json.loads(self.path.read_text(encoding='utf-8'))['records'], [])
+        self.assertEqual(engine.ingest_state(self.state()), 0)
+        self.assertEqual(engine.snapshot()['total'], 0)
 
     def test_corrupt_unknown_and_write_failure_are_safe(self):
         self.path.write_text('{bad', encoding='utf-8')

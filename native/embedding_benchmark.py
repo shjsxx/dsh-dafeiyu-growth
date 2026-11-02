@@ -64,20 +64,31 @@ class Reranker:
         self.std = list(std or [1.0] * len(FEATURES))
         self.metrics = dict(metrics or {})
         self.concept_bonus = max(0.0, min(2.0, float(concept_bonus or 0.0)))
+        self.valid = all(
+            isinstance(vector, list) and len(vector) == len(FEATURES)
+            and all(isinstance(value, (int, float)) and math.isfinite(value) for value in vector)
+            for vector in (self.weights, self.mean, self.std)
+        ) and math.isfinite(self.bias) and all(value > 1e-6 for value in self.std)
 
     def score(self, features):
-        normalized = [(value - self.mean[index]) / max(1e-6, self.std[index])
+        if not self.valid or len(features) < len(FEATURES):
+            return 0.0
+        normalized = [(value - self.mean[index]) / self.std[index]
                       for index, value in enumerate(features[:len(FEATURES)])]
         base = _sigmoid(self.bias + sum(a * b for a, b in zip(self.weights, normalized)))
         return base + self.concept_bonus * max(0.0, min(1.0, features[2]))
 
     def save(self, path, enabled=False):
+        if not self.valid:
+            raise ValueError("invalid reranker")
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"version": VERSION, "features": list(FEATURES), "weights": self.weights,
                    "bias": self.bias, "mean": self.mean, "std": self.std,
                    "concept_bonus": self.concept_bonus,
                    "metrics": self.metrics, "enabled": bool(enabled)}
-        path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        temporary = path.with_name(path.name + ".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        temporary.replace(path)
         return path
 
     @classmethod
@@ -85,11 +96,13 @@ class Reranker:
         path = Path(path) if path else default_path()
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-            if raw.get("version") != VERSION or raw.get("features") != list(FEATURES):
+            if (not isinstance(raw, dict) or raw.get("version") != VERSION
+                    or raw.get("features") != list(FEATURES)):
                 return None
-            return cls(raw.get("weights"), raw.get("bias"), raw.get("mean"), raw.get("std"),
-                       raw.get("metrics"), raw.get("concept_bonus", .5), raw.get("enabled", False))
-        except (OSError, ValueError, TypeError):
+            candidate = cls(raw.get("weights"), raw.get("bias"), raw.get("mean"), raw.get("std"),
+                            raw.get("metrics"), raw.get("concept_bonus", .5), raw.get("enabled", False))
+            return candidate if candidate.valid else None
+        except Exception:
             return None
 
 
@@ -206,12 +219,42 @@ def evaluate(fixture_path=None, model_dir=None):
             "reranker": reranker, "records": len(records), "queries": len(queries)}
 
 
+def evaluate_production(fixture_path=None, model_dir=None):
+    """Run the same fixture through the real MemoryEngine candidate gate."""
+    import tempfile
+    from memory_engine import MemoryEngine
+    records, queries = load_fixture(fixture_path)
+    with tempfile.TemporaryDirectory() as directory:
+        engine = MemoryEngine(Path(directory) / "memory.json")
+        engine.data = {"version": 1, "revision": 1, "publicRevision": 0, "records": [
+            {"id": row["id"], "kind": row["kind"], "text": row["text"],
+             "source": "fixture", "importance": int(row.get("importance") or 50),
+             "createdAt": 1, "lastSeen": 1, "hits": 1} for row in records]}
+        ranks = []
+        for query in queries:
+            hits = engine.recall(query["text"], limit=len(records),
+                                 kinds=("preference", "habit", "diary", "public", "culture"))
+            ids = [next((row["id"] for row in engine.data["records"] if row["text"] == hit["text"]), "")
+                   for hit in hits]
+            rank = ids.index(query["expected"]) + 1 if query["expected"] in ids else len(records) + 1
+            ranks.append(rank)
+    count = max(1, len(ranks))
+    return {"hit1": round(sum(1 for rank in ranks if rank == 1) / count, 4),
+            "mrr": round(sum(1.0 / rank for rank in ranks) / count, 4),
+            "ndcg5": round(sum(1.0 / math.log2(rank + 1) if rank <= 5 else 0.0 for rank in ranks) / count, 4),
+            "queries": len(ranks), "ranks": ranks}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--enable", action="store_true", help="enable rerank in memory recall")
+    parser.add_argument("--production", action="store_true", help="run the fixture through MemoryEngine")
     args = parser.parse_args()
+    if args.production:
+        print(json.dumps(evaluate_production(), ensure_ascii=False, indent=2))
+        return 0
     result = evaluate()
     if not result.get("ok"):
         print(json.dumps(result, ensure_ascii=False))

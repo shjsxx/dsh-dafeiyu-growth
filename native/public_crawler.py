@@ -30,6 +30,16 @@ class CrawlError(RuntimeError):
         super().__init__(code)
 
 
+class _RejectRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise CrawlError("redirect_refused")
+
+
+def _open_no_redirect(request, timeout):
+    opener = urllib.request.build_opener(_RejectRedirect)
+    return opener.open(request, timeout=timeout)
+
+
 class PublicCrawler:
     def __init__(self, fetcher=None, clock=None):
         self._fetch = fetcher or self._default_fetch
@@ -88,7 +98,7 @@ class PublicCrawler:
         if parsed.scheme != "https" or parsed.hostname not in ("zh.wikipedia.org",) or parsed.username or parsed.password:
             raise CrawlError("url_not_allowed")
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        with _open_no_redirect(request, TIMEOUT) as response:
             if response.status != 200:
                 raise CrawlError("http_status")
             if urllib.parse.urlsplit(response.geturl()).hostname not in ("zh.wikipedia.org",):
@@ -152,7 +162,7 @@ class PoetryCrawler:
             raise CrawlError("url_not_allowed")
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                        "Accept": "application/vnd.github+json"})
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        with _open_no_redirect(request, TIMEOUT) as response:
             if response.status != 200:
                 raise CrawlError("http_status")
             if urllib.parse.urlsplit(response.geturl()).hostname != "api.github.com":

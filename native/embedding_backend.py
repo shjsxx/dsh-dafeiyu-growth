@@ -53,13 +53,23 @@ class BertTokenizer:
         self.unk = self.vocab.get("[UNK]", 100)
         self.cls = self.vocab.get("[CLS]", 101)
         self.sep = self.vocab.get("[SEP]", 102)
+        # The pinned BGE config says do_lower_case=false. Read it when present
+        # instead of hard-coding casing behavior.
+        self.lower = False
+        config_path = Path(vocab_path).with_name("tokenizer_config.json")
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            self.lower = config.get("do_lower_case") is True
+        except (OSError, ValueError, TypeError):
+            pass
 
     @staticmethod
-    def _basic(text):
+    def _basic(text, lower=False):
         tokens, word = [], []
         def flush():
             if word:
-                tokens.append("".join(word).lower())
+                value = "".join(word)
+                tokens.append(value.lower() if lower else value)
                 word.clear()
         for char in str(text or ""):
             if char.isspace():
@@ -98,7 +108,7 @@ class BertTokenizer:
     def encode(self, text, max_length=None):
         limit = max_length or self.max_length
         tokens = []
-        for word in self._basic(text)[:limit - 2]:
+        for word in self._basic(text, self.lower)[:limit - 2]:
             pieces = self._wordpiece(word)
             tokens.extend(pieces or [self.unk])
         ids = [self.cls] + [self.vocab.get(token, self.unk) for token in tokens[:limit - 2]] + [self.sep]

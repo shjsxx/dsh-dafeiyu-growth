@@ -152,7 +152,8 @@ class PersonalityEngine:
             "steadiness": 55 + (1 - energy) * 18 + (1 - abs(valence - .2)) * 8,
             "expressiveness": 45 + trust * 15 + energy * 10,
         }
-        current = self.data["traits"]
+        before = {**self.data, "traits": dict(self.data["traits"])}
+        current = dict(self.data["traits"])
         changed = False
         for key in DIMENSIONS:
             next_value = round(_clamp(current[key] * .82 + _clamp(target[key]) * .18), 1)
@@ -161,12 +162,14 @@ class PersonalityEngine:
                 changed = True
         if not changed and self.data["interactions"]:
             return self.snapshot()
+        self.data["traits"] = current
         stamp = int(self._clock() if now is None else now)
-        before = {**self.data, "traits": dict(current)}
         self.data["revision"] += 1
         self.data["interactions"] += 1
         self.data["updatedAt"] = stamp
         if not self._save(before):
+            # _save restores before, including the original traits; return the
+            # restored snapshot rather than the rejected candidate.
             return self.snapshot()
         return self.snapshot()
 

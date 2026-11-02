@@ -493,6 +493,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.emotion = EmotionModel()
             self.learning = LearningHub(self.brain, self.emotion)
             self.memory = MemoryEngine()
+            try:
+                threading.Thread(target=self.memory.prepare_vectors, name="yunlan-memory-vectors",
+                                 daemon=True).start()
+            except RuntimeError:
+                pass
             self.personality = PersonalityEngine()
             self.continuity = ContinuityStore()
             self._continuity_started = False
@@ -1053,7 +1058,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 return f"{name}，你忙你的，我就在旁边。"
             return self._personality_talk(self.learning.companion.line(user_mood=mood))
 
-        def _maybe_talk(self, force: bool = False) -> None:
+        def _maybe_talk(self, force: bool = False, neural_context=None) -> None:
             now_ms = self._now_ms()
             if not force and now_ms < self.next_talk_ms:
                 return
@@ -1069,7 +1074,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if not was_visible:
                 self._place_conversation(self.conversation)
             self.chat_open = True
-            self.last_neural = (self._neural_context(), "talk")
+            self.last_neural = (neural_context if isinstance(neural_context, dict)
+                                else self._neural_context(), "talk")
             self.last_neural_ms = now_ms
             if self._idle_only() and not self.tasks:
                 self._show_overlay(text, "云岚 · 自己跑来说话", "IDLE", 4800)
@@ -1166,7 +1172,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._schedule_next_motion()
                 return
             if action == "talk":
-                self._maybe_talk(force=True)
+                self._maybe_talk(force=True, neural_context=context)
                 return
             ok = self._start_run() if action == "run" else self._start_hop()
             if not ok:
@@ -2478,9 +2484,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
         def _forget_memory(self) -> None:
             ok = self.learner.forget_user()
+            preference_ok = self.memory.clear_preferences()
             if self.growth_dialog is not None:
                 self.growth_dialog.update_behavior(self.learner.snapshot())
-                self.growth_dialog.report_memory_status(ok)
+                self.growth_dialog.update_memory(self.memory.snapshot())
+                self.growth_dialog.report_memory_status(ok and preference_ok)
             self.next_talk_ms = self._now_ms() + 120000
 
         def _show_growth_card(self) -> None:

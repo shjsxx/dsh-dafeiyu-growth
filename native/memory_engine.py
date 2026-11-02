@@ -83,6 +83,7 @@ class MemoryEngine:
         self._vectors = {}
         self._reranker = None
         self._reranker_checked = False
+        self._vectors_ready = False
         self._load()
 
     def _load(self):
@@ -122,21 +123,34 @@ class MemoryEngine:
                     "lastSeen": _count(row.get("lastSeen")),
                     "hits": max(1, _count(row.get("hits"), 1000)),
                 })
+            blocked = raw.get("blocked")
+            blocked = [str(value)[:32] for value in blocked[:MAX_RECORDS]] if isinstance(blocked, list) else []
             self.data = {"version": VERSION, "revision": _count(raw.get("revision")),
-                         "records": clean, "publicRevision": _count(raw.get("publicRevision"))}
+                         "records": clean, "blocked": blocked,
+                         "publicRevision": _count(raw.get("publicRevision"))}
             self.status = "ready"
         except (ValueError, TypeError, UnicodeDecodeError):
             self.data = None
             self.status, self.error = "protected", "memory file is corrupt or unsupported"
 
     def _empty(self):
-        return {"version": VERSION, "revision": 0, "records": [], "publicRevision": 0}
+        return {"version": VERSION, "revision": 0, "records": [], "blocked": [], "publicRevision": 0}
 
     def _save(self, before):
         temporary = self.path.with_name(self.path.name + f".{os.getpid()}.tmp")
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             text = json.dumps(self.data, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            # Count caps are not byte caps: 600 records at maximum Chinese text
+            # can exceed MAX_BYTES. Drop the least important rows until the
+            # serialized document that we are about to load fits.
+            while len(text.encode("utf-8")) > MAX_BYTES and self.data["records"]:
+                victims = sorted(range(len(self.data["records"])),
+                                 key=lambda index: (self.data["records"][index]["importance"]
+                                                    + min(20, self.data["records"][index]["hits"]),
+                                                    self.data["records"][index]["lastSeen"]))
+                del self.data["records"][victims[0]]
+                text = json.dumps(self.data, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
             with temporary.open("w", encoding="utf-8") as stream:
                 stream.write(text)
                 stream.flush()
@@ -164,6 +178,8 @@ class MemoryEngine:
         if not text:
             return False
         identity = _identity(kind, text)
+        if identity in self.data.get("blocked", []):
+            return False
         existing = next((row for row in self.data["records"] if row["id"] == identity), None)
         if existing:
             existing["lastSeen"] = now
@@ -280,6 +296,28 @@ class MemoryEngine:
                  "source": row["source"], "importance": row["importance"], "score": 10}
                 for row in rows[:max(1, min(20, limit))]]
 
+    def prepare_vectors(self, batch=32):
+        """Warm the local vector cache off the UI thread; no network."""
+        if self.status == "protected" or self._vectors_ready:
+            return False
+        if self._embedding is None:
+            self._embedding = EmbeddingBackend()
+        if not self._embedding.files_present():
+            return False
+        rows = [row for row in self.data["records"] if row["id"] not in self._vectors]
+        try:
+            for start in range(0, len(rows), max(1, int(batch))):
+                chunk = rows[start:start + max(1, int(batch))]
+                vectors = self._embedding.encode([row["text"] for row in chunk])
+                if len(vectors) != len(chunk):
+                    return False
+                for row, vector in zip(chunk, vectors):
+                    self._vectors[row["id"]] = vector
+            self._vectors_ready = True
+            return True
+        except (OSError, ValueError, TypeError, RuntimeError):
+            return False
+
     def _embedding_scores(self, query, rows):
         """Neural rerank when the optional local model is installed."""
         if self._embedding is None:
@@ -326,20 +364,24 @@ class MemoryEngine:
             return []
         allowed = set(kinds) if isinstance(kinds, (list, tuple, set)) else set(KIND_WEIGHT)
         grams = {query[i:i + 2] for i in range(len(query) - 1)}
+        rows_all = [row for row in self.data["records"] if row["kind"] in allowed]
         candidates = []
-        for row in self.data["records"]:
-            if row["kind"] not in allowed:
-                continue
+        for row in rows_all:
             semantic = semantic_similarity(query, row["text"])
             overlap = sum(1 for gram in grams if gram in row["text"])
             score = semantic * 100 + row["importance"] * .15 + overlap * 1.2
             if semantic >= .03 or overlap:
                 candidates.append((score, row))
         candidates.sort(key=lambda item: (item[0], item[1]["lastSeen"]), reverse=True)
-        if not candidates:
-            candidates = [(0, row) for row in sorted(self.data["records"], key=lambda row: row["lastSeen"], reverse=True)
-                          if row["kind"] in allowed][:40]
-        candidates = candidates[:40]
+        # Small stores and a warmed vector cache are scored in full. A cold
+        # 600-row store falls back to a wider lexical shortlist (80, not 40).
+        if len(rows_all) <= 80 or self._vectors_ready:
+            candidates = [(score, row) for score, row in candidates]
+            seen = {row["id"] for _, row in candidates}
+            candidates.extend((0, row) for row in rows_all if row["id"] not in seen)
+        else:
+            candidates = candidates[:80]
+        candidates = candidates[:max(80, min(600, len(rows_all)))]
         rows = [row for _, row in candidates]
         neural = self._embedding_scores(query, rows)
         reranker = self.reranker() if neural else None
@@ -350,8 +392,11 @@ class MemoryEngine:
                 if cosine < .40:
                     continue
                 if reranker is not None:
-                    from embedding_benchmark import feature_row
-                    score = reranker.score(feature_row(query, row, cosine)) * 100
+                    try:
+                        from embedding_benchmark import feature_row
+                        score = reranker.score(feature_row(query, row, cosine)) * 100
+                    except (ImportError, AttributeError, IndexError, TypeError, ValueError):
+                        score = cosine * 100 + row["importance"] * .12
                 else:
                     score = cosine * 100 + row["importance"] * .12
             else:
@@ -380,8 +425,26 @@ class MemoryEngine:
     def clear(self):
         if self.status == "protected":
             return False
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        before = {**self.data, "records": [dict(row) for row in self.data["records"]],
+                  "blocked": list(self.data.get("blocked", []))}
+        blocked = list(dict.fromkeys(list(self.data.get("blocked", []))
+                                     + [row["id"] for row in self.data["records"]]))[-MAX_RECORDS:]
+        self.data["blocked"] = blocked
         self.data["records"] = []
         self.data["publicRevision"] = 0
+        self.data["revision"] += 1
+        return self._save(before)
+
+    def clear_preferences(self):
+        """Forget name/likes and prevent the same rows from being re-ingested."""
+        if self.status == "protected":
+            return False
+        before = {**self.data, "records": [dict(row) for row in self.data["records"]],
+                  "blocked": list(self.data.get("blocked", []))}
+        preferences = [row for row in self.data["records"] if row["kind"] == "preference"]
+        blocked = list(dict.fromkeys(list(self.data.get("blocked", []))
+                                     + [row["id"] for row in preferences]))[-MAX_RECORDS:]
+        self.data["blocked"] = blocked
+        self.data["records"] = [row for row in self.data["records"] if row["kind"] != "preference"]
         self.data["revision"] += 1
         return self._save(before)
