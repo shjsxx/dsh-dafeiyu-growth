@@ -11,6 +11,14 @@ def wants_memory(text):
     return any(word in raw for word in MEMORY_WORDS)
 
 
+def broad_memory_query(text):
+    """A general “what do you remember” ask may use recent memories."""
+    raw = "".join(str(text or "").split())
+    if not wants_memory(raw):
+        return False
+    return not any(word in raw for word in ("喜欢", "名字", "叫什么", "称呼"))
+
+
 def compose_memory_answer(text, name="", likes=None, hits=None):
     """Answer only from memories that actually exist; never invent details."""
     if not wants_memory(text):

@@ -7,7 +7,7 @@ import tempfile
 
 from public_crawler import CrawlError, PoetryCrawler
 from memory_engine import MemoryEngine
-from memory_reply import compose_memory_answer, compose_public_answer
+from memory_reply import broad_memory_query, compose_memory_answer, compose_public_answer
 
 
 def encoded_poems():
@@ -54,6 +54,13 @@ class MemoryReplyTests(unittest.TestCase):
     def test_memory_answer_admits_empty_memory(self):
         answer = compose_memory_answer("你记得我吗", "", [], [])
         self.assertIn("还没有记住", answer)
+
+    def test_broad_memory_query_allows_recent_fallback_but_likes_do_not(self):
+        self.assertTrue(broad_memory_query("你记得我学到了什么吗"))
+        self.assertFalse(broad_memory_query("你记得我喜欢什么"))
+        answer = compose_memory_answer("你记得我学到了什么吗", "", [], [
+            {"kindLabel": "习惯", "text": "习惯周末整理桌面"}])
+        self.assertIn("整理桌面", answer)
 
     def test_public_answer_requires_question_and_relevant_public_hit(self):
         hits = [{"kind": "public", "text": "法国：首都是巴黎", "source": "countries", "score": 30}]

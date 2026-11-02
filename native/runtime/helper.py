@@ -261,7 +261,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from growth_theme import MENU_QSS, icon as theme_icon
         from growth_engine import GrowthEngine
         from memory_engine import MemoryEngine
-        from memory_reply import compose_memory_answer, compose_public_answer
+        from memory_reply import broad_memory_query, compose_memory_answer, compose_public_answer
         from public_crawler import PoetryCrawler
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
@@ -2532,9 +2532,12 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if self._chat_may_learn:
                 self.learner.note_chat()
             self.memory.ingest_behavior(self.learner.snapshot())
+            memory_hits = self.memory.recall(text, 5, kinds=("preference", "habit", "diary"))
+            if not memory_hits and broad_memory_query(text):
+                memory_hits = self.memory.recent(3, kinds=("preference", "habit", "diary"))
             memory_answer = compose_memory_answer(
                 text, self.learner.data.get("userName", ""), self.learner.data.get("likes", []),
-                self.memory.recall(text, 5, kinds=("preference", "habit", "diary")))
+                memory_hits)
             if memory_answer:
                 reply = {"text": memory_answer, "action": None}
                 meta = "记忆引擎 · 本地记忆"

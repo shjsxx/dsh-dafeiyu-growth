@@ -263,6 +263,17 @@ class MemoryEngine:
         self.data["revision"] += 1
         return 1 if self._save(before) else 0
 
+    def recent(self, limit=5, kinds=None):
+        """Return recently active memories for broad “what do you remember” asks."""
+        if self.status == "protected":
+            return []
+        allowed = set(kinds) if isinstance(kinds, (list, tuple, set)) else set(KIND_WEIGHT)
+        rows = sorted((row for row in self.data["records"] if row["kind"] in allowed),
+                      key=lambda row: (row["lastSeen"], row["importance"]), reverse=True)
+        return [{"kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]], "text": row["text"],
+                 "source": row["source"], "importance": row["importance"], "score": 10}
+                for row in rows[:max(1, min(20, limit))]]
+
     def recall(self, query, limit=5, kinds=None):
         """Rank memories by bounded character-bigram overlap and importance."""
         if self.status == "protected":
