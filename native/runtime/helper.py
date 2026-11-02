@@ -265,6 +265,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from public_crawler import PoetryCrawler
         from personality_engine import PersonalityEngine
         from continuity import ContinuityStore
+        from dialogue import fallback_reply, is_meta_question, meta_reply
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -474,6 +475,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.conversation = None
             self.conversation_serial = 0
             self.last_proactive = ""
+            self.last_user_text = ""
+            self.last_reply_text = ""
             self.emotion_comparison = {}
             self._init_voice_runtime()
             self.online_state = LiveOnlineState()
@@ -2583,19 +2586,27 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.learner.add_like(reply["like"])
             if self._chat_may_learn:
                 self.learner.note_chat()
-            memory_answer, memory_meta = self._memory_answer(text)
-            if memory_answer:
-                reply = {"text": memory_answer, "action": None}
-                meta = memory_meta
+            if is_meta_question(text):
+                reply = {"text": meta_reply(text, self.last_user_text, self.last_reply_text)
+                         or fallback_reply(text, self.last_user_text), "action": None}
+                meta = "本地对话 · 更正"
             else:
-                reply, meta = self.learning.companion_reply(text, reply, mood)
-                if reply.get("text") in DEFAULT_REPLIES:
-                    public_answer, public_meta = compose_public_answer(text, self.memory.recall(text, 5))
-                    if public_answer:
-                        reply = {"text": public_answer, "action": None}
-                        meta = public_meta
+                memory_answer, memory_meta = self._memory_answer(text)
+                if memory_answer:
+                    reply = {"text": memory_answer, "action": None}
+                    meta = memory_meta
+                else:
+                    reply, meta = self.learning.companion_reply(text, reply, mood)
+                    if reply.get("text") in DEFAULT_REPLIES:
+                        public_answer, public_meta = compose_public_answer(text, self.memory.recall(text, 5))
+                        if public_answer:
+                            reply = {"text": public_answer, "action": None}
+                            meta = public_meta
+                        else:
+                            reply = {"text": fallback_reply(text, self.last_user_text), "action": None}
+                            meta = "本地对话 · 没接住"
             if (reply.get("text") in DEFAULT_REPLIES or mood in ("sad", "tired", "anxious", "anger")) \
-                    and not meta.startswith("记忆引擎"):
+                    and not meta.startswith(("记忆引擎", "本地对话")):
                 reply = dict(reply, text=self.personality.decorate(
                     str(reply.get("text", "")), mood, bool(self.memory.recent(1))))
             if any(word in text for word in ("实时动态", "最新动态", "最新地震", "联网动态")):
@@ -2612,6 +2623,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 reply = dict(reply, text="好呀，那我们接着聊。你想先说说今天的心情，还是问我一条基础知识？也可以说「实时动态」，看看最近校验的公开资料。", action=None)
             if mood != "neutral":
                 meta += f" · 情绪线索偏{LABELS.get(mood, '情绪')}"
+            self.last_user_text = text[:200]
+            self.last_reply_text = str(reply.get("text", ""))[:300]
             if self.conversation is not None and self.conversation.isVisible():
                 self.conversation.show_reply(str(reply.get("text", "嗯。")), meta)
                 if self.direct_input_source == 'voice_direct' and self.voice_engine:
@@ -2638,10 +2651,19 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 dialog.set_cloud_state(config)
                 dialog.show_reply("接口、模型或输出上限已变更；没有发送。请核对新目标后重新确认。", "本地提示", True)
                 return
+            if is_meta_question(text):
+                answer = meta_reply(text, self.last_user_text, self.last_reply_text)
+                dialog.show_reply(answer, "本地对话 · 更正 · 未发送云端")
+                self.last_user_text = text[:200]
+                self.last_reply_text = answer[:300]
+                return
             memory_answer, memory_meta = self._memory_answer(text)
             if memory_answer:
                 dialog.show_reply(memory_answer, memory_meta + " · 未发送云端")
+                self.last_user_text = text[:200]
+                self.last_reply_text = memory_answer[:300]
                 return
+            self.last_user_text = text[:200]
             history = dialog.context_before_current()
             if not config.get("endpoint") or not config.get("model"):
                 if self.conversation is not None:
@@ -2936,6 +2958,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 mood = self.emotion.current().get("label", "neutral")
                 if mood in ("sad", "tired", "anxious", "anger"):
                     text = self.personality.decorate(text, mood, bool(self.memory.recent(1)))
+                self.last_reply_text = text[:300]
                 if active:
                     self.conversation.show_reply(text, f"云端 · {host}")
                     self._speak_voice_reply(text, result.get('voiceGeneration'))

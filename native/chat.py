@@ -83,13 +83,15 @@ def reply_to(text, name="", mood=""):
         return {"text": "那我动给你看。", "action": action, "name": ""}
     if any(word in raw for word in ("晚安", "睡觉")):
         return {"text": "晚安。我把灯留着，也把桌面看住。", "action": None, "name": ""}
+    if any(word in raw for word in ("不想加油", "不想努力", "不想坚持", "不想撑", "撑不住", "没动力", "不想干了")):
+        return {"text": "那就不加油了。先不用撑着。是今天太累，还是有什么事一直压着？", "action": None, "name": ""}
     if any(word in raw for word in ("累", "困", "休息", "睡")):
         return {"text": "累了就靠一会儿，我帮你看着桌面。", "action": None, "name": ""}
     if any(word in raw for word in ("早", "早安", "早上好")):
         return {"text": "早呀。今天想先做哪件事？", "action": None, "name": ""}
     if any(word in raw for word in ("你好", "嗨", "在吗", "hello", "hi")):
         greeting = f"{name}，我在呢。" if name else "我在呢。"
-        return {"text": greeting + "今天也一起加油。", "action": None, "name": ""}
+        return {"text": greeting + "今天想聊点什么？不想聊，就这样待一会儿也行。", "action": None, "name": ""}
     if not ACTION_REFUSAL.search(raw) and any(word in raw for word in ("喜欢你", "爱你", "想你")):
         return {"text": "我也喜欢你。会一直待在你桌面上的。", "action": None, "name": ""}
     if "喜欢" in raw:

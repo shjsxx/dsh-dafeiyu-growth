@@ -192,7 +192,6 @@ class LearningHub:
 
     def companion_reply(self, text, reply, user_mood="neutral"):
         """Compose local expression/retrieval without storing the query."""
-        from chat import DEFAULT_REPLIES
         if reply.get("action") or reply.get("name") or reply.get("like"):
             return reply, "本地陪伴"
         raw = "".join(str(text).split())[:240]
@@ -215,8 +214,8 @@ class LearningHub:
             if found:
                 answer = "这条我有收录，一起看看：\n" + found["text"]
                 meta = "本地知识 · " + found["sourceName"]
-        if answer is None and (reply.get("text") in DEFAULT_REPLIES or user_mood in ("sad", "tired", "anxious", "anger")):
-            answer = self.companion.line("chat", user_mood)
+        # A default reply is handed back to the caller for an honest contextual
+        # fallback; never replace a specific emotional reply with a random line.
         if answer is not None:
             reply = dict(reply, text=answer, action=None)
         return reply, meta
