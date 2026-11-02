@@ -98,6 +98,18 @@ def reply_to(text, name="", mood=""):
         return {"text": "我只会记下明确的偏好，比如「我喜欢喝咖啡」。这句话没有保存成偏好。", "action": None, "name": ""}
     if any(word in raw for word in ("摸头", "摸摸", "摸一下")):
         return {"text": "摸头就摸头，别把我发型弄乱。", "action": None, "name": ""}
+    if any(word in raw for word in ("搞笑", "逗我", "笑话", "整活")):
+        return {"text": "那我转个圈，顺便假装自己没差点转晕。", "action": None, "name": ""}
+    if any(word in raw for word in ("快来", "过来", "来一下", "来找我")):
+        return {"text": "来啦来啦，我小跑过来。", "action": None, "name": ""}
+    if any(word in raw for word in ("难过", "伤心", "不开心", "失落", "委屈")):
+        return {"text": "嗯，我听着。你不用马上好起来，我陪你待一会儿。", "action": None, "name": ""}
+    if any(word in raw for word in ("哭", "流泪", "眼泪", "想哭")):
+        return {"text": "想哭就哭一小会儿，我不催你，也不逗你。", "action": None, "name": ""}
+    if any(word in raw for word in ("无聊", "没意思", "好闲")):
+        return {"text": "那我们来数云朵，或者你随便说一件小事，我陪你把它聊大。", "action": None, "name": ""}
+    if any(word in raw for word in ("打瞌睡", "困了", "好困", "想睡", "眯一会")):
+        return {"text": "困了就眯一会儿，我把脚步放轻，Zzz。", "action": None, "name": ""}
     if any(word in raw for word in ("谢谢", "多谢")):
         return {"text": "不用谢，我本来就想帮你。", "action": None, "name": ""}
     if any(word in raw for word in ("学习", "练习", "本领")):

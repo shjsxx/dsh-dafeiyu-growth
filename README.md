@@ -27,6 +27,17 @@
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
 
+## 0.21.0 · 互动反应：好笑、快来、难过、无聊、打瞌睡、流泪
+
+- 新增 `native/reactions.py` + 实机原生绘制：搞笑（转圈/金色星星）、快来（朝鼠标小跑/速度线）、难过（垂头/细雨）、无聊（问号与省略号）、打瞌睡（Zzz）、流泪（眼泪）。
+- 由**明确互动词 + 本地情绪模型**触发；聊天里说“快来/讲个笑话/好无聊/困了/想哭/难过”会同时给出对应回复与动作，不需要新素材。
+- 反应是程序化绘制（眼泪/Zzz/星星/速度线），不引入不可分发的上游角色帧；持续 4–6 秒后自动结束。
+- 减少动态模式下不动画，但仍显示文字气泡；不新增权限。
+
+| 无聊 | 打瞌睡 | 流泪 |
+| --- | --- | --- |
+| ![无聊](docs/screenshots/reaction-bored.png) | ![打瞌睡](docs/screenshots/reaction-sleepy.png) | ![流泪](docs/screenshots/reaction-cry.png) |
+
 ## 0.20.0 · 对话修复：不再用随机话术糊弄
 
 - 修复根因：只要情绪被判定为难过/生气，就会用随机陪伴话术覆盖已经生成的针对性回答；默认兜底也直接抽一句心情话。现在这两条路径都移除了。
@@ -384,7 +395,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（709 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（713 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

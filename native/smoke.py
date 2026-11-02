@@ -172,6 +172,17 @@ def install_smoke_probe(application, window, directory):
             )
             assert result['spinRestored'], 'spin should return to the start point'
 
+            # 5d-2. Emotion reactions draw procedural effects without new assets.
+            for reaction in ('cry', 'bored', 'sleepy', 'funny', 'sad'):
+                window._stop_motion()
+                assert window._trigger_reaction(reaction), reaction
+                QTest.qWait(500)
+                assert window.reaction and window.reaction['key'] == reaction
+                assert window.grab().save(str(out / f'reaction-{reaction}.png'))
+                window.reaction = None
+                QTest.qWait(30)
+            result['reactions'] = ['cry', 'bored', 'sleepy', 'funny', 'sad']
+
             # 5e. Local emotion reader learns explicit self-report without saving raw text.
             reading = window.learning.observe_emotion("我今天有点难过")
             window.learning.adapt("chat", reading.get("mood", "neutral"), "local_chat")

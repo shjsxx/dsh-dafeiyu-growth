@@ -255,7 +255,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
     configure_qt_platform()
     try:
         from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QPoint, QPointF, QRectF, Qt, QTimer, QUrl, Signal
-        from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QPainter, QPen, QPixmap, QPolygonF
+        from PySide6.QtGui import QColor, QCursor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QPainter, QPen, QPixmap, QPolygonF
         from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMenu, QWidget, QWidgetAction
         from growth_native import GrowthReader, GrowthDialog
         from growth_theme import MENU_QSS, icon as theme_icon
@@ -266,6 +266,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from personality_engine import PersonalityEngine
         from continuity import ContinuityStore
         from dialogue import fallback_reply, is_meta_question, meta_reply
+        from reactions import detect_reaction, plan as plan_reaction
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -523,6 +524,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.hearts: list[dict[str, Any]] = []
             self.pet_spin_scale = 1.0
             self.blush_until_ms = 0
+            self.reaction = None
+            self.reaction_started_ms = 0
+            self.reaction_until_ms = 0
             self.pat_streak = 0
             self.last_pat_ms = 0
             self.spin_base_facing = 1
@@ -759,6 +763,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.display_state = self.model.base_state
             if self.overlay_deadline_ms is not None and now_ms >= self.overlay_deadline_ms:
                 self._clear_overlay()
+            if self.reaction is not None and now_ms >= self.reaction_until_ms:
+                self.reaction = None
             self._rearm_animation_interval()
             self.update()
 
@@ -1988,6 +1994,92 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if now_ms < self.blush_until_ms:
                 pet_x, pet_y, pet_width, pet_height = self._pet_rect()
                 self._draw_blush(painter, pet_x, pet_y, pet_width, pet_height, now_ms)
+            self._draw_reaction(painter, now_ms)
+
+        def _trigger_reaction(self, key: str) -> bool:
+            spec = plan_reaction(key)
+            if not isinstance(spec, dict):
+                return False
+            now_ms = self._now_ms()
+            self.reaction = spec
+            self.reaction_started_ms = now_ms
+            self.reaction_until_ms = now_ms + spec["duration"]
+            self._show_overlay(spec["message"], spec["detail"], "IDLE", spec["duration"])
+            motion = spec["motion"]
+            if motion == "spin":
+                self._start_spin(1, allow_during_chat=True)
+                self._spawn_hearts(5, gold=True)
+                self.blush_until_ms = now_ms + 1600
+            elif motion == "come":
+                pet_x, pet_y, pet_width, _ = self._pet_rect()
+                cursor = QCursor.pos()
+                center = self.x() + pet_x + pet_width / 2
+                distance = max(140, min(460, abs(cursor.x() - center)))
+                self._start_run(distance=distance, direction=1 if cursor.x() >= center else -1,
+                                force_fall=False, allow_during_chat=True)
+            elif motion == "droop":
+                self.pet_tilt = -6.0
+                self.pet_scale_y = .94
+            elif motion == "doze":
+                self.pet_scale_y = .97
+            self.update()
+            return True
+
+        def _draw_reaction(self, painter: QPainter, now_ms: int) -> None:
+            spec = self.reaction
+            if not isinstance(spec, dict) or now_ms >= self.reaction_until_ms:
+                return
+            pet_x, pet_y, pet_width, pet_height = self._pet_rect()
+            elapsed = max(0, now_ms - self.reaction_started_ms)
+            life = max(1, self.reaction_until_ms - self.reaction_started_ms)
+            fade = min(1.0, min(elapsed, life - elapsed) / 380.0)
+            painter.save()
+            painter.setOpacity(max(0.0, fade))
+            effect = spec["effect"]
+            if effect in ("rain", "tears"):
+                for index, ratio in enumerate((.22, .30, .38, .60, .68, .76)):
+                    drop = (elapsed * .07 + index * 11) % 42
+                    x = pet_x + pet_width * ratio
+                    y = pet_y + pet_height * .34 + drop
+                    painter.setBrush(QColor(62, 128, 198, 235))
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.drawEllipse(QRectF(x - 3.6, y - 7.0, 7.2, 12.0))
+                if effect == "rain":
+                    painter.setBrush(QColor(150, 170, 190, 130))
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.drawEllipse(QPointF(pet_x + pet_width * .5, pet_y + 8), 24, 7)
+            elif effect == "zzz":
+                font = QFont("Microsoft YaHei UI"); font.setPointSizeF(11.0); font.setBold(True)
+                painter.setFont(font); painter.setPen(QColor("#7C8FA6"))
+                for index, phase in enumerate((0, 1100, 2200)):
+                    t = (elapsed + phase) % 3300
+                    alpha = int(220 * (1 - t / 3300))
+                    painter.setPen(QColor(124, 143, 166, max(0, alpha)))
+                    painter.drawText(QPointF(pet_x + pet_width * .72 + t / 180,
+                                             pet_y + pet_height * .30 - t / 34), "Z")
+            elif effect == "question":
+                font = QFont("Microsoft YaHei UI"); font.setPointSizeF(13.0); font.setBold(True)
+                painter.setFont(font); painter.setPen(QColor("#8E9B65"))
+                bob = 3 * (1 + int(elapsed / 320) % 2)
+                painter.drawText(QPointF(pet_x + pet_width * .72, pet_y + pet_height * .22 - bob), "?")
+                painter.setPen(QColor("#A98A5F"))
+                painter.drawText(QPointF(pet_x + pet_width * .82, pet_y + pet_height * .36), "…")
+            elif effect == "sparkle":
+                painter.setPen(QPen(QColor("#D7B56D"), 2))
+                for index in range(4):
+                    cx = pet_x + pet_width * (.20 + .20 * index)
+                    cy = pet_y + pet_height * (.22 + .12 * (index % 2))
+                    r = 3 + 2 * (index % 2)
+                    painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+                    painter.drawLine(QPointF(cx, cy - r), QPointF(cx, cy + r))
+            elif effect == "speed":
+                painter.setPen(QPen(QColor(120, 140, 160, 120), 2))
+                direction = -1 if self.pet_facing >= 0 else 1
+                for index in range(3):
+                    y = pet_y + pet_height * (.55 + .08 * index)
+                    x = pet_x + pet_width * .18
+                    painter.drawLine(QPointF(x, y), QPointF(x + 24 * direction, y))
+            painter.restore()
 
         def _spawn_hearts(self, count: int = 3, gold: bool = False) -> None:
             now_ms = self._now_ms()
@@ -2623,6 +2715,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 reply = dict(reply, text="好呀，那我们接着聊。你想先说说今天的心情，还是问我一条基础知识？也可以说「实时动态」，看看最近校验的公开资料。", action=None)
             if mood != "neutral":
                 meta += f" · 情绪线索偏{LABELS.get(mood, '情绪')}"
+            reaction_key = detect_reaction(text, mood)
+            if reaction_key:
+                self._trigger_reaction(reaction_key)
             self.last_user_text = text[:200]
             self.last_reply_text = str(reply.get("text", ""))[:300]
             if self.conversation is not None and self.conversation.isVisible():
