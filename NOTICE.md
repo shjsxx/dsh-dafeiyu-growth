@@ -35,6 +35,14 @@ Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留
 
 仅用于本地生成哈希特征；原始文本不分发、不写入本仓库，也不加入日志。
 
+## 公开爬虫来源
+
+`native/public_crawler.py` 只读取一个固定公开文件：
+
+- **chinese-poetry/chinese-poetry** — MIT License，Copyright (c) 2016 JackeyGao；
+  文件 `诗经/shijing.json` 中的《诗经》文本为公版，经 GitHub 内容 API 读取。
+  每次只取一首诗的标题与前两行，不抓取仓库其他内容、不接收用户提供的 URL。
+
 ## 原生目录中的第三方资料
 
 | 文件 | 内容 | 许可 |

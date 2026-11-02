@@ -23,8 +23,8 @@ MAX_BYTES = 512 * 1024
 MAX_RECORDS = 600
 MAX_TEXT = 240
 MAX_SOURCE = 60
-KIND_WEIGHT = {"habit": 72, "diary": 58, "public": 46}
-KIND_LABEL = {"habit": "习惯", "diary": "回顾", "public": "公开知识"}
+KIND_WEIGHT = {"preference": 82, "habit": 72, "diary": 58, "public": 46, "culture": 62}
+KIND_LABEL = {"preference": "偏好", "habit": "习惯", "diary": "回顾", "public": "公开知识", "culture": "诗文"}
 
 
 def default_path():
@@ -177,6 +177,27 @@ class MemoryEngine:
         keep.sort(key=lambda row: row["lastSeen"], reverse=True)
         return keep
 
+    def ingest_behavior(self, behavior, now=None):
+        """Remember explicitly provided name/likes from interaction memory."""
+        if self.status == "protected" or not isinstance(behavior, dict):
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        added = 0
+        name = _plain(behavior.get("userName"), 20)
+        if name and self._remember("preference", "称呼：" + name, "local_preference", stamp):
+            added += 1
+        likes = behavior.get("likes") if isinstance(behavior.get("likes"), list) else []
+        for like in likes[:6]:
+            text = _plain(like, 40)
+            if text and self._remember("preference", "喜欢：" + text, "local_preference", stamp):
+                added += 1
+        if not added:
+            return 0
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        return 1 if self._save(before) else 0
+
     def ingest_state(self, state, now=None):
         """Remember bounded diary/learned summaries from the existing profile."""
         if self.status == "protected" or not isinstance(state, dict):
@@ -225,27 +246,49 @@ class MemoryEngine:
             self.data["revision"] += 1
         return 1 if changed and self._save(before) else 0
 
-    def recall(self, query, limit=5):
+    def ingest_external(self, record, now=None):
+        """Remember one bounded, licensed public summary from the crawler."""
+        if self.status == "protected" or not isinstance(record, dict):
+            return 0
+        topic, text = _plain(record.get("topic"), 60), _plain(record.get("text"), 600)
+        kind = record.get("kind") if record.get("kind") in ("public", "culture") else "public"
+        source = _plain(record.get("sourceLabel") or record.get("source"), MAX_SOURCE) or "public"
+        if not topic or len(text) < 10:
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        if not self._remember(kind, topic + "：" + text, source, stamp):
+            return 0
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        return 1 if self._save(before) else 0
+
+    def recall(self, query, limit=5, kinds=None):
         """Rank memories by bounded character-bigram overlap and importance."""
         if self.status == "protected":
             return []
         query = _plain(query, 80)
         if len(query) < 2:
             return []
+        allowed = set(kinds) if isinstance(kinds, (list, tuple, set)) else set(KIND_WEIGHT)
         grams = {query[i:i + 2] for i in range(len(query) - 1)}
         scored = []
         for row in self.data["records"]:
+            if row["kind"] not in allowed:
+                continue
             overlap = sum(1 for gram in grams if gram in row["text"])
             if overlap:
-                scored.append((overlap * 10 + row["importance"] // 10, row["lastSeen"], row))
+                score = overlap * 10 + row["importance"] // 10
+                scored.append((score, row["lastSeen"], row))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [{"kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]],
-                 "text": row["text"], "source": row["source"], "importance": row["importance"]}
-                for _, _, row in scored[:max(1, min(20, limit))]]
+                 "text": row["text"], "source": row["source"], "importance": row["importance"],
+                 "score": score}
+                for score, _, row in scored[:max(1, min(20, limit))]]
 
     def snapshot(self, recent=3):
         data = self.data or self._empty()
-        counts = {"habit": 0, "diary": 0, "public": 0}
+        counts = {"preference": 0, "habit": 0, "diary": 0, "public": 0, "culture": 0}
         for row in data["records"]:
             counts[row["kind"]] += 1
         newest = sorted(data["records"], key=lambda row: row["lastSeen"], reverse=True)[:max(0, min(10, recent))]

@@ -261,6 +261,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from growth_theme import MENU_QSS, icon as theme_icon
         from growth_engine import GrowthEngine
         from memory_engine import MemoryEngine
+        from memory_reply import compose_memory_answer, compose_public_answer
+        from public_crawler import PoetryCrawler
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -350,6 +352,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         learning_progress = Signal(dict)
         online_result = Signal(dict)
         voice_event = Signal(dict)
+        crawl_result = Signal(dict)
 
         LABELS = {
             "IDLE": "休息中",
@@ -482,6 +485,13 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.learning = LearningHub(self.brain, self.emotion)
             self.memory = MemoryEngine()
             self._memory_knowledge_revision = -1
+            self.crawler = PoetryCrawler()
+            self.crawler_busy = False
+            self.crawl_result.connect(self._on_crawl_result)
+            self.crawler_timer = QTimer(self)
+            self.crawler_timer.timeout.connect(self._start_crawl)
+            self.crawler_timer.start(6 * 60 * 60 * 1000)
+            QTimer.singleShot(20000, self._start_crawl)
             self.learning_tasks = []
             self.active_learning_source = ""
             self.learning_scope = False
@@ -2213,10 +2223,34 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                                 "status": snapshot["status"], "milestones": snapshot["milestones"]}
             return merged
 
+        def _start_crawl(self) -> None:
+            """Opt-in public poetry crawl; one fixed MIT/public-domain API file."""
+            if self.crawler_busy or not getattr(self.public_learning, "enabled", False):
+                return
+            self.crawler_busy = True
+            def work():
+                try:
+                    record = self.crawler.fetch_poem()
+                except Exception as error:
+                    record = {"error": getattr(error, "code", "crawl_failed")}
+                try:
+                    self.crawl_result.emit(record)
+                except RuntimeError:
+                    pass
+            threading.Thread(target=work, name="yunlan-public-crawl", daemon=True).start()
+
+        def _on_crawl_result(self, record) -> None:
+            self.crawler_busy = False
+            if not isinstance(record, dict) or record.get("error"):
+                return
+            if self.memory.ingest_external(record) and self.growth_dialog is not None:
+                self.growth_dialog.update_memory(self.memory.snapshot())
+
         def _sync_memory(self) -> None:
             """Absorb local summaries and already-validated public records."""
             try:
                 self.memory.ingest_state(self.growth_state)
+                self.memory.ingest_behavior(self.learner.snapshot())
                 knowledge = self.learning.knowledge.snapshot()
                 revision = knowledge.get("revision", 0)
                 if revision != self._memory_knowledge_revision:
@@ -2497,7 +2531,20 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.learner.add_like(reply["like"])
             if self._chat_may_learn:
                 self.learner.note_chat()
-            reply, meta = self.learning.companion_reply(text, reply, mood)
+            self.memory.ingest_behavior(self.learner.snapshot())
+            memory_answer = compose_memory_answer(
+                text, self.learner.data.get("userName", ""), self.learner.data.get("likes", []),
+                self.memory.recall(text, 5, kinds=("preference", "habit", "diary")))
+            if memory_answer:
+                reply = {"text": memory_answer, "action": None}
+                meta = "记忆引擎 · 本地记忆"
+            else:
+                reply, meta = self.learning.companion_reply(text, reply, mood)
+                if reply.get("text") in DEFAULT_REPLIES:
+                    public_answer, public_meta = compose_public_answer(text, self.memory.recall(text, 5))
+                    if public_answer:
+                        reply = {"text": public_answer, "action": None}
+                        meta = public_meta
             if any(word in text for word in ("实时动态", "最新动态", "最新地震", "联网动态")):
                 snap = self.online_state.snapshot()
                 if snap.get("summary"):

@@ -1,4 +1,4 @@
-# 云岚 · DSH 桌宠养成 🐟
+﻿# 云岚 · DSH 桌宠养成 🐟
 
 给 DSH 的桌宠**云岚**加一层养成：真实会话事件换经验，经验换等级与阶段，阶段解锁称号；从你的使用习惯里“学”出稳定结论；空闲时由本地神经网络决定动作，摔倒了会记住。
 
@@ -26,6 +26,14 @@
 4. 可选：按「自行构建与测试」构建并运行 `native\install.ps1` 安装原生补丁；0.5.0 以后的原生成长卡、连续语音、电脑操作和实时语音都依赖这一步。
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
+
+## 0.17.0 · 记忆进入对话 + 受限公开爬虫
+
+- **记忆真正影响对话**：「你记得我喜欢什么/我叫什么/记得我说过…」会从记忆引擎与已明确提供的称呼/喜好回答；公开记忆只在知识型问题且相关度足够时引用；没有记忆会直说，不编造。
+- 偏好自动入库：称呼与喜好进入记忆类型「偏好」；回顾、习惯、公开知识继续自动汇总。
+- **新增受限爬虫** `native/public_crawler.py`：只访问固定的 GitHub API 文件（MIT 仓库 `chinese-poetry` 的《诗经》，文本为公版），不接收任意 URL、不跟随跨站重定向、不抓知乎/登录页；6 小时一次，仅在公开学习开关开启时运行，失败静默且不生成假记忆。
+- 记忆新增「诗文」类型；公开条数含知识与诗文。检索结果带相关度，供对话引用。
+- 仍不是“人格引擎”，也不声称意识；云端聊天不会自动获得本地记忆（隐私边界未变）。
 
 ## 0.16.0 · 记忆引擎（本地 + 自动公开学习）
 
@@ -353,7 +361,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（683 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（690 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

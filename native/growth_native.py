@@ -1126,8 +1126,9 @@ class GrowthDialog(QDialog):
         snapshot = snapshot if isinstance(snapshot, dict) else {}
         status = snapshot.get("status") if isinstance(snapshot.get("status"), str) else "new"
         counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
-        local = _count(counts.get("habit")) + _count(counts.get("diary"))
-        public = _count(counts.get("public"))
+        local = (_count(counts.get("preference")) + _count(counts.get("habit"))
+                 + _count(counts.get("diary")))
+        public = _count(counts.get("public")) + _count(counts.get("culture"))
         if status == "protected":
             self.memory_counts.setText("记忆引擎存档受保护；未覆盖原文件，也不会自动学习。")
             self.memory_recent.setText("可在备份后手动检查 memory.json。")
