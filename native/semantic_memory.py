@@ -28,6 +28,11 @@ CONCEPTS = {
     "worry": ("焦虑", "紧张", "担心", "害怕", "压力", "不安"),
     "anger": ("生气", "愤怒", "烦", "讨厌", "火大"),
     "greet": ("你好", "嗨", "在吗", "早上好", "晚安"),
+    "music": ("音乐", "歌", "听歌", "歌曲", "旋律"),
+    "weather": ("下雨", "雨天", "天气", "风"),
+    "sleep_time": ("睡觉", "睡眠", "晚安", "十二点", "几点"),
+    "capital": ("首都", "都城", "巴黎"),
+    "boil": ("沸点", "沸腾", "100度", "摄氏度"),
 }
 _SURFACE = {word: concept for concept, words in CONCEPTS.items() for word in words}
 
@@ -76,6 +81,18 @@ def cosine(left, right):
 
 def similarity(query, text):
     return round(cosine(features(query), features(text)), 4)
+
+
+def concept_set(text):
+    raw = normalize(text)
+    return {concept for surface, concept in _SURFACE.items() if surface in raw}
+
+
+def concept_overlap(query, text):
+    left, right = concept_set(query), concept_set(text)
+    if not left:
+        return 0.0
+    return round(len(left & right) / len(left), 4)
 
 
 def rank(query, texts):

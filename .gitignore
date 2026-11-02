@@ -32,6 +32,7 @@ memory.json
 growth.json
 personality.json
 continuity.json
+embedding_rerank.json
 profile.json
 training.json
 training.json.bak

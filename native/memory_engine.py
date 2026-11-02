@@ -81,6 +81,8 @@ class MemoryEngine:
         self.data = None
         self._embedding = None
         self._vectors = {}
+        self._reranker = None
+        self._reranker_checked = False
         self._load()
 
     def _load(self):
@@ -300,6 +302,21 @@ class MemoryEngine:
         return {row["id"]: max(0.0, min(1.0, sum(a * b for a, b in zip(query_vector, self._vectors[row["id"]]))))
                 for row in rows if row["id"] in self._vectors}
 
+    def reranker(self):
+        if self._reranker_checked:
+            return self._reranker
+        self._reranker_checked = True
+        if os.environ.get("DSH_DAFEIYU_RERANK", "").strip() == "0":
+            return None
+        try:
+            from embedding_benchmark import Reranker
+            candidate = Reranker.load()
+            if candidate and candidate.enabled and candidate.metrics.get("improved"):
+                self._reranker = candidate
+        except (ImportError, OSError, ValueError, TypeError):
+            self._reranker = None
+        return self._reranker
+
     def recall(self, query, limit=5, kinds=None):
         """Rank memories by local neural embeddings, then hashed concepts."""
         if self.status == "protected":
@@ -325,13 +342,18 @@ class MemoryEngine:
         candidates = candidates[:40]
         rows = [row for _, row in candidates]
         neural = self._embedding_scores(query, rows)
+        reranker = self.reranker() if neural else None
         scored = []
         for base, row in candidates:
             if row["id"] in neural:
                 cosine = neural[row["id"]]
                 if cosine < .40:
                     continue
-                score = cosine * 100 + row["importance"] * .12
+                if reranker is not None:
+                    from embedding_benchmark import feature_row
+                    score = reranker.score(feature_row(query, row, cosine)) * 100
+                else:
+                    score = cosine * 100 + row["importance"] * .12
             else:
                 score = base
             scored.append((score, row["lastSeen"], row))
@@ -350,6 +372,7 @@ class MemoryEngine:
         return {"version": VERSION, "status": self.status, "error": self.error,
                 "revision": data["revision"], "total": len(data["records"]), "counts": counts,
                 "embedding": "ready" if (self._embedding or EmbeddingBackend()).files_present() else "unavailable",
+                "rerank": "on" if self.reranker() else "off",
                 "publicRevision": data.get("publicRevision", 0), "recent": [
                     {"kindLabel": KIND_LABEL[row["kind"]], "text": row["text"], "source": row["source"]}
                     for row in newest]}
