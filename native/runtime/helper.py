@@ -264,6 +264,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from memory_reply import broad_memory_query, compose_memory_answer, compose_public_answer
         from public_crawler import PoetryCrawler
         from personality_engine import PersonalityEngine
+        from continuity import ContinuityStore
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -486,6 +487,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.learning = LearningHub(self.brain, self.emotion)
             self.memory = MemoryEngine()
             self.personality = PersonalityEngine()
+            self.continuity = ContinuityStore()
+            self._continuity_started = False
             self._memory_knowledge_revision = -1
             self.crawler = PoetryCrawler()
             self.crawler_busy = False
@@ -2250,6 +2253,29 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if self.memory.ingest_external(record) and self.growth_dialog is not None:
                 self.growth_dialog.update_memory(self.memory.snapshot())
 
+        def _memory_answer(self, text: str):
+            """Shared local-memory answer for local chat and cloud-mode interception."""
+            self.memory.ingest_behavior(self.learner.snapshot())
+            hits = self.memory.recall(text, 5, kinds=("preference", "habit", "diary"))
+            if not hits and broad_memory_query(text):
+                hits = self.memory.recent(3, kinds=("preference", "habit", "diary"))
+            answer = compose_memory_answer(
+                text, self.learner.data.get("userName", ""), self.learner.data.get("likes", []), hits)
+            return (answer, "记忆引擎 · 本地记忆") if answer else (None, "")
+
+        def _sync_continuity(self) -> None:
+            if not self._continuity_started:
+                self.continuity.record_startup()
+                self._continuity_started = True
+            mood = self.emotion.current().get("label", "neutral")
+            has_memory = bool(self.memory.recent(1, kinds=("preference", "habit", "diary", "culture")))
+            personality = self.personality.snapshot(mood, has_memory)
+            memory = self.memory.snapshot()
+            self.continuity.checkpoint(personality, memory)
+            view = self.continuity.verify(personality, memory)
+            if self.growth_dialog is not None:
+                self.growth_dialog.update_continuity(view)
+
         def _sync_personality(self) -> None:
             self.personality.update(self.learning.companion.snapshot(), self.emotion.snapshot(),
                                     self.growth_state)
@@ -2300,12 +2326,18 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             knowledge_snapshot = self.learning.knowledge.snapshot()
             if knowledge_snapshot.get("revision", 0) != self._memory_knowledge_revision:
                 self._sync_memory()
+            today = time.strftime("%Y-%m-%d")
+            if not self._continuity_started or today != getattr(self, "_continuity_day", ""):
+                self._sync_continuity()
+                self._continuity_day = today
             if next_state == self.growth_state:
                 return
             self.growth_state = next_state
             self._sync_memory()
             self._sync_bubble_size()
             self._sync_personality()
+            self._sync_continuity()
+            self._continuity_day = time.strftime("%Y-%m-%d")
             if self.growth_dialog is not None:
                 self.growth_dialog.update_state(self.growth_state)
                 self.growth_dialog.update_neural(self.brain.info())
@@ -2337,6 +2369,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.growth_dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
                 self.growth_dialog.memory_clear_requested.connect(self._clear_memory_engine)
             self._sync_personality()
+            self._sync_continuity()
             self.growth_dialog.update_state(self.growth_state)
             self.growth_dialog.update_behavior(self.learner.snapshot())
             self.growth_dialog.update_neural(self.brain.info())
@@ -2550,16 +2583,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.learner.add_like(reply["like"])
             if self._chat_may_learn:
                 self.learner.note_chat()
-            self.memory.ingest_behavior(self.learner.snapshot())
-            memory_hits = self.memory.recall(text, 5, kinds=("preference", "habit", "diary"))
-            if not memory_hits and broad_memory_query(text):
-                memory_hits = self.memory.recent(3, kinds=("preference", "habit", "diary"))
-            memory_answer = compose_memory_answer(
-                text, self.learner.data.get("userName", ""), self.learner.data.get("likes", []),
-                memory_hits)
+            memory_answer, memory_meta = self._memory_answer(text)
             if memory_answer:
                 reply = {"text": memory_answer, "action": None}
-                meta = "记忆引擎 · 本地记忆"
+                meta = memory_meta
             else:
                 reply, meta = self.learning.companion_reply(text, reply, mood)
                 if reply.get("text") in DEFAULT_REPLIES:
@@ -2610,6 +2637,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if (config.get("endpoint"), config.get("model"), config.get("max_tokens")) != (dialog.cloud.get("endpoint"), dialog.cloud.get("model"), dialog.cloud.get("max_tokens")):
                 dialog.set_cloud_state(config)
                 dialog.show_reply("接口、模型或输出上限已变更；没有发送。请核对新目标后重新确认。", "本地提示", True)
+                return
+            memory_answer, memory_meta = self._memory_answer(text)
+            if memory_answer:
+                dialog.show_reply(memory_answer, memory_meta + " · 未发送云端")
                 return
             history = dialog.context_before_current()
             if not config.get("endpoint") or not config.get("model"):
@@ -2902,6 +2933,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if result.get("ok"):
                 host = urllib.parse.urlsplit(str(result.get("endpoint", ""))).hostname or "云端"
                 text = str(result.get("text", ""))[:1200]
+                mood = self.emotion.current().get("label", "neutral")
+                if mood in ("sad", "tired", "anxious", "anger"):
+                    text = self.personality.decorate(text, mood, bool(self.memory.recent(1)))
                 if active:
                     self.conversation.show_reply(text, f"云端 · {host}")
                     self._speak_voice_reply(text, result.get('voiceGeneration'))

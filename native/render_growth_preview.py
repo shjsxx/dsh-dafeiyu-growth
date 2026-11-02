@@ -108,6 +108,8 @@ def apply_fixture(dialog, fixture):
     dialog.update_personality({'status': 'ready', 'simulated': True, 'toneLabel': '温暖',
                                'initiative': .58, 'traits': {'warmth': 62, 'curiosity': 58,
                                'playfulness': 41, 'steadiness': 60, 'expressiveness': 55}})
+    dialog.update_continuity({'status': 'ready', 'days': 4, 'startups': 2,
+                              'message': '今天的状态与上次一致'})
 
 
 def render(out, width=456, height=640):

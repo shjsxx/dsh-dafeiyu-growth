@@ -681,6 +681,10 @@ class GrowthDialog(QDialog):
         self.engine_status.setToolTip("独立成长引擎持有等级、阶段、连续天数与里程碑；XP 镜像现有档案，不新增经验来源。")
         self.engine_status.setStyleSheet("font-size:11px;color:#627B84;padding:0 2px;")
         overview.insertWidget(0, self.engine_status)
+        self.continuity_status = _label("长期一致性 · 等待检查点", "memoryStatus")
+        self.continuity_status.setStyleSheet("font-size:11px;color:#627B84;padding:0 2px;")
+        self.continuity_status.setToolTip("每天保存一次性格与记忆的数字锚点；重启或跨天后校验，不保存文本。")
+        overview.insertWidget(1, self.continuity_status)
         overview.addStretch()
 
         self._heading(memory, "能力雷达", "本地练习指数")
@@ -1245,6 +1249,17 @@ class GrowthDialog(QDialog):
         self._refresh_abilities()
         self._emotion_protected = status in ("read_only", "protected")
         self.update_learning(getattr(self, "_learning_info", {}))
+
+    def update_continuity(self, snapshot):
+        """Passive long-term consistency summary; no writes here."""
+        snapshot = snapshot if isinstance(snapshot, dict) else {}
+        if snapshot.get("status") == "protected":
+            self.continuity_status.setText("长期一致性存档受保护；未覆盖原文件。")
+            return
+        days = int(max(0, _number(snapshot.get("days"))))
+        startups = int(max(0, _number(snapshot.get("startups"))))
+        message = _text(snapshot.get("message"), "等待检查点")
+        self.continuity_status.setText(f"长期一致性 · 连续 {days} 天 · {message} · 启动 {startups} 次")
 
     def update_personality(self, snapshot):
         """Passive personality summary; no model call or file write here."""

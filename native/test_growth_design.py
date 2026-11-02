@@ -103,6 +103,14 @@ class GrowthDesignTests(unittest.TestCase):
         self.assertIn('受保护', self.dialog.memory_counts.text())
         self.assertFalse(self.dialog.memory_clear.isEnabled())
 
+    def test_continuity_status_shows_days_and_stability(self):
+        self.dialog.update_continuity({'status': 'ready', 'days': 4, 'startups': 2,
+                                       'message': '今天的状态与上次一致'})
+        self.assertIn('连续 4 天', self.dialog.continuity_status.text())
+        self.assertIn('一致', self.dialog.continuity_status.text())
+        self.dialog.update_continuity({'status': 'protected'})
+        self.assertIn('受保护', self.dialog.continuity_status.text())
+
     def test_personality_card_shows_tone_initiative_and_protected_state(self):
         self.dialog.update_personality({'status': 'ready', 'simulated': True, 'toneLabel': '温暖',
                                         'initiative': .58,
