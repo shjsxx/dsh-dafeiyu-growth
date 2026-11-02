@@ -1,4 +1,4 @@
-# 云岚 · DSH 桌宠养成 🐟
+﻿# 云岚 · DSH 桌宠养成 🐟
 
 给 DSH 的桌宠**云岚**加一层养成：真实会话事件换经验，经验换等级与阶段，阶段解锁称号；从你的使用习惯里“学”出稳定结论；空闲时由本地神经网络决定动作，摔倒了会记住。
 
@@ -26,6 +26,14 @@
 4. 可选：按「自行构建与测试」构建并运行 `native\install.ps1` 安装原生补丁；0.5.0 以后的原生成长卡、连续语音、电脑操作和实时语音都依赖这一步。
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
+
+## 0.22.0 · 训练评估：分层留出、每类指标与数据质量
+
+- 情感模型改用**按类别分层留出**，不再随机切一段；新增 balanced accuracy、macro F1、每类 precision/recall/F1、混淆矩阵，并在 `emotion.json` 持久化最近一次评估（只有数字和固定标签）。
+- 数据质量先过滤：重复行、同文不同标签的冲突行、过短/低中文占比/未映射标签；审计记录 duplicates/conflicts/classes/min_class，不保存原文。
+- 接受门槛从“准确率略升”改为“macro/平衡提升且准确率不塌陷（≤2%）”，避免牺牲少数类换总分。
+- 动作网络回放改为**课程采样**：优先强反馈与稀有动作，确定性轮换；新增动作多样性、平均奖励、正反馈比例指标。
+- 训练总览新增“情感留出 / 动作偏好”评估行；说明这是留出集指标，不是心理诊断或实际成功率。
 
 ## 0.21.0 · 互动反应：好笑、快来、难过、无聊、打瞌睡、流泪
 
@@ -395,7 +403,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（713 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（719 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

@@ -20,6 +20,12 @@ import re
 import time
 from pathlib import Path
 
+from emotion_eval import acceptable as eval_acceptable
+from emotion_eval import evaluate as eval_rows
+from emotion_eval import metrics as eval_metrics
+from emotion_eval import prepare as eval_prepare
+from emotion_eval import stratified_split
+
 EMOTIONS = ("joy", "sad", "anger", "anxious", "tired", "calm")
 LABELS = {
     "joy": "开心", "sad": "低落", "anger": "生气",
@@ -104,6 +110,7 @@ class EmotionModel:
         self.adaptation_passes = 0
         self.last_import = {"persisted": False, "features_before": 0, "features_after": 0,
                             "public_cues_before": 0, "public_cues_after": 0, "added": 0}
+        self.last_eval = {}
         self.events = 0
         self.mood = "neutral"
         self.mood_confidence = 0.0
@@ -168,6 +175,7 @@ class EmotionModel:
             self.mood = mood if isinstance(mood, str) and mood in (*EMOTIONS, "neutral") else "neutral"
             self.mood_confidence = _clamp(_finite(raw.get("moodConfidence")), 0, 1)
             self.mood_ms = max(0.0, _finite(raw.get("moodMs")))
+            self.last_eval = self._clean_eval(raw.get("lastEval"))
             self.status = "ready"
         except (OSError, ValueError, TypeError, OverflowError):
             self.status = "protected"
@@ -189,7 +197,44 @@ class EmotionModel:
             "mood": self.mood,
             "moodConfidence": self.mood_confidence,
             "moodMs": self.mood_ms,
+            "lastEval": self._clean_eval(self.last_eval),
         }
+
+    @staticmethod
+    def _clean_eval(raw) -> dict:
+        """Bounded numeric evaluation document; never text rows."""
+        if not isinstance(raw, dict):
+            return {}
+        result = {}
+        for key in ("accuracy", "balanced_accuracy", "macro_f1"):
+            number = _finite(raw.get(key), None)
+            if number is not None:
+                result[key] = round(_clamp(number, 0.0, 1.0), 4)
+        for key in ("support", "rows_used", "validation", "duplicates", "conflicts",
+                    "classes", "min_class", "revision", "at", "accepted"):
+            result[key] = _counter(raw.get(key))
+        if raw.get("reason") in ("accepted", "no_improvement"):
+            result["reason"] = raw["reason"]
+        quality = raw.get("quality")
+        if isinstance(quality, dict):
+            result["quality"] = {str(key)[:24]: _counter(value) for key, value in
+                                 list(quality.items())[:12] if isinstance(key, str)}
+        labels = [label for label in raw.get("labels", []) if label in EMOTIONS][:len(EMOTIONS)] if isinstance(raw.get("labels"), list) else []
+        result["labels"] = labels
+        per_class = []
+        for row in raw.get("per_class", [])[:8] if isinstance(raw.get("per_class"), list) else []:
+            if isinstance(row, dict) and row.get("label") in EMOTIONS:
+                per_class.append({"label": row["label"],
+                                  **{key: round(_clamp(_finite(row.get(key), 0), 0, 1), 4)
+                                     for key in ("precision", "recall", "f1")},
+                                  "support": _counter(row.get("support"))})
+        result["per_class"] = per_class
+        confusion = []
+        for row in raw.get("confusion", [])[:8] if isinstance(raw.get("confusion"), list) else []:
+            if isinstance(row, list):
+                confusion.append([_counter(value) for value in row[:8]])
+        result["confusion"] = confusion
+        return result
 
     def save(self) -> bool:
         if self.status == "protected":
@@ -217,6 +262,7 @@ class EmotionModel:
             "learned_count", "events", "mood", "mood_confidence", "mood_ms",
             "lexicon_count", "source_host", "revision", "fit_samples", "adaptation_passes", "status", "error",
         )}
+        state["last_eval"] = dict(self.last_eval)
         state["weights"] = {emotion: dict(row) for emotion, row in self.weights.items()}
         state["extra_cues"] = {emotion: set(words) for emotion, words in self.extra_cues.items()}
         return state
@@ -460,60 +506,81 @@ class EmotionModel:
         """
         before = self._state()
         audit = {"persisted": False, "reason": "", "rows_total": 0, "rows_used": 0,
-                 "skipped": 0, "validation": 0, "accuracy_before": 0.0,
-                 "accuracy_after": 0.0, "changed_weights": 0,
+                 "skipped": 0, "duplicates": 0, "conflicts": 0, "classes": 0,
+                 "min_class": 0, "validation": 0, "accuracy_before": 0.0,
+                 "accuracy_after": 0.0, "balanced_before": 0.0, "balanced_after": 0.0,
+                 "macro_f1_before": 0.0, "macro_f1_after": 0.0,
+                 "changed_weights": 0, "labels": list(EMOTIONS),
+                 "per_class": [], "confusion": [],
                  "version_before": before["revision"], "version_after": before["revision"]}
         if self.status == "protected":
             audit["reason"] = "protected"
             return audit
-        clean, seen = [], set()
-        for row in rows if isinstance(rows, (list, tuple)) else []:
-            text = label = None
-            if isinstance(row, dict):
-                text, label = row.get("text"), row.get("label")
-            elif isinstance(row, (list, tuple)) and len(row) == 2:
-                text, label = row
-            audit["rows_total"] += 1
-            if (not isinstance(text, str) or not isinstance(label, str) or label not in EMOTIONS
-                    or not 2 <= len(text.strip()) <= 160
-                    or sum("\u4e00" <= ch <= "\u9fff" for ch in text) < max(2, len(text) // 4)):
-                audit["skipped"] += 1
-                continue
-            compact = " ".join(text.split())
-            digest = _hash(compact)
-            if digest in seen:
-                audit["skipped"] += 1
-                continue
-            seen.add(digest)
-            clean.append((compact, label))
-        clean.sort(key=lambda item: _hash(item[0] + item[1]))
+        clean, quality = eval_prepare(rows)
+        audit.update(rows_total=quality["rows_total"], skipped=quality["skipped"],
+                     duplicates=quality["duplicates"], conflicts=quality["conflicts"],
+                     classes=quality["classes"], min_class=quality["min_class"])
         if len(clean) < 40:
             audit["reason"] = "too_few_rows"
             return audit
-        cut = max(20, int(len(clean) * (1 - max(0.1, min(0.4, holdout)))))
-        train, valid = clean[:cut], clean[cut:]
+        train, valid = stratified_split(clean, holdout)
+        if len(valid) < 5 or len(train) < 20:
+            audit["reason"] = "too_few_rows"
+            return audit
         audit["rows_used"] = len(train)
         audit["validation"] = len(valid)
-        def score(rows_):
-            if not rows_:
-                return 0.0
-            return round(sum(self.classify(text).get("label") == label for text, label in rows_) / len(rows_), 4)
-        audit["accuracy_before"] = score(valid)
+        before_metrics = eval_rows(self.classify, valid, EMOTIONS)
         for text, label in train:
             self._learn(text, label)
-        audit["accuracy_after"] = score(valid)
+        after_metrics = eval_rows(self.classify, valid, EMOTIONS)
+        audit.update(
+            accuracy_before=before_metrics["accuracy"], accuracy_after=after_metrics["accuracy"],
+            balanced_before=before_metrics["balanced_accuracy"], balanced_after=after_metrics["balanced_accuracy"],
+            macro_f1_before=before_metrics["macro_f1"], macro_f1_after=after_metrics["macro_f1"],
+            per_class=after_metrics["per_class"], confusion=after_metrics["confusion"],
+        )
         audit["changed_weights"] = self._changed_weights(before["weights"], self.weights)
-        if audit["changed_weights"] <= 0 or audit["accuracy_after"] < audit["accuracy_before"]:
+        if audit["changed_weights"] <= 0 or not eval_acceptable(before_metrics, after_metrics):
             for key, value in before.items():
                 setattr(self, key, value)
             audit["reason"] = "no_improvement"
             audit["version_after"] = before["revision"]
+            # Persist the current model's holdout evaluation even when the
+            # update is rejected. Weights stay untouched; only metrics are saved.
+            self.last_eval = {
+                **{key: before_metrics[key] for key in ("accuracy", "balanced_accuracy", "macro_f1")},
+                "support": before_metrics["support"], "labels": before_metrics["labels"],
+                "per_class": before_metrics["per_class"], "confusion": before_metrics["confusion"],
+                "rows_used": len(train), "validation": len(valid),
+                "duplicates": quality["duplicates"], "conflicts": quality["conflicts"],
+                "classes": quality["classes"], "min_class": quality["min_class"],
+                "quality": {"labels": quality["classes"], "rows": quality["valid"],
+                            "skipped": quality["skipped"]},
+                "revision": self.revision, "at": int(time.time()),
+                "accepted": 0, "reason": "no_improvement",
+            }
+            try:
+                self.save()
+            except (OSError, ValueError, TypeError, OverflowError):
+                pass
             return audit
         self.revision += 1
         self.fit_samples += len(train)
         self.adaptation_passes += 1
         if isinstance(source, str) and source:
             self.source_host = source[:120]
+        self.last_eval = {
+            **{key: after_metrics[key] for key in ("accuracy", "balanced_accuracy", "macro_f1")},
+            "support": after_metrics["support"], "labels": after_metrics["labels"],
+            "per_class": after_metrics["per_class"], "confusion": after_metrics["confusion"],
+            "rows_used": len(train), "validation": len(valid),
+            "duplicates": quality["duplicates"], "conflicts": quality["conflicts"],
+            "classes": quality["classes"], "min_class": quality["min_class"],
+            "quality": {"labels": quality["classes"], "rows": quality["valid"],
+                        "skipped": quality["skipped"]},
+            "revision": self.revision, "at": int(time.time()),
+            "accepted": 1, "reason": "accepted",
+        }
         persisted = self._commit_candidate(before)
         audit["persisted"] = persisted is True
         audit["version_after"] = self.revision if persisted else before["revision"]
@@ -580,6 +647,7 @@ class EmotionModel:
             "source": self.source_host,
             "status": self.status,
             "error": self.error,
+            "evaluation": self._clean_eval(self.last_eval),
         }
 
     def reset(self) -> bool:

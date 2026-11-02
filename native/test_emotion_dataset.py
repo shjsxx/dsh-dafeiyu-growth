@@ -41,6 +41,24 @@ class DatasetLearningTests(unittest.TestCase):
         self.assertNotIn('心情特别好', body)
         self.assertNotIn('普通的一天', body)
         self.assertIn('test/dataset', model.snapshot()['source'])
+        evaluation = model.snapshot()['evaluation']
+        self.assertIn('balanced_accuracy', evaluation)
+        self.assertIn('macro_f1', evaluation)
+        self.assertTrue(evaluation['per_class'])
+        restarted = EmotionModel(self.path)
+        self.assertEqual(restarted.snapshot()['evaluation'], evaluation)
+
+    def test_rejected_update_still_persists_holdout_evaluation(self):
+        model = EmotionModel(self.path)
+        with mock.patch('emotion_model.eval_acceptable', return_value=False):
+            audit = model.learn_dataset(rows(), holdout=.25, source='test/dataset')
+        self.assertFalse(audit['persisted'])
+        self.assertEqual(audit['reason'], 'no_improvement')
+        evaluation = model.snapshot()['evaluation']
+        self.assertEqual(evaluation['reason'], 'no_improvement')
+        self.assertEqual(evaluation['accepted'], 0)
+        restarted = EmotionModel(self.path)
+        self.assertEqual(restarted.snapshot()['evaluation']['accuracy'], evaluation['accuracy'])
 
     def test_failed_commit_rolls_back_weights_and_reports_not_persisted(self):
         model = EmotionModel(self.path)

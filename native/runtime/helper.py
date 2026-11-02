@@ -2898,6 +2898,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.growth_dialog.update_companion(self.learning.companion.snapshot())
                 training_info = self.learning.snapshot(self.active_learning_source)
                 training_info["busy"] = self.learning_busy
+                training_info["evaluation"] = self.emotion.snapshot().get("evaluation", {})
                 self.growth_dialog.update_training(training_info)
 
         def _set_auto_learning(self, enabled: bool) -> None:

@@ -48,7 +48,9 @@ METRICS = {
     "valence_before", "valence_after", "energy_before", "energy_after", "trust_before", "trust_after",
     "curiosity_before", "curiosity_after", "event_count", "public_cues_before", "public_cues_after", "characters", "confidence",
     "audio_input_bytes", "audio_output_bytes", "played_ms", "input_tokens", "output_tokens", "input_audio_tokens", "output_audio_tokens", "cached_tokens",
-    "dataset_rows", "dataset_skipped", "dataset_validation", "dataset_accuracy_before", "dataset_accuracy_after", "changed_weights",
+    "dataset_rows", "dataset_skipped", "dataset_validation", "dataset_accuracy_before", "dataset_accuracy_after",
+    "dataset_balanced_before", "dataset_balanced_after", "dataset_macro_f1_before", "dataset_macro_f1_after",
+    "dataset_duplicates", "dataset_conflicts", "dataset_classes", "dataset_min_class", "changed_weights",
 }
 VOICE_EVENTS = {'session_start', 'recognized', 'spoken', 'voice_interrupt', 'voice_reject', 'session_stop', 'voice_error', 'rt_connect', 'rt_start', 'rt_stop', 'rt_usage', 'rt_interrupt', 'rt_error', 'rt_disconnect', 'rt_limit', 'rt_recognized'}
 COMPUTER_ACTIONS = {'open_notepad', 'open_calculator', 'volume_up', 'volume_down', 'volume_mute'}
@@ -71,7 +73,7 @@ MAX_NUMBER = 10 ** 13
 RETENTION_SECONDS = 30 * 24 * 60 * 60
 TOTAL_KEYS = ("runs", "failed", "weight_steps", "emotion_adaptation_passes", "knowledge_added", "interrupted_unknown", "voice_sessions", "voice_segments", "voice_spoken", "voice_interrupted", "voice_rejected", "computer_proposals", "computer_executed", "computer_blocked", "realtime_sessions", "realtime_segments", "realtime_interrupted", "realtime_errors", "realtime_duration_ms", "realtime_audio_input_bytes", "realtime_audio_output_bytes", "realtime_played_ms", "realtime_input_tokens", "realtime_output_tokens", "realtime_input_audio_tokens", "realtime_output_audio_tokens", "realtime_cached_tokens")
 SIGNED_METRICS = {"reward", "valence_before", "valence_after"}
-FRACTION_METRICS = {"confidence", "confidence_before", "confidence_after", "probability_before", "probability_after", "energy_before", "energy_after", "trust_before", "trust_after", "curiosity_before", "curiosity_after", "dataset_accuracy_before", "dataset_accuracy_after"}
+FRACTION_METRICS = {"confidence", "confidence_before", "confidence_after", "probability_before", "probability_after", "energy_before", "energy_after", "trust_before", "trust_after", "curiosity_before", "curiosity_after", "dataset_accuracy_before", "dataset_accuracy_after", "dataset_balanced_before", "dataset_balanced_after", "dataset_macro_f1_before", "dataset_macro_f1_after"}
 CONTINUOUS_METRICS = SIGNED_METRICS | FRACTION_METRICS | {"duration_ms", "loss_before", "loss_after"}
 
 

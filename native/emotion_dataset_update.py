@@ -31,14 +31,24 @@ MAX_BYTES = 4 * 1024 * 1024
 
 
 def download(url=DATASET["url"], timeout=30):
-    request = urllib.request.Request(url, headers={"User-Agent": "Yunlan/0.11 public-dataset update"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        if response.status != 200:
-            raise RuntimeError("dataset_http")
-        body = response.read(MAX_BYTES + 1)
-    if len(body) > MAX_BYTES:
-        raise RuntimeError("dataset_too_large")
-    return body
+    """Pinned dataset, with an explicit mirror fallback for blocked networks."""
+    candidates = [url]
+    if url == DATASET["url"]:
+        candidates.append(url.replace("https://huggingface.co", "https://hf-mirror.com"))
+    last_error = None
+    for candidate in candidates:
+        try:
+            request = urllib.request.Request(candidate, headers={"User-Agent": "Yunlan/0.22 public-dataset update"})
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                if response.status != 200:
+                    raise RuntimeError("dataset_http")
+                body = response.read(MAX_BYTES + 1)
+            if len(body) > MAX_BYTES:
+                raise RuntimeError("dataset_too_large")
+            return body
+        except (OSError, RuntimeError) as error:
+            last_error = error
+    raise RuntimeError("dataset_unreachable") from last_error
 
 
 def parse_csv(body):
@@ -109,6 +119,14 @@ def main():
         "dataset_validation": int(audit["validation"]),
         "dataset_accuracy_before": float(audit["accuracy_before"]),
         "dataset_accuracy_after": float(audit["accuracy_after"]),
+        "dataset_balanced_before": float(audit["balanced_before"]),
+        "dataset_balanced_after": float(audit["balanced_after"]),
+        "dataset_macro_f1_before": float(audit["macro_f1_before"]),
+        "dataset_macro_f1_after": float(audit["macro_f1_after"]),
+        "dataset_duplicates": int(audit["duplicates"]),
+        "dataset_conflicts": int(audit["conflicts"]),
+        "dataset_classes": int(audit["classes"]),
+        "dataset_min_class": int(audit["min_class"]),
         "changed_weights": int(audit["changed_weights"]),
         "adaptation_passes": 1 if audit["persisted"] else 0,
     }
@@ -120,6 +138,9 @@ def main():
         "dataset": DATASET["id"], "revision": DATASET["revision"], "license": DATASET["license"],
         "rows_used": int(audit["rows_used"]), "validation": int(audit["validation"]),
         "accuracy_before": audit["accuracy_before"], "accuracy_after": audit["accuracy_after"],
+        "balanced_before": audit["balanced_before"], "balanced_after": audit["balanced_after"],
+        "macro_f1_before": audit["macro_f1_before"], "macro_f1_after": audit["macro_f1_after"],
+        "duplicates": audit["duplicates"], "conflicts": audit["conflicts"],
         "changed_weights": int(audit["changed_weights"]), "reason": audit["reason"],
         "version_after": int(audit["version_after"]), "filtered": stats["filtered"],
         "unmapped": stats["unmapped"], "backup": bool(backup),

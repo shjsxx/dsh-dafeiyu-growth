@@ -101,7 +101,14 @@ _METRIC_LABELS = {
     "duration_ms": "用时（毫秒）", "event_count": "互动计数", "characters": "临时文字字符数（不保存原文）",
     "dataset_rows": "公开数据行数", "dataset_skipped": "过滤/跳过行数", "dataset_validation": "留出验证行数",
     "dataset_accuracy": "留出准确率",
-    "dataset_accuracy_before": "更新前留出准确率", "dataset_accuracy_after": "更新后留出准确率", "changed_weights": "变化权重项",
+    "dataset_accuracy_before": "更新前留出准确率", "dataset_accuracy_after": "更新后留出准确率",
+    "dataset_balanced": "平衡准确率",
+    "dataset_balanced_before": "更新前平衡准确率", "dataset_balanced_after": "更新后平衡准确率",
+    "dataset_macro_f1": "macro F1",
+    "dataset_macro_f1_before": "更新前 macro F1", "dataset_macro_f1_after": "更新后 macro F1",
+    "dataset_duplicates": "重复行", "dataset_conflicts": "冲突标签行",
+    "dataset_classes": "覆盖类别数", "dataset_min_class": "最小类别样本",
+    "changed_weights": "变化权重项",
     "audio_input_bytes": "音频发送字节数（交给套接字）", "audio_output_bytes": "收到的音频字节数", "played_ms": "设备实际处理播报（毫秒）",
     "input_tokens": "服务报告输入 tokens", "output_tokens": "服务报告输出 tokens", "input_audio_tokens": "其中音频输入 tokens", "output_audio_tokens": "其中音频输出 tokens", "cached_tokens": "其中缓存输入 tokens",
 }
@@ -406,8 +413,8 @@ class TrainingPanel(QWidget):
         card = QFrame()
         card.setObjectName("trainingSummaryCard")
         card_box = QVBoxLayout(card)
-        card_box.setContentsMargins(12, 8, 12, 8)
-        card_box.setSpacing(2)
+        card_box.setContentsMargins(12, 7, 12, 7)
+        card_box.setSpacing(1)
         self.summary_label = self._label(wrap=False)
         self.summary_label.setProperty("section", True)
         self.summary_label.setFixedHeight(20)
@@ -417,6 +424,10 @@ class TrainingPanel(QWidget):
         self.brain_label = self._label(wrap=False)
         self.brain_label.setProperty("caption", True)
         self.brain_label.setFixedHeight(16)
+        self.evaluation_label = self._label(wrap=False)
+        self.evaluation_label.setProperty("caption", True)
+        self.evaluation_label.setFixedHeight(16)
+        self.evaluation_label.setToolTip("情感指标来自确定的分层留出集；动作多样性来自数值回放，不代表实际成功率。")
         self.public_import_label = self._label(wrap=False)
         self.public_import_label.setProperty("caption", True)
         self.public_import_label.setFixedHeight(16)
@@ -424,12 +435,12 @@ class TrainingPanel(QWidget):
         self.source_label.setProperty("caption", True)
         self.source_label.setFixedHeight(16)
         for label in (self.summary_label, self.knowledge_label, self.brain_label,
-                      self.public_import_label, self.source_label):
+                      self.evaluation_label, self.public_import_label, self.source_label):
             card_box.addWidget(label)
         box.addWidget(card)
         note = self._label("收录 ≠ 训练；情感适应不等于 SGD。\n只展示来源与数值，不保存私聊原文。")
         note.setProperty("caption", True)
-        note.setFixedHeight(32)
+        note.setFixedHeight(28)
         box.addWidget(note)
         box.addStretch()
 
@@ -579,9 +590,29 @@ class TrainingPanel(QWidget):
         self._set_label(self.knowledge_label, f"知识库 {count} 条" + (f" · {facts}" if facts else ""))
         self.knowledge_label.setToolTip(self.knowledge_label.text())
         brain_status = _enum(brain.get("status"), _BRAIN_STATUSES)
+        def number_or_zero(value):
+            number = _number(value)
+            return 0 if number is None else number
         self._set_label(self.brain_label,
                         f"动作模型：样本 {_count(brain.get('samples'))} · 更新 {_count(brain.get('updates'))} · "
-                        f"v{_count(brain.get('version'))} · {_BRAIN_STATUSES.get(brain_status, '暂无状态')}")
+                        f"v{_count(brain.get('version'))} · {_BRAIN_STATUSES.get(brain_status, '暂无状态')} · "
+                        f"多样性 {number_or_zero(brain.get('diversity')):.2f} · 均奖励 {number_or_zero(brain.get('avg_reward')):+.2f}")
+        evaluation = _mapping(info.get("evaluation"))
+        if evaluation:
+            value = _number(evaluation.get("accuracy"))
+            accuracy = f"{int(round(value * 100))}%" if value is not None else "—"
+            value = _number(evaluation.get("balanced_accuracy"))
+            balanced = f"{int(round(value * 100))}%" if value is not None else "—"
+            self._set_label(self.evaluation_label,
+                            f"情感留出：准确率 {accuracy} · 平衡 {balanced} · "
+                            f"macro F1 {number_or_zero(evaluation.get('macro_f1')):.2f} · "
+                            f"验证 {_count(evaluation.get('support'))}")
+            if evaluation.get("reason") == "no_improvement":
+                self.evaluation_label.setToolTip("上次公开数据更新未达到采纳门槛；权重未变，这里显示的是当前模型的留出评估。")
+            else:
+                self.evaluation_label.setToolTip("来自确定的分层留出集；不是心理诊断或泛化保证。")
+        else:
+            self._set_label(self.evaluation_label, "情感留出：尚无评估；完成一次公开数据学习后显示。")
         self.summary_label.setToolTip(
             f"动作 SGD {steps} 步 · 情感适应 {passes} 次（加性适应，非反向传播）\n" + self.brain_label.text() +
             f"\n本记录期累计新增知识 {_count(totals.get('knowledge_added'))} 条。\n"

@@ -100,6 +100,10 @@ def apply_fixture(dialog, fixture):
     dialog.update_state(state)
     for name in ('behavior', 'neural', 'emotion', 'companion', 'learning', 'training', 'online'):
         getattr(dialog, 'update_' + name)(fixture[name])
+    training = dict(fixture['training'])
+    training['evaluation'] = {'accuracy': .709, 'balanced_accuracy': .651, 'macro_f1': .68, 'support': 461}
+    training['brain'] = dict(training.get('brain') or {}, diversity=.72, avg_reward=-.1, positive_ratio=.6)
+    dialog.update_training(training)
     dialog.update_memory({'status': 'ready', 'revision': 4,
                           'counts': {'preference': 1, 'habit': 1, 'diary': 1, 'public': 2, 'culture': 1},
                           'recent': [{'kindLabel': '诗文', 'text': '关雎：关关雎鸠，在河之洲。'},
