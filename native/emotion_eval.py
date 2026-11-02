@@ -6,7 +6,6 @@ labels and numeric metrics; no raw text is returned or retained.
 from __future__ import annotations
 
 import hashlib
-import math
 
 EMOTIONS = ("joy", "sad", "anger", "anxious", "tired", "calm")
 

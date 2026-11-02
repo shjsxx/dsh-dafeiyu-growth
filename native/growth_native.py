@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from training_ui import TrainingPanel
-from growth_charts import BarChart, RadarChart, DonutChart, GaugeChart, recent_days, activity_days
+from growth_charts import BarChart, RadarChart, DonutChart, recent_days, activity_days
 from ability_model import DIMENSIONS as ABILITY_DIMENSIONS, derive_abilities
 from data_panel import DataPanel
 from online_ui import OnlinePanel

@@ -22,7 +22,6 @@ from pathlib import Path
 
 from emotion_eval import acceptable as eval_acceptable
 from emotion_eval import evaluate as eval_rows
-from emotion_eval import metrics as eval_metrics
 from emotion_eval import prepare as eval_prepare
 from emotion_eval import stratified_split
 

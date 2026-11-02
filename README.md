@@ -1,4 +1,4 @@
-﻿# 云岚 · DSH 桌宠养成 🐟
+# 云岚 · DSH 桌宠养成 🐟
 
 给 DSH 的桌宠**云岚**加一层养成：真实会话事件换经验，经验换等级与阶段，阶段解锁称号；从你的使用习惯里“学”出稳定结论；空闲时由本地神经网络决定动作，摔倒了会记住。
 
@@ -53,6 +53,8 @@
 - 本地规则没命中时，改用诚实的上下文兜底（“这句我还没答上来，你问的是……吗”），不再出现“我有点雀跃，想转一圈”这种无关回复。
 - “不想加油了 / 撑不住”等否定鼓励的表达改为先接住情绪；问候不再强制说“今天也一起加油”。
 - 测试直接复现截图四轮：问候、拒绝加油、两次“为什么答非所问”，逐句断言不再出现随机心情话术。
+
+![修复后的四轮对话](docs/screenshots/dialogue-fix.png)
 
 ## 0.19.0 · 长期一致性（重启 / 跨天 / 跨模型）
 
@@ -438,7 +440,7 @@ python -m pip install -r requirements-native.txt
 
 测试命令见上一节；原生测试需要 Windows 图形会话、PySide6 和 pywin32。所有单元测试使用隔离的临时数据目录，不会读写你的真实成长档案，也不会开麦、联网或执行电脑操作（实时语音回环探针只连本机 `127.0.0.1`）。`run_smoke.py` 需要先运行 `native/build.ps1` 生成 `native/dist/dsh-dafeiyu-helper.exe`；维护者实机脚本还需要 `python -m pip install -r requirements-dev.txt`（Pillow）。
 
-`native/live_chat.py`、`native/live_probe.py`、`native/live_voice.py`、`native/verify_*.py`、`native/render_dialog.py` 是维护者在本机对**已安装**桌宠做的实机检查/截图脚本：会与真实窗口和真实档案交互，部分脚本会临时改变公开学习等设置，默认拒绝运行，必须显式设置 `DSH_DAFEIYU_ALLOW_LIVE_PROBE=1`。`render_dialog.py` 默认改用合成档案和隔离目录，只有设置 `DSH_DAFEIYU_RENDER_REAL=1` 才读取真实布局。运行前请先备份 `~/.dsh/dsh-dafeiyu-growth/`。`run_smoke.py` 使用 `native/fixtures/smoke-profile.json` 合成档案，不复制你的真实数据。
+`native/live_chat.py`、`native/live_probe.py`、`native/live_voice.py` 是维护者在本机对**已安装**桌宠做的实机检查/截图脚本：会与真实窗口和真实档案交互，部分脚本会临时改变公开学习等设置，默认拒绝运行，必须显式设置 `DSH_DAFEIYU_ALLOW_LIVE_PROBE=1`。运行前请先备份 `~/.dsh/dsh-dafeiyu-growth/`。`render_growth_preview.py` 只使用合成档案和隔离目录生成界面预览；`run_smoke.py` 使用 `native/fixtures/smoke-profile.json` 合成档案，不复制你的真实数据。
 
 ## 许可证与来源
 

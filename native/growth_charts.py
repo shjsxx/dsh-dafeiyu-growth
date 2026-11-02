@@ -172,35 +172,6 @@ class DonutChart(_Chart):
         p.end()
 
 
-class GaugeChart(_Chart):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setMinimumHeight(104)
-        self.setMaximumHeight(120)
-        self.value, self.caption = 0, ''
-
-    def set_value(self, value, caption=''):
-        self.value = max(0.0, min(100.0, float(value)))
-        self.caption = str(caption)[:8]
-        self.setAccessibleName(f'{self.caption} {int(self.value)}')
-        self.update()
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        side = min(self.height() - 8, self.width() - 8)
-        box = QRectF((self.width() - side) / 2, 4, side, side)
-        p.setPen(QPen(QColor(GRID), 7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        p.drawArc(box.adjusted(6, 6, -6, -6), 0, 360 * 16)
-        p.setPen(QPen(QColor(TEAL), 7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        p.drawArc(box.adjusted(6, 6, -6, -6), 90 * 16, -round(360 * 16 * self.value / 100))
-        self._text(p, QRectF(box.x(), box.center().y() - 18, box.width(), 24), str(int(self.value)), INK, 18,
-                   Qt.AlignmentFlag.AlignCenter)
-        self._text(p, QRectF(box.x(), box.center().y() + 6, box.width(), 14), self.caption, MUTED, 9,
-                   Qt.AlignmentFlag.AlignCenter)
-        p.end()
-
-
 def recent_days(days, count=7, now=None):
     """Return (label, count) for the latest calendar days, including empty days."""
     if not isinstance(days, dict):
