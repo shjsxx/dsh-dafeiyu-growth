@@ -101,7 +101,7 @@ def apply_fixture(dialog, fixture):
     for name in ('behavior', 'neural', 'emotion', 'companion', 'learning', 'training', 'online'):
         getattr(dialog, 'update_' + name)(fixture[name])
     training = dict(fixture['training'])
-    training['evaluation'] = {'accuracy': .709, 'balanced_accuracy': .651, 'macro_f1': .68, 'support': 461}
+    training['evaluation'] = {'accuracy': .7028, 'balanced_accuracy': .7216, 'macro_f1': .4782, 'support': 461}
     training['brain'] = dict(training.get('brain') or {}, diversity=.72, avg_reward=-.1, positive_ratio=.6)
     dialog.update_training(training)
     dialog.update_memory({'status': 'ready', 'revision': 4,
