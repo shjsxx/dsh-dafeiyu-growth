@@ -95,7 +95,9 @@ def synthetic_fixture(state='populated'):
 
 
 def apply_fixture(dialog, fixture):
-    dialog.update_state(derive(fixture['profile'], datetime(2026, 10, 31, 12)))
+    state = derive(fixture['profile'], datetime(2026, 10, 31, 12))
+    state['engine'] = {'version': 1, 'revision': 3, 'status': 'ready', 'milestones': 5}
+    dialog.update_state(state)
     for name in ('behavior', 'neural', 'emotion', 'companion', 'learning', 'training', 'online'):
         getattr(dialog, 'update_' + name)(fixture[name])
 

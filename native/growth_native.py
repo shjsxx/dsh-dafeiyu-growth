@@ -676,6 +676,10 @@ class GrowthDialog(QDialog):
         self.audit_note = _label("这些是日常活动记录，不是模型能力评分。", "memoryStatus")
         self.audit_note.setToolTip("历史异常计数原样保留；这些成长属性不代表动作或模型能力。")
         overview.addWidget(self.audit_note)
+        self.engine_status = _label("成长引擎 · 等待同步", "engineStatus")
+        self.engine_status.setToolTip("独立成长引擎持有等级、阶段、连续天数与里程碑；XP 镜像现有档案，不新增经验来源。")
+        self.engine_status.setStyleSheet("font-size:11px;color:#627B84;padding:0 2px;")
+        overview.insertWidget(0, self.engine_status)
         overview.addStretch()
 
         self._heading(memory, "能力雷达", "本地练习指数")
@@ -1382,6 +1386,18 @@ class GrowthDialog(QDialog):
         self.stat_values["toolErrors"].setText(count("toolErrors"))
         self.stat_values["recoveries"].setText(count("recoveries"))
         self.stat_values["approvals"].setText(count("approvals"))
+        engine = _mapping(state.get("engine"))
+        status = engine.get("status") if isinstance(engine.get("status"), str) else ""
+        if status == "ready":
+            self.engine_status.setText(
+                f"成长引擎 v{_fmt(_count(engine.get('version')))} · 同步 #{_fmt(_count(engine.get('revision')))}"
+                f" · 里程碑 {_fmt(_count(engine.get('milestones')))}")
+        elif status == "protected":
+            self.engine_status.setText("成长引擎存档受保护，当前仅显示档案数据；未覆盖原文件。")
+        elif status in ("error", "new"):
+            self.engine_status.setText("成长引擎尚未同步；等级与经验仍来自现有档案。")
+        else:
+            self.engine_status.setText("成长引擎 · 等待同步")
         self._state_snapshot = state if valid else {}
         self._refresh_abilities()
         self._fit_to_content()

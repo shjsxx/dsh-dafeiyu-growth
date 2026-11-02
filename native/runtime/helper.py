@@ -259,6 +259,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMenu, QWidget, QWidgetAction
         from growth_native import GrowthReader, GrowthDialog
         from growth_theme import MENU_QSS, icon as theme_icon
+        from growth_engine import GrowthEngine
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -445,7 +446,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.open_label = os.environ.get("DSH_DAFEIYU_OPEN_LABEL", "打开 DSH")
             self.balance_summary = ""
             self.growth_reader = GrowthReader()
-            self.growth_state = self.growth_reader.refresh()
+            self.growth_engine = GrowthEngine()
+            self.growth_state = self._with_engine(self.growth_reader.refresh())
             self.growth_dialog = None
             self.growth_timer = QTimer(self)
             self.growth_timer.timeout.connect(self._refresh_growth)
@@ -2192,6 +2194,22 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._spawn_hearts(4)
                 self._play_interaction("head_pat", "好啦好啦，知道你喜欢我~")
 
+        def _with_engine(self, state):
+            """Merge independent growth-engine state; XP still mirrors the profile."""
+            if not isinstance(state, dict):
+                return state
+            snapshot = self.growth_engine.sync(state)
+            merged = dict(state)
+            if not isinstance(snapshot, dict):
+                merged["engine"] = {"status": self.growth_engine.status,
+                                    "error": self.growth_engine.error}
+                return merged
+            for key in ("xp", "level", "into", "need", "ratio", "stage", "streak", "days"):
+                merged[key] = snapshot[key]
+            merged["engine"] = {"version": snapshot["version"], "revision": snapshot["revision"],
+                                "status": snapshot["status"], "milestones": snapshot["milestones"]}
+            return merged
+
         def _refresh_growth(self) -> None:
             self._refresh_online_ui()
             if self.learner._dirty:
@@ -2200,6 +2218,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.growth_dialog.update_emotion(self.emotion.snapshot())
                 self._refresh_learning_ui()
             next_state = self.growth_reader.refresh()
+            if next_state is None:
+                return
+            next_state = self._with_engine(next_state)
             if next_state == self.growth_state:
                 return
             self.growth_state = next_state

@@ -1,4 +1,4 @@
-﻿# 云岚 · DSH 桌宠养成 🐟
+# 云岚 · DSH 桌宠养成 🐟
 
 给 DSH 的桌宠**云岚**加一层养成：真实会话事件换经验，经验换等级与阶段，阶段解锁称号；从你的使用习惯里“学”出稳定结论；空闲时由本地神经网络决定动作，摔倒了会记住。
 
@@ -26,6 +26,14 @@
 4. 可选：按「自行构建与测试」构建并运行 `native\install.ps1` 安装原生补丁；0.5.0 以后的原生成长卡、连续语音、电脑操作和实时语音都依赖这一步。
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
+
+## 0.15.0 · 独立成长引擎
+
+- 新增 `native/growth_engine.py`：独立 `growth.json`（`version:1`），持有等级、阶段、连续天数、里程碑和日活跃账本；概览显示同步版本与里程碑数。
+- **XP 只镜像现有档案**，不新增经验来源、不读取聊天/文件/屏幕；相同档案不重复写入、不涨 revision。
+- 幂等同步、原子写入 + fsync、坏文件/未知版本保留原文件并标记受保护；写入失败回滚内存状态。
+- 有效档案 XP 归零时记为 reset 并清空引擎日账；里程碑上限 100、日账上限 400 天。
+- 接口与后续记忆/人格引擎的边界见 [成长/记忆/人格引擎接口设计](docs/growth-engines.md)。
 
 ## 0.14.0 · 本领页六维能力与引擎接口
 
@@ -337,7 +345,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（665 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（674 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

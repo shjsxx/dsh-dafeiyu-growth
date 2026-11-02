@@ -81,6 +81,16 @@ class GrowthDesignTests(unittest.TestCase):
         self.assertEqual(self.dialog.skill_bars['agility'].value(), 60)
         self.assertFalse(self.dialog.skill_bars['agility'].isVisible())
 
+    def test_engine_status_is_visible_and_never_fabricates_sync(self):
+        state = derive({'xp': 3265})
+        state['engine'] = {'version': 1, 'revision': 4, 'status': 'ready', 'milestones': 7}
+        self.dialog.update_state(state)
+        self.assertIn('同步 #4', self.dialog.engine_status.text())
+        self.assertIn('里程碑 7', self.dialog.engine_status.text())
+        state['engine'] = {'status': 'protected'}
+        self.dialog.update_state(state)
+        self.assertIn('受保护', self.dialog.engine_status.text())
+
     def test_new_data_page_keeps_both_knowledge_and_voice_audit_panels(self):
         page = self.dialog.page_scrolls[6].widget().layout()
         self.assertLess(page.indexOf(self.dialog.data_panel), page.indexOf(self.dialog.voice_data_panel))
