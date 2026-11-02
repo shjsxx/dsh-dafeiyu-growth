@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 import tempfile
 
-from public_crawler import CrawlError, PoetryCrawler
+from public_crawler import CrawlError, PoetryCrawler, _RejectRedirect
 from memory_engine import MemoryEngine
 from memory_reply import broad_memory_query, compose_memory_answer, compose_public_answer
 
@@ -18,6 +18,10 @@ def encoded_poems():
 
 
 class CrawlerTests(unittest.TestCase):
+    def test_redirect_is_rejected_before_forwarding(self):
+        with self.assertRaises(CrawlError):
+            _RejectRedirect().redirect_request(None, None, 302, 'Found', {}, 'https://evil.example/')
+
     def test_fixed_poetry_source_and_bounded_record(self):
         calls = []
         def fake(url, limit):
