@@ -26,6 +26,7 @@ DEFAULT_REPLIES = (
 )
 
 LIKE_PATTERN = re.compile(r"我(?:很|最|超|挺)?喜欢\s*([^\s，。,.!！?？：:；;\"'“”‘’]{1,30})[。.!！]?$")
+EVENT_PATTERN = re.compile(r"(?:去了|吃了|看了|做了|见了|逛了|买了|玩了)([^，。,.!！?？\s]{1,14})")
 # A local keyword companion must prefer doing nothing over acting on a refusal,
 # a question about an activity, or a quoted/hypothetical request.
 ACTION_REFUSAL = re.compile(r"(?:不|别|勿|莫|禁止|停止|不用|无需|不要|不能|不许|不准|别再|不想|不愿|不必)")
@@ -118,6 +119,10 @@ def reply_to(text, name="", mood=""):
         return {"text": "嗯，云岚，山里的雾。", "action": None, "name": ""}
     if any(word in raw for word in ("可爱", "好看", "漂亮")):
         return {"text": "谢谢，你这么说我很开心。", "action": None, "name": ""}
+    event = EVENT_PATTERN.search(raw)
+    if event and mood in ("neutral", "calm", "joy"):
+        place = event.group(1)[:14]
+        return {"text": f"{place}那边怎么样？我想听你多说一点。", "action": None, "name": ""}
     if mood == "sad":
         return {"text": "听起来不太好受。我不追问，先陪你待一会儿。", "action": None, "name": ""}
     if mood == "tired":

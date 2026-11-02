@@ -17,6 +17,8 @@ import os
 import time
 from pathlib import Path
 
+from semantic_memory import similarity as semantic_similarity
+
 VERSION = 1
 MAX_BYTES = 512 * 1024
 MAX_RECORDS = 600
@@ -286,14 +288,16 @@ class MemoryEngine:
         for row in self.data["records"]:
             if row["kind"] not in allowed:
                 continue
+            semantic = semantic_similarity(query, row["text"])
             overlap = sum(1 for gram in grams if gram in row["text"])
-            if overlap:
-                score = overlap * 10 + row["importance"] // 10
-                scored.append((score, row["lastSeen"], row))
+            if semantic < .045 and not overlap:
+                continue
+            score = semantic * 100 + row["importance"] * .15 + overlap * 1.2
+            scored.append((score, row["lastSeen"], row))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [{"kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]],
                  "text": row["text"], "source": row["source"], "importance": row["importance"],
-                 "score": score}
+                 "score": round(score, 1)}
                 for score, _, row in scored[:max(1, min(20, limit))]]
 
     def snapshot(self, recent=3):

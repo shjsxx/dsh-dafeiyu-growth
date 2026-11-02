@@ -255,7 +255,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
     configure_qt_platform()
     try:
         from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QPoint, QPointF, QRectF, Qt, QTimer, QUrl, Signal
-        from PySide6.QtGui import QColor, QCursor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QPainter, QPen, QPixmap, QPolygonF
+        from PySide6.QtGui import QColor, QCursor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QPainter, QPen, QPixmap, QPolygonF, QRadialGradient
         from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMenu, QWidget, QWidgetAction
         from growth_native import GrowthReader, GrowthDialog
         from growth_theme import MENU_QSS, icon as theme_icon
@@ -266,6 +266,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from personality_engine import PersonalityEngine
         from continuity import ContinuityStore
         from dialogue import fallback_reply, is_meta_question, meta_reply
+        from dialogue_planner import extract_topic, followup_reply, is_followup
+        from presentation import ambient_pose
         from reactions import detect_reaction, plan as plan_reaction
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
@@ -478,6 +480,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.last_proactive = ""
             self.last_user_text = ""
             self.last_reply_text = ""
+            self.last_topic = ""
             self.emotion_comparison = {}
             self._init_voice_runtime()
             self.online_state = LiveOnlineState()
@@ -527,6 +530,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.reaction = None
             self.reaction_started_ms = 0
             self.reaction_until_ms = 0
+            self.pet_breath = 1.0
+            self.pet_sway = 0.0
+            self.presentation_pose = {}
             self.pat_streak = 0
             self.last_pat_ms = 0
             self.spin_base_facing = 1
@@ -765,6 +771,18 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._clear_overlay()
             if self.reaction is not None and now_ms >= self.reaction_until_ms:
                 self.reaction = None
+            try:
+                pet_x, _, pet_width, _ = self._pet_rect()
+                mood = self.emotion.current().get("label", "neutral")
+                energy = float(self.learning.companion.snapshot().get("energy", .7))
+                pointer_dx = QCursor.pos().x() - (self.x() + pet_x + pet_width / 2)
+                pose = ambient_pose(now_ms, mood, energy, self.pointer_over, pointer_dx,
+                                    self.reduced_motion)
+                self.presentation_pose = pose
+                self.pet_breath = pose["breath"]
+                self.pet_sway = pose["sway"]
+            except (ValueError, TypeError, AttributeError):
+                self.pet_breath, self.pet_sway = 1.0, 0.0
             self._rearm_animation_interval()
             self.update()
 
@@ -1977,13 +1995,14 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 painter.save()
                 painter.setOpacity(alpha)
                 painter.translate(x + pw / 2, y + ph)
-                painter.rotate(self.pet_tilt)
+                painter.rotate(self.pet_tilt + self.pet_sway)
                 painter.scale(self.pet_facing * self.pet_spin_scale, 1.0)
-                painter.scale(1.0, self.pet_scale_y)
+                painter.scale(1.0, self.pet_scale_y * self.pet_breath)
                 painter.translate(-pw / 2, -ph)
                 painter.drawPixmap(QRectF(0, 0, pw, ph), pix, QRectF(0, 0, pix.width(), pix.height()))
                 painter.restore()
 
+            self._draw_aura(painter)
             if fade_alpha < 1.0 and self.fade_from_pixmap is not None:
                 # Keep the old frame opaque underneath so the pet never flashes transparent.
                 draw_pet(self.fade_from_pixmap, 1.0)
@@ -1995,6 +2014,24 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 pet_x, pet_y, pet_width, pet_height = self._pet_rect()
                 self._draw_blush(painter, pet_x, pet_y, pet_width, pet_height, now_ms)
             self._draw_reaction(painter, now_ms)
+
+        def _draw_aura(self, painter: QPainter) -> None:
+            pose = self.presentation_pose
+            if not isinstance(pose, dict) or not pose.get("glow_alpha"):
+                return
+            pet_x, pet_y, pet_width, pet_height = self._pet_rect()
+            center = QPointF(pet_x + pet_width / 2, pet_y + pet_height * .58)
+            radius = max(24.0, pet_width * float(pose.get("glow_radius", .7)))
+            color = pose.get("glow") or (92, 158, 150)
+            gradient = QRadialGradient(center, radius)
+            gradient.setColorAt(0.0, QColor(color[0], color[1], color[2], int(pose["glow_alpha"])))
+            gradient.setColorAt(0.72, QColor(color[0], color[1], color[2], int(pose["glow_alpha"] * .45)))
+            gradient.setColorAt(1.0, QColor(color[0], color[1], color[2], 0))
+            painter.save()
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(gradient)
+            painter.drawEllipse(center, radius, radius * 1.05)
+            painter.restore()
 
         def _trigger_reaction(self, key: str) -> bool:
             spec = plan_reaction(key)
@@ -2682,6 +2719,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 reply = {"text": meta_reply(text, self.last_user_text, self.last_reply_text)
                          or fallback_reply(text, self.last_user_text), "action": None}
                 meta = "本地对话 · 更正"
+            elif is_followup(text):
+                reply = {"text": followup_reply(text, self.last_topic, self.last_reply_text), "action": None}
+                meta = "本地对话 · 追问"
             else:
                 memory_answer, memory_meta = self._memory_answer(text)
                 if memory_answer:
@@ -2718,6 +2758,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             reaction_key = detect_reaction(text, mood)
             if reaction_key:
                 self._trigger_reaction(reaction_key)
+            if not is_meta_question(text) and not is_followup(text):
+                self.last_topic = extract_topic(text)
             self.last_user_text = text[:200]
             self.last_reply_text = str(reply.get("text", ""))[:300]
             if self.conversation is not None and self.conversation.isVisible():
