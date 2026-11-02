@@ -283,6 +283,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from learning_hub import LearningHub
         from knowledge_sources import fetch_knowledge_source, CATALOG as KNOWLEDGE_SOURCES
         from web_learning import fetch_builtin_lexicon, PUBLIC_SOURCE_NAME
+        from companion_runtime import CompanionRuntime
+        from conversation_runtime import ConversationRuntime
+        from public_learning_runtime import PublicLearningRuntime
+        from presentation_runtime import PresentationRuntime
     except ImportError as error:
         print(
             f"PySide6 is required for visual mode ({error}). Run with --headless for protocol tests.",
@@ -352,7 +356,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 pass
             return False, 0
 
-    class CompanionWindow(QWidget, VoiceRuntime):
+    class CompanionWindow(QWidget, VoiceRuntime, CompanionRuntime, ConversationRuntime, PublicLearningRuntime, PresentationRuntime):
         cloud_reply = Signal(dict)
         learning_result = Signal(dict)
         learning_progress = Signal(dict)
@@ -1018,6 +1022,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.next_motion_ms = self._now_ms() + delay_ms
 
         def _can_talk(self) -> bool:
+            if self.personality.initiative(self.emotion.current().get('label', 'neutral')) <= 0:
+                return False
             # Reduced motion changes animation, not access to conversation.
             if self.voice_active or self.voice_starting or self.realtime_active or self.realtime_starting or self.realtime_pending or (self.voice_tools is not None and self.voice_tools.isVisible()):
                 return False
@@ -1066,6 +1072,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.next_talk_ms = now_ms + 15000
                 return
             text = self._talk_text()
+            if not text:
+                self.next_talk_ms = now_ms + 60000
+                return
             self.last_proactive = text
             self._ensure_conversation()
             was_visible = self.conversation.isVisible()
@@ -2021,162 +2030,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._draw_blush(painter, pet_x, pet_y, pet_width, pet_height, now_ms)
             self._draw_reaction(painter, now_ms)
 
-        def _draw_aura(self, painter: QPainter) -> None:
-            pose = self.presentation_pose
-            if not isinstance(pose, dict) or not pose.get("glow_alpha"):
-                return
-            pet_x, pet_y, pet_width, pet_height = self._pet_rect()
-            center = QPointF(pet_x + pet_width / 2, pet_y + pet_height * .58)
-            radius = max(24.0, pet_width * float(pose.get("glow_radius", .7)))
-            color = pose.get("glow") or (92, 158, 150)
-            gradient = QRadialGradient(center, radius)
-            gradient.setColorAt(0.0, QColor(color[0], color[1], color[2], int(pose["glow_alpha"])))
-            gradient.setColorAt(0.72, QColor(color[0], color[1], color[2], int(pose["glow_alpha"] * .45)))
-            gradient.setColorAt(1.0, QColor(color[0], color[1], color[2], 0))
-            painter.save()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(gradient)
-            painter.drawEllipse(center, radius, radius * 1.05)
-            painter.restore()
 
-        def _trigger_reaction(self, key: str) -> bool:
-            spec = plan_reaction(key)
-            if not isinstance(spec, dict):
-                return False
-            now_ms = self._now_ms()
-            self.reaction = spec
-            self.reaction_started_ms = now_ms
-            self.reaction_until_ms = now_ms + spec["duration"]
-            self._show_overlay(spec["message"], spec["detail"], "IDLE", spec["duration"])
-            motion = spec["motion"]
-            if motion == "spin":
-                self._start_spin(1, allow_during_chat=True)
-                self._spawn_hearts(5, gold=True)
-                self.blush_until_ms = now_ms + 1600
-            elif motion == "come":
-                pet_x, pet_y, pet_width, _ = self._pet_rect()
-                cursor = QCursor.pos()
-                center = self.x() + pet_x + pet_width / 2
-                distance = max(140, min(460, abs(cursor.x() - center)))
-                self._start_run(distance=distance, direction=1 if cursor.x() >= center else -1,
-                                force_fall=False, allow_during_chat=True)
-            elif motion == "droop":
-                self.pet_tilt = -6.0
-                self.pet_scale_y = .94
-            elif motion == "doze":
-                self.pet_scale_y = .97
-            self.update()
-            return True
 
-        def _draw_reaction(self, painter: QPainter, now_ms: int) -> None:
-            spec = self.reaction
-            if not isinstance(spec, dict) or now_ms >= self.reaction_until_ms:
-                return
-            pet_x, pet_y, pet_width, pet_height = self._pet_rect()
-            elapsed = max(0, now_ms - self.reaction_started_ms)
-            life = max(1, self.reaction_until_ms - self.reaction_started_ms)
-            fade = min(1.0, min(elapsed, life - elapsed) / 380.0)
-            painter.save()
-            painter.setOpacity(max(0.0, fade))
-            effect = spec["effect"]
-            if effect in ("rain", "tears"):
-                for index, ratio in enumerate((.22, .30, .38, .60, .68, .76)):
-                    drop = (elapsed * .07 + index * 11) % 42
-                    x = pet_x + pet_width * ratio
-                    y = pet_y + pet_height * .34 + drop
-                    painter.setBrush(QColor(62, 128, 198, 235))
-                    painter.setPen(Qt.PenStyle.NoPen)
-                    painter.drawEllipse(QRectF(x - 3.6, y - 7.0, 7.2, 12.0))
-                if effect == "rain":
-                    painter.setBrush(QColor(150, 170, 190, 130))
-                    painter.setPen(Qt.PenStyle.NoPen)
-                    painter.drawEllipse(QPointF(pet_x + pet_width * .5, pet_y + 8), 24, 7)
-            elif effect == "zzz":
-                font = QFont("Microsoft YaHei UI"); font.setPointSizeF(11.0); font.setBold(True)
-                painter.setFont(font); painter.setPen(QColor("#7C8FA6"))
-                for index, phase in enumerate((0, 1100, 2200)):
-                    t = (elapsed + phase) % 3300
-                    alpha = int(220 * (1 - t / 3300))
-                    painter.setPen(QColor(124, 143, 166, max(0, alpha)))
-                    painter.drawText(QPointF(pet_x + pet_width * .72 + t / 180,
-                                             pet_y + pet_height * .30 - t / 34), "Z")
-            elif effect == "question":
-                font = QFont("Microsoft YaHei UI"); font.setPointSizeF(13.0); font.setBold(True)
-                painter.setFont(font); painter.setPen(QColor("#8E9B65"))
-                bob = 3 * (1 + int(elapsed / 320) % 2)
-                painter.drawText(QPointF(pet_x + pet_width * .72, pet_y + pet_height * .22 - bob), "?")
-                painter.setPen(QColor("#A98A5F"))
-                painter.drawText(QPointF(pet_x + pet_width * .82, pet_y + pet_height * .36), "…")
-            elif effect == "sparkle":
-                painter.setPen(QPen(QColor("#D7B56D"), 2))
-                for index in range(4):
-                    cx = pet_x + pet_width * (.20 + .20 * index)
-                    cy = pet_y + pet_height * (.22 + .12 * (index % 2))
-                    r = 3 + 2 * (index % 2)
-                    painter.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
-                    painter.drawLine(QPointF(cx, cy - r), QPointF(cx, cy + r))
-            elif effect == "speed":
-                painter.setPen(QPen(QColor(120, 140, 160, 120), 2))
-                direction = -1 if self.pet_facing >= 0 else 1
-                for index in range(3):
-                    y = pet_y + pet_height * (.55 + .08 * index)
-                    x = pet_x + pet_width * .18
-                    painter.drawLine(QPointF(x, y), QPointF(x + 24 * direction, y))
-            painter.restore()
 
-        def _spawn_hearts(self, count: int = 3, gold: bool = False) -> None:
-            now_ms = self._now_ms()
-            pet_x, pet_y, pet_width, pet_height = self._pet_rect()
-            for _ in range(max(1, min(8, count))):
-                self.hearts.append({
-                    "born": now_ms + random.randint(0, 90),
-                    "sx": self.x() + pet_x + pet_width * random.uniform(0.28, 0.72),
-                    "sy": self.y() + pet_y + pet_height * random.uniform(0.20, 0.52),
-                    "vx": random.uniform(-14, 14),
-                    "vy": random.uniform(-38, -22),
-                    "size": random.uniform(4.0, 7.5),
-                    "gold": gold,
-                })
-            if len(self.hearts) > 24:
-                self.hearts = self.hearts[-24:]
 
-        def _draw_hearts(self, painter: QPainter, now_ms: int) -> None:
-            painter.save()
-            painter.setPen(Qt.PenStyle.NoPen)
-            for heart in self.hearts:
-                age = now_ms - int(heart["born"])
-                if age < 0 or age >= 1100:
-                    continue
-                alpha = int(210 * (1 - age / 1100))
-                x = heart["sx"] - self.x() + heart["vx"] * age / 1000
-                y = heart["sy"] - self.y() + heart["vy"] * age / 1000
-                size = float(heart["size"]) * (1 + age / 2600)
-                color = QColor(236, 154, 88, alpha) if heart.get("gold") else QColor(235, 116, 141, alpha)
-                painter.setBrush(color)
-                painter.drawEllipse(QRectF(x - size, y - size, size * 1.1, size * 1.1))
-                painter.drawEllipse(QRectF(x, y - size, size * 1.1, size * 1.1))
-                painter.drawPolygon(QPolygonF([
-                    QPointF(x - size * 0.95, y + size * 0.12),
-                    QPointF(x + size * 2.02, y + size * 0.12),
-                    QPointF(x + size * 0.54, y + size * 1.60),
-                ]))
-            painter.restore()
 
-        def _draw_blush(self, painter: QPainter, pet_x: int, pet_y: int, pet_width: int,
-                        pet_height: int, now_ms: int) -> None:
-            remaining = max(0, self.blush_until_ms - now_ms)
-            alpha = int(95 * min(1.0, remaining / 500))
-            if alpha <= 0:
-                return
-            painter.save()
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor(240, 138, 154, alpha))
-            radius = max(4.0, pet_width * 0.052)
-            for ratio in (0.34, 0.66):
-                cx = pet_x + pet_width * ratio
-                cy = pet_y + pet_height * 0.37
-                painter.drawEllipse(QRectF(cx - radius, cy - radius * 0.55, radius * 1.4, radius * 0.9))
-            painter.restore()
 
         def _draw_motion_fx(self, painter: QPainter, pixmap: QPixmap) -> None:
             """Dust, speed lines and tumble stars for self-directed movement."""
@@ -2352,172 +2210,17 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._spawn_hearts(4)
                 self._play_interaction("head_pat", "好啦好啦，知道你喜欢我~")
 
-        def _with_engine(self, state):
-            """Merge independent growth-engine state; XP still mirrors the profile."""
-            if not isinstance(state, dict):
-                return state
-            snapshot = self.growth_engine.sync(state)
-            merged = dict(state)
-            if not isinstance(snapshot, dict):
-                merged["engine"] = {"status": self.growth_engine.status,
-                                    "error": self.growth_engine.error}
-                return merged
-            for key in ("xp", "level", "into", "need", "ratio", "stage", "streak", "days"):
-                merged[key] = snapshot[key]
-            merged["engine"] = {"version": snapshot["version"], "revision": snapshot["revision"],
-                                "status": snapshot["status"], "milestones": snapshot["milestones"]}
-            return merged
 
-        def _start_crawl(self) -> None:
-            """Opt-in public poetry crawl; one fixed MIT/public-domain API file."""
-            if self.crawler_busy or not getattr(self.public_learning, "enabled", False):
-                return
-            self.crawler_busy = True
-            def work():
-                try:
-                    record = self.crawler.fetch_poem()
-                except Exception as error:
-                    record = {"error": getattr(error, "code", "crawl_failed")}
-                try:
-                    self.crawl_result.emit(record)
-                except RuntimeError:
-                    pass
-            threading.Thread(target=work, name="yunlan-public-crawl", daemon=True).start()
 
-        def _on_crawl_result(self, record) -> None:
-            self.crawler_busy = False
-            if not isinstance(record, dict) or record.get("error"):
-                return
-            if self.memory.ingest_external(record) and self.growth_dialog is not None:
-                self.growth_dialog.update_memory(self.memory.snapshot())
 
-        def _memory_answer(self, text: str):
-            """Shared local-memory answer for local chat and cloud-mode interception."""
-            self.memory.ingest_behavior(self.learner.snapshot())
-            hits = self.memory.recall(text, 5, kinds=("preference", "habit", "diary"))
-            if not hits and broad_memory_query(text):
-                hits = self.memory.recent(3, kinds=("preference", "habit", "diary"))
-            answer = compose_memory_answer(
-                text, self.learner.data.get("userName", ""), self.learner.data.get("likes", []), hits)
-            return (answer, "记忆引擎 · 本地记忆") if answer else (None, "")
 
-        def _sync_continuity(self) -> None:
-            if not self._continuity_started:
-                self.continuity.record_startup()
-                self._continuity_started = True
-            mood = self.emotion.current().get("label", "neutral")
-            has_memory = bool(self.memory.recent(1, kinds=("preference", "habit", "diary", "culture")))
-            personality = self.personality.snapshot(mood, has_memory)
-            memory = self.memory.snapshot()
-            self.continuity.checkpoint(personality, memory)
-            view = self.continuity.verify(personality, memory)
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_continuity(view)
 
-        def _sync_personality(self) -> None:
-            self.personality.update(self.learning.companion.snapshot(), self.emotion.snapshot(),
-                                    self.growth_state)
-            mood = self.emotion.current().get("label", "neutral")
-            has_memory = bool(self.memory.recent(1, kinds=("preference", "habit", "diary", "culture")))
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_personality(self.personality.snapshot(mood, has_memory))
 
-        def _personality_talk(self, base: str) -> str:
-            mood = self.emotion.current().get("label", "neutral")
-            hits = self.memory.recent(3, kinds=("preference", "habit", "diary", "culture"))
-            return self.personality.proactive(base, hits, mood)
 
-        def _sync_memory(self) -> None:
-            """Absorb local summaries and already-validated public records."""
-            try:
-                self.memory.ingest_state(self.growth_state)
-                self.memory.ingest_behavior(self.learner.snapshot())
-                knowledge = self.learning.knowledge.snapshot()
-                revision = knowledge.get("revision", 0)
-                if revision != self._memory_knowledge_revision:
-                    self.memory.ingest_knowledge(self.learning.knowledge.public_records(), revision)
-                    self._memory_knowledge_revision = revision
-            except (OSError, ValueError, TypeError):
-                pass
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_memory(self.memory.snapshot())
 
-        def _clear_memory_engine(self) -> None:
-            ok = self.memory.clear()
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_memory(self.memory.snapshot())
-            self._show_overlay("记忆引擎已清除。" if ok else "无法清除记忆引擎；未改写原文件。",
-                               "云岚 · 记忆", "SUCCESS" if ok else "ERROR", 4200)
-            self._sync_bubble_size()
 
-        def _refresh_growth(self) -> None:
-            self._refresh_online_ui()
-            if self.learner._dirty:
-                self.learner.save()
-            if self.growth_dialog is not None and self.growth_dialog.isVisible():
-                self.growth_dialog.update_emotion(self.emotion.snapshot())
-                self._refresh_learning_ui()
-            next_state = self.growth_reader.refresh()
-            if next_state is None:
-                return
-            next_state = self._with_engine(next_state)
-            knowledge_snapshot = self.learning.knowledge.snapshot()
-            if knowledge_snapshot.get("revision", 0) != self._memory_knowledge_revision:
-                self._sync_memory()
-            today = time.strftime("%Y-%m-%d")
-            if not self._continuity_started or today != getattr(self, "_continuity_day", ""):
-                self._sync_continuity()
-                self._continuity_day = today
-            if next_state == self.growth_state:
-                return
-            self.growth_state = next_state
-            self._sync_memory()
-            self._sync_bubble_size()
-            self._sync_personality()
-            self._sync_continuity()
-            self._continuity_day = time.strftime("%Y-%m-%d")
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_state(self.growth_state)
-                self.growth_dialog.update_neural(self.brain.info())
-                self.growth_dialog.update_emotion(self.emotion.snapshot())
-            self.update()
 
-        def _forget_memory(self) -> None:
-            ok = self.learner.forget_user()
-            preference_ok = self.memory.clear_preferences()
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_behavior(self.learner.snapshot())
-                self.growth_dialog.update_memory(self.memory.snapshot())
-                self.growth_dialog.report_memory_status(ok and preference_ok)
-            self.next_talk_ms = self._now_ms() + 120000
 
-        def _show_growth_card(self) -> None:
-            self._stop_motion()
-            self._refresh_growth()
-            self._sync_memory()
-            if self.growth_dialog is None:
-                self.growth_dialog = GrowthDialog(self)
-                self.growth_dialog.forget_requested.connect(self._forget_memory)
-                self.growth_dialog.neural_rollback_requested.connect(self._rollback_neural)
-                self.growth_dialog.neural_reset_requested.connect(self._reset_neural)
-                self.growth_dialog.cloud_settings_requested.connect(self._open_cloud_settings)
-                self.growth_dialog.voice_tools_requested.connect(self._open_voice_tools)
-                self.growth_dialog.emotion_learning_requested.connect(self._open_web_learning)
-                self.growth_dialog.emotion_auto_changed.connect(self._set_auto_learning)
-                self.growth_dialog.knowledge_auto_changed.connect(self._set_knowledge_learning)
-                self.growth_dialog.online_enabled_changed.connect(self._set_online_enabled)
-                self.growth_dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
-                self.growth_dialog.memory_clear_requested.connect(self._clear_memory_engine)
-            self._sync_personality()
-            self._sync_continuity()
-            self.growth_dialog.update_state(self.growth_state)
-            self.growth_dialog.update_behavior(self.learner.snapshot())
-            self.growth_dialog.update_neural(self.brain.info())
-            self.growth_dialog.update_cloud(self.cloud_config)
-            self.growth_dialog.update_emotion(self.emotion.snapshot())
-            self.growth_dialog.update_memory(self.memory.snapshot())
-            self._refresh_learning_ui()
-            self.growth_dialog.open_near(self)
 
         def contextMenuEvent(self, event: Any) -> None:
             self._stop_motion()
@@ -2649,476 +2352,29 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 emit_reply("closed", reason="user")
                 QApplication.quit()
 
-        def _place_conversation(self, dialog) -> None:
-            screen = QApplication.screenAt(QPoint(self.pet_x, self.pet_y)) or QApplication.primaryScreen()
-            if screen is None:
-                return
-            available = screen.availableGeometry()
-            frame = dialog.frameGeometry()
-            left = self.frameGeometry().right() + 12
-            if left + frame.width() > available.right() + 1:
-                left = self.frameGeometry().left() - frame.width() - 12
-            left = max(available.left(), min(left, available.right() - frame.width() + 1))
-            top = max(available.top(), min(self.frameGeometry().top(), available.bottom() - frame.height() + 1))
-            dialog.move(left, top)
 
-        def _ensure_conversation(self) -> None:
-            if self.conversation is None:
-                self.conversation_serial += 1
-                dialog = ConversationDialog(self)
-                dialog.local_submitted.connect(self._conversation_local)
-                dialog.cloud_submitted.connect(self._conversation_cloud)
-                dialog.settings_requested.connect(self._open_cloud_settings)
-                dialog.voice_tools_requested.connect(self._open_voice_tools)
-                dialog.online_enabled_changed.connect(self._set_online_enabled)
-                dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
-                dialog.closed.connect(self._conversation_closed)
-                self.conversation = dialog
-                self.cloud_config = load_config()
-                dialog.set_cloud_state(self.cloud_config)
 
-        def _open_conversation(self) -> None:
-            self._stop_motion()
-            self._ensure_conversation()
-            self.cloud_config = load_config()
-            self.conversation.set_cloud_state(self.cloud_config)
-            self._refresh_online_ui()
-            self.conversation.show()
-            self._place_conversation(self.conversation)
-            self.conversation.raise_()
-            self.conversation.activateWindow()
-            self.chat_open = True
-            self.conversation.input.setFocus()
 
-        def _conversation_closed(self) -> None:
-            if self.voice_tools is not None:
-                self.voice_tools.close()
-            else:
-                self._voice_stop()
-            self.chat_open = False
-            self.conversation = None
-            self.conversation_serial += 1
-            # Dismissing a proactive card means give the owner some space.
-            self.next_talk_ms = self._now_ms() + 300000
 
-        def _conversation_local(self, text: str) -> None:
-            self.last_interaction_ms = self._now_ms()
-            if self._intercept_command(text):
-                return
-            reading = self._chat_reading(text)
-            self._refresh_learning_ui()
-            mood = reading.get("mood", "neutral")
-            if mood in ("sad", "tired", "anxious"):
-                self.comfort_until_ms = self._now_ms() + 60000
-                self.next_talk_ms = self._now_ms() + 30000
-            if mood == "joy":
-                self._spawn_hearts(3)
-            name = self.learner.data.get("userName", "")
-            reply = reply_to(text, name, mood if mood != "neutral" else "")
-            learned = reply.get("name") or ""
-            if learned and self._chat_may_learn:
-                self.learner.set_name(learned)
-                name = learned
-            if reply.get("like") and self._chat_may_learn:
-                self.learner.add_like(reply["like"])
-            if self._chat_may_learn:
-                self.learner.note_chat()
-            if is_meta_question(text):
-                reply = {"text": meta_reply(text, self.last_user_text, self.last_reply_text)
-                         or fallback_reply(text, self.last_user_text), "action": None}
-                meta = "本地对话 · 更正"
-            elif is_followup(text):
-                reply = {"text": followup_reply(text, self.last_topic, self.last_reply_text), "action": None}
-                meta = "本地对话 · 追问"
-            else:
-                memory_answer, memory_meta = self._memory_answer(text)
-                if memory_answer:
-                    reply = {"text": memory_answer, "action": None}
-                    meta = memory_meta
-                else:
-                    reply, meta = self.learning.companion_reply(text, reply, mood)
-                    if reply.get("text") in DEFAULT_REPLIES:
-                        public_answer, public_meta = compose_public_answer(text, self.memory.recall(text, 5))
-                        if public_answer:
-                            reply = {"text": public_answer, "action": None}
-                            meta = public_meta
-                        else:
-                            reply = {"text": fallback_reply(text, self.last_user_text), "action": None}
-                            meta = "本地对话 · 没接住"
-            if (reply.get("text") in DEFAULT_REPLIES or mood in ("sad", "tired", "anxious", "anger")) \
-                    and not meta.startswith(("记忆引擎", "本地对话")):
-                reply = dict(reply, text=self.personality.decorate(
-                    str(reply.get("text", "")), mood, bool(self.memory.recent(1))))
-            if any(word in text for word in ("实时动态", "最新动态", "最新地震", "联网动态")):
-                snap = self.online_state.snapshot()
-                if snap.get("summary"):
-                    stale = time.time() - snap.get("lastSuccess", 0) > 600
-                    reply = dict(reply, text=("这是带时间的旧缓存，不是当前结果：" if stale else "刚校验过的公开资料：") + snap["summary"], action=None)
-                    meta = "USGS 公开监测 · 带来源时间"
-                else:
-                    reply = dict(reply, text="动态来源还没有成功记录。开启「动态公开资料」后，我会校验官方资料；失败时会如实显示，不编造最新结果。", action=None)
-                if self.online_state.enabled:
-                    self._start_online(manual=True)
-            elif self.last_proactive and text.strip("。.!！ ") in ("好呀", "好啊", "继续", "然后呢", "聊聊", "愿意", "想聊"):
-                reply = dict(reply, text="好呀，那我们接着聊。你想先说说今天的心情，还是问我一条基础知识？也可以说「实时动态」，看看最近校验的公开资料。", action=None)
-            if mood != "neutral":
-                meta += f" · 情绪线索偏{LABELS.get(mood, '情绪')}"
-            reaction_key = detect_reaction(text, mood)
-            if reaction_key:
-                self._trigger_reaction(reaction_key)
-            if not is_meta_question(text) and not is_followup(text):
-                self.last_topic = extract_topic(text)
-            self.last_user_text = text[:200]
-            self.last_reply_text = str(reply.get("text", ""))[:300]
-            if self.conversation is not None and self.conversation.isVisible():
-                self.conversation.show_reply(str(reply.get("text", "嗯。")), meta)
-                if self.direct_input_source == 'voice_direct' and self.voice_engine:
-                    self._speak_voice_reply(str(reply.get('text', '嗯。')), self.voice_engine.generation)
-            if self.growth_dialog is not None and self.growth_dialog.isVisible():
-                self.growth_dialog.update_behavior(self.learner.snapshot())
-                self.growth_dialog.update_emotion(self.emotion.snapshot())
-            action = reply.get("action")
-            if action == "run":
-                QTimer.singleShot(400, lambda: self._start_run(allow_during_chat=True))
-            elif action == "hop":
-                QTimer.singleShot(400, lambda: self._start_hop(allow_during_chat=True))
-            elif action == "spin":
-                QTimer.singleShot(400, lambda: self._start_spin(1, allow_during_chat=True))
 
-        def _conversation_cloud(self, text: str) -> None:
-            if self._intercept_command(text):
-                return
-            config = load_config()
-            dialog = self.conversation
-            if dialog is None:
-                return
-            if (config.get("endpoint"), config.get("model"), config.get("max_tokens")) != (dialog.cloud.get("endpoint"), dialog.cloud.get("model"), dialog.cloud.get("max_tokens")):
-                dialog.set_cloud_state(config)
-                dialog.show_reply("接口、模型或输出上限已变更；没有发送。请核对新目标后重新确认。", "本地提示", True)
-                return
-            if is_meta_question(text):
-                answer = meta_reply(text, self.last_user_text, self.last_reply_text)
-                dialog.show_reply(answer, "本地对话 · 更正 · 未发送云端")
-                self.last_user_text = text[:200]
-                self.last_reply_text = answer[:300]
-                return
-            memory_answer, memory_meta = self._memory_answer(text)
-            if memory_answer:
-                dialog.show_reply(memory_answer, memory_meta + " · 未发送云端")
-                self.last_user_text = text[:200]
-                self.last_reply_text = memory_answer[:300]
-                return
-            self.last_user_text = text[:200]
-            history = dialog.context_before_current()
-            if not config.get("endpoint") or not config.get("model"):
-                if self.conversation is not None:
-                    self.conversation.show_reply("云端接口还没配置。点右上角「接口设置」填写后再发送。", "云端", True)
-                return
-            if self.cloud_busy:
-                if self.conversation is not None:
-                    self.conversation.show_reply("上一条云端回复还在等，请稍候。", "云端", True)
-                return
-            self.cloud_config = config
-            self.cloud_busy = True
-            self.last_interaction_ms = self._now_ms()
-            reading = self._chat_reading(text)
-            self._refresh_learning_ui()
-            if reading.get("mood") in ("sad", "tired", "anxious"):
-                self.comfort_until_ms = self._now_ms() + 60000
-            memory = reply_to(text, self.learner.data.get("userName", ""))
-            if self._chat_may_learn:
-                if memory.get('name'):
-                    self.learner.set_name(memory['name'])
-                if memory.get('like'):
-                    self.learner.add_like(memory['like'])
-                self.learner.note_chat()
-            if self.growth_dialog is not None and self.growth_dialog.isVisible():
-                self.growth_dialog.update_behavior(self.learner.snapshot())
-                self.growth_dialog.update_emotion(self.emotion.snapshot())
-            threading.Thread(target=self._cloud_worker, args=(config, text, history, self.conversation_serial, self.voice_engine.generation if self.direct_input_source == 'voice_direct' and self.voice_engine else None), daemon=True).start()
 
-        def _open_cloud_settings(self) -> None:
-            self._stop_motion()
-            config = load_config()
-            dialog = CloudSettingsDialog(config, self)
-            self.chat_open = True
-            try:
-                accepted = dialog.exec()
-            finally:
-                self.chat_open = False
-            if accepted:
-                self.cloud_config = load_config()
-                if self.growth_dialog is not None:
-                    self.growth_dialog.update_cloud(self.cloud_config)
-                if self.conversation is not None:
-                    self.conversation.set_cloud_state(self.cloud_config)
-                self._show_overlay("云端接口已保存在本机。", "密钥使用 Windows DPAPI 加密，不会写入聊天记录", "SUCCESS", 4200)
-                self._sync_bubble_size()
-                self.update()
 
-        def _refresh_online_ui(self) -> None:
-            snap = self.online_state.snapshot()
-            curriculum = self.public_learning.snapshot(self.learning_busy)
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_online({"live": snap, "curriculum": curriculum, "comparison": self.emotion_comparison})
-            if self.conversation is not None:
-                age = time.time() - snap.get("lastSuccess", 0)
-                status = "live" if snap["enabled"] and snap.get("lastSuccess") and age < 600 and not snap.get("errorCode") else "cached" if snap.get("lastSuccess") else "offline"
-                if not snap["enabled"]:
-                    status = "offline"
-                self.conversation.set_online_state({"status": status, "enabled": snap["enabled"], "summary": snap.get("summary", "")})
 
-        def _set_online_enabled(self, enabled: bool) -> None:
-            if not self.online_state.set_enabled(bool(enabled), owner_action=True):
-                self._refresh_online_ui()
-                return
-            self.public_learning.set_realtime_mode(bool(enabled))
-            self._refresh_online_ui()
-            if enabled:
-                QTimer.singleShot(0, self._online_tick)
-                QTimer.singleShot(0, self._auto_learning_tick)
 
-        def _online_tick(self) -> None:
-            self._refresh_online_ui()
-            if self.online_state.is_due():
-                self._start_online()
 
-        def _start_online(self, manual=False) -> bool:
-            if self.online_worker_busy or self.learning.audit_blocked or self.learning.journal.status in ("protected", "error"):
-                return False
-            reservation = self.online_state.begin(manual=manual)
-            if not reservation["ok"]:
-                if manual and self.conversation is not None:
-                    self.conversation.add_system("动态资料尚在冷却或未开启；不会重复请求。")
-                self._refresh_online_ui()
-                return False
-            token = reservation["attempt_id"]
-            task = self.learning.prepare_live()
-            if task is None:
-                self.online_state.finish({"ok": False, "errorCode": "storage"}, attempt_id=token)
-                self._refresh_online_ui()
-                return False
-            if not self.learning.journal.mark_running(task["id"]):
-                self.online_state.finish({"ok": False, "errorCode": "storage"}, attempt_id=token)
-                self.learning.apply_public(task, {"ok": False, "errorCode": "storage"})
-                return False
-            self.online_task, self.online_attempt = task, token
-            self.online_worker_busy = True
-            self._refresh_learning_ui()
-            threading.Thread(target=self._online_worker, args=(token, bool(manual)), daemon=True).start()
-            return True
 
-        def _online_worker(self, token, manual) -> None:
-            try:
-                result = fetch_live_facts()
-            except Exception:
-                result = {"ok": False, "errorCode": "network"}
-            try:
-                self.online_result.emit({"token": token, "manual": manual, "result": result})
-            except RuntimeError:
-                pass
 
-        def _on_online_result(self, payload) -> None:
-            if not isinstance(payload, dict) or payload.get("token") != self.online_attempt:
-                return
-            self.online_worker_busy = False
-            token, task = self.online_attempt, self.online_task
-            self.online_task, self.online_attempt = None, None
-            result = payload.get("result") if isinstance(payload.get("result"), dict) else {"ok": False, "errorCode": "schema"}
-            cancelled = not self.online_state.is_current(token)
-            flat = dict(result)
-            flat.update(result.get("metrics", {}) if isinstance(result.get("metrics"), dict) else {})
-            applied = self.learning.apply_public(task, flat, cancelled=cancelled)
-            committed = result if cancelled or applied["ok"] or not result.get("ok") else {"ok": False, "errorCode": "storage"}
-            finished = self.online_state.finish(committed, attempt_id=token)
-            if not cancelled:
-                if payload.get("manual") and self.conversation is not None:
-                    snap = self.online_state.snapshot()
-                    self.conversation.add_system(snap.get("summary") if applied["ok"] and finished["ok"] else "动态资料更新未完整确认；保留带时间缓存，请检查训练记录和联网状态。")
-            self._refresh_learning_ui()
 
-        def _refresh_learning_ui(self) -> None:
-            self._refresh_online_ui()
-            if self.growth_dialog is not None:
-                info = self.public_learning.snapshot(self.learning_busy)
-                info["sourceName"] = "CLDR 情感 · 科学/地理 · Stack Overflow 问答摘要" if self.public_learning.knowledge_enabled else PUBLIC_SOURCE_NAME
-                info["modelProtected"] = self.learning.audit_blocked or self.learning.journal.status in ("protected", "error")
-                info["activeSource"] = self.active_learning_source
-                self.growth_dialog.update_learning(info)
-                self.growth_dialog.update_companion(self.learning.companion.snapshot())
-                training_info = self.learning.snapshot(self.active_learning_source)
-                training_info["busy"] = self.learning_busy
-                training_info["evaluation"] = self.emotion.snapshot().get("evaluation", {})
-                self.growth_dialog.update_training(training_info)
 
-        def _set_auto_learning(self, enabled: bool) -> None:
-            self.public_learning.set_enabled(enabled)
-            self._refresh_learning_ui()
-            if self.public_learning.enabled:
-                QTimer.singleShot(0, self._auto_learning_tick)
 
-        def _set_knowledge_learning(self, enabled: bool) -> None:
-            self.public_learning.set_knowledge_enabled(enabled)
-            self._refresh_learning_ui()
-            if enabled and self.public_learning.enabled:
-                QTimer.singleShot(0, self._auto_learning_tick)
 
-        def _auto_learning_tick(self) -> None:
-            if not self.learning_busy and self.public_learning.is_due():
-                self._start_public_learning(manual=False)
 
-        def _open_web_learning(self) -> None:
-            # Owner already authorized public reading; no per-fetch modal.
-            self._start_public_learning(manual=True)
 
-        def _start_public_learning(self, manual: bool = False) -> bool:
-            if self.learning_busy:
-                return False
-            if self.learning.audit_blocked or self.learning.journal.status in ("protected", "error"):
-                self._refresh_learning_ui()
-                return False
-            if not self.public_learning.begin(manual=manual):
-                self._refresh_learning_ui()
-                if manual:
-                    self._show_overlay(self.public_learning.error or "刚刚检查过，稍等一分钟再试。",
-                                       "不会重复请求资料源", "WAITING", 3200)
-                    self._sync_bubble_size()
-                    self.update()
-                return False
-            self.learning_scope = self.public_learning.knowledge_enabled
-            self.learning_tasks = self.learning.prepare_public(self.learning_scope)
-            if not self.learning_tasks:
-                self.public_learning.finish(False, error="训练日志未能保存；没有发起联网。")
-                self._refresh_learning_ui()
-                return False
-            self.learning_busy = True
-            self._refresh_learning_ui()
-            if manual:
-                self._show_overlay("开始检查公开课程资料…", "每项结果会记入成长卡的训练页；不上传私聊", "THINKING", 30000)
-                self._sync_bubble_size()
-                self.update()
-            threading.Thread(target=self._learning_worker, args=(not manual,), daemon=True).start()
-            return True
 
-        def _on_learning_progress(self, progress) -> None:
-            if not isinstance(progress, dict):
-                return
-            task = next((task for task in self.learning_tasks if task["id"] == progress.get("id") and task["source"] == progress.get("source")), None)
-            if task is not None:
-                self.learning.journal.mark_running(task["id"])
-                self.active_learning_source = task["source"]
-                self._refresh_learning_ui()
 
-        def _learning_worker(self, automatic: bool) -> None:
-            items = []
-            for task in list(self.learning_tasks):
-                source = task["source"]
-                if (automatic and not self.public_learning.enabled) or (source != "cldr_zh" and not self.public_learning.knowledge_enabled):
-                    result = {"ok": False, "cancelled": True}
-                else:
-                    try:
-                        self.learning_progress.emit(task)
-                        protected = self.emotion.status in ("protected", "read_only") if source == "cldr_zh" else self.learning.knowledge.status == "protected"
-                        result = {"ok": False, "errorCode": "protected"} if protected else fetch_builtin_lexicon() if source == "cldr_zh" else fetch_knowledge_source(source)
-                    except Exception:
-                        result = {"ok": False, "errorCode": "network"}
-                items.append({"task": task, "result": result})
-            try:
-                self.learning_result.emit({"automatic": automatic, "items": items})
-            except RuntimeError:
-                pass
 
-        def _on_learning_result(self, result) -> None:
-            self.learning_busy = False
-            if not isinstance(result, dict):
-                result = {"ok": False, "errorCode": "schema"}
-            automatic = bool(result.get("automatic"))
-            disabled = automatic and not self.public_learning.enabled
-            rows = result.get("items")
-            # Compatibility for deterministic local smoke fixtures: one source.
-            if not isinstance(rows, list):
-                rows = [{"task": self.learning_tasks[0], "result": result}] if self.learning_tasks else []
-            by_id = {row["task"]["id"]: row.get("result", {}) for row in rows if isinstance(row, dict) and isinstance(row.get("task"), dict) and isinstance(row["task"].get("id"), int)}
-            outcomes, sources = [], []
-            added, retry_after = 0, 0
-            for task in self.learning_tasks:
-                item = by_id.get(task["id"], {"ok": False, "errorCode": "schema"})
-                if not isinstance(item, dict):
-                    item = {"ok": False, "errorCode": "schema"}
-                cancelled = disabled or item.get("cancelled") is True or (task["source"] != "cldr_zh" and not self.public_learning.knowledge_enabled)
-                applied = self.learning.apply_public(task, item, cancelled)
-                if not cancelled:
-                    backoff = item.get("retry_after", 0)
-                    if type(backoff) is int and backoff > 0:
-                        retry_after = max(retry_after, backoff)
-                    outcomes.append(applied["ok"])
-                    added += applied["added"]
-                    if applied["ok"]:
-                        sources.append(PUBLIC_SOURCE_NAME if task["source"] == "cldr_zh" else KNOWLEDGE_SOURCES[task["source"]]["name"])
-            self.learning_tasks = []
-            self.active_learning_source = ""
-            ok = bool(outcomes) and all(outcomes)
-            error = "部分公开资料未能更新；保留旧资料，详细结果见训练页。"
-            if not disabled:
-                saved = self.public_learning.finish(ok, added, sources, "" if ok else error, retry_after=retry_after)
-                if not saved:
-                    error = "资料结果已记录，但更新计划未保存；请查看训练页。"
-                    ok = False
-                if self.public_learning.knowledge_enabled and not self.learning_scope:
-                    self.public_learning.next_check = time.time() + 60
-                    self.public_learning.save()
-            if self.growth_dialog is not None:
-                self.growth_dialog.update_emotion(self.emotion.snapshot())
-            self._refresh_learning_ui()
-            if not automatic:
-                self._show_overlay(
-                    (f"收录了 {added} 条新线索和知识。" if added else "课程已检查，没有新增记录。") if ok else error,
-                    "每项过程已记录在训练页；资料收录不是大模型训练",
-                    "SUCCESS" if ok else "ERROR", 5500,
-                )
-                self._sync_bubble_size()
-                self.update()
 
-        def _cloud_worker(self, config, text, history=None, session_serial=None, voice_generation=None) -> None:
-            try:
-                result = ask_cloud(config, text, history=history)
-            except Exception:
-                result = {"ok": False, "error": "云端请求失败"}
-            result["requestSession"] = session_serial
-            result['voiceGeneration'] = voice_generation
-            try:
-                self.cloud_reply.emit(result)
-            except RuntimeError:
-                pass
 
-        def _on_cloud_reply(self, result) -> None:
-            self.cloud_busy = False
-            if not isinstance(result, dict):
-                result = {"ok": False, "error": "云端返回异常"}
-            if result.get("requestSession", self.conversation_serial) != self.conversation_serial:
-                return  # Closed dialogue: never leak its late reply into a new one.
-            active = self.conversation is not None and self.conversation.isVisible()
-            if result.get("ok"):
-                host = urllib.parse.urlsplit(str(result.get("endpoint", ""))).hostname or "云端"
-                text = str(result.get("text", ""))[:1200]
-                mood = self.emotion.current().get("label", "neutral")
-                if mood in ("sad", "tired", "anxious", "anger"):
-                    text = self.personality.decorate(text, mood, bool(self.memory.recent(1)))
-                self.last_reply_text = text[:300]
-                if active:
-                    self.conversation.show_reply(text, f"云端 · {host}")
-                    self._speak_voice_reply(text, result.get('voiceGeneration'))
-                else:
-                    self._show_overlay(text, f"云端 · {host} · 仅本次显示，不写入成长记录", "SUCCESS", 12000)
-            else:
-                message = str(result.get("error", "云端请求失败"))[:300]
-                if active:
-                    self.conversation.show_reply(message, "云端", True)
-                else:
-                    self._show_overlay(message, "没有自动重试；如仍需要，请重新确认发送", "ERROR", 6000)
-            if not active:
-                self._sync_bubble_size()
-                self.update()
 
         def _rollback_neural(self) -> None:
             ok = self.learning.control("rollback")

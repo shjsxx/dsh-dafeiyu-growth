@@ -607,10 +607,15 @@ class TrainingPanel(QWidget):
                             f"情感留出：准确率 {accuracy} · 平衡 {balanced} · "
                             f"macro F1 {number_or_zero(evaluation.get('macro_f1')):.2f} · "
                             f"验证 {_count(evaluation.get('support'))}")
+            missing = evaluation.get("missing_labels")
+            missing = [str(item)[:20] for item in missing[:6]] if isinstance(missing, list) else []
+            supported = _number(evaluation.get("macro_f1_supported"))
+            coverage = ("；留出集缺少 " + "、".join(missing)) if missing else ""
+            supported_text = f"；仅已覆盖类 F1 {supported:.2f}" if supported is not None else ""
             if evaluation.get("reason") == "no_improvement":
-                self.evaluation_label.setToolTip("上次公开数据更新未达到采纳门槛；权重未变，这里显示的是当前模型的留出评估。")
+                self.evaluation_label.setToolTip("上次更新未达到采纳门槛；这里显示的是当前模型的旧评估，不是新一轮训练结果" + coverage + supported_text + "。")
             else:
-                self.evaluation_label.setToolTip("来自确定的分层留出集；不是心理诊断或泛化保证。")
+                self.evaluation_label.setToolTip("来自确定的分层留出集；macro F1 按固定六类分母，缺类会拉低" + supported_text + coverage + "。不是心理诊断或泛化保证。")
         else:
             self._set_label(self.evaluation_label, "情感留出：尚无评估；完成一次公开数据学习后显示。")
         self.summary_label.setToolTip(

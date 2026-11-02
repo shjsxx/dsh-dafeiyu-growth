@@ -65,6 +65,7 @@ class ConversationDialog(QDialog):
     voice_tools_requested = Signal()
     online_refresh_requested = Signal()
     online_enabled_changed = Signal(bool)
+    retrieval_review_requested = Signal()
     closed = Signal()
 
     def __init__(self, parent=None):
@@ -153,6 +154,19 @@ class ConversationDialog(QDialog):
         self.online_summary.setWordWrap(True)
         self.online_summary.hide()
         layout.addWidget(self.online_summary)
+
+        extra = QHBoxLayout()
+        self._memory_target = None
+        self.memory_checkbox = QCheckBox("本次允许模型使用记忆摘要")
+        self.memory_checkbox.setToolTip("默认关闭。需单独确认；最多3条摘要/800字符，关闭窗口或切换目标即撤销。")
+        self.memory_checkbox.clicked.connect(self._memory_clicked)
+        extra.addWidget(self.memory_checkbox, 1)
+        self.review_button = QPushButton("检索反馈")
+        self.review_button.setToolTip("自愿在本机标注这次命中；不自动保存聊天、不上传、不训练。")
+        self.review_button.setEnabled(False)
+        self.review_button.clicked.connect(self.retrieval_review_requested.emit)
+        extra.addWidget(self.review_button)
+        layout.addLayout(extra)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -488,6 +502,40 @@ class ConversationDialog(QDialog):
         blocker = QSignalBlocker(self.session_checkbox)
         self.session_checkbox.setChecked(False)
         del blocker
+        self._memory_target = None
+        if hasattr(self, 'memory_checkbox'):
+            blocker = QSignalBlocker(self.memory_checkbox)
+            self.memory_checkbox.setChecked(False)
+            del blocker
+
+    def memory_context_enabled(self):
+        return self._target() is not None and self._memory_target == self._target()
+
+    def set_retrieval_available(self, available):
+        self.review_button.setEnabled(bool(available) and not self.busy)
+
+    def _memory_clicked(self, checked):
+        self._memory_target = None
+        blocker = QSignalBlocker(self.memory_checkbox)
+        self.memory_checkbox.setChecked(False)
+        del blocker
+        if not checked:
+            self.cancel_confirm()
+            return
+        self.cancel_confirm()
+        if not self._target():
+            self.add_system('先配置模型接口，再单独允许记忆摘要；没有发送任何资料。')
+            return
+        self._confirm_kind = 'memory'
+        self.confirm_label.setText(
+            f"单独允许本地记忆摘要发送到：{self.cloud['endpoint']} · {self.cloud['model']}\n"
+            '仅在你点击发送时附带最多3条相关摘要、最多800字符；可能含本地偏好/回顾。'
+            '历史+当前消息+摘要合计不超过4000字符。不附完整存档、其他DSH会话、文件或工具。'
+            '仅本窗口/本目标有效，关闭窗口或更改接口模型立即撤销。现在允许不会发送消息。')
+        self.session_allow_button.setText('允许本次记忆摘要')
+        self.session_allow_button.show()
+        self.confirm_send_button.hide()
+        self._show_confirmation()
 
     def _session_clicked(self, checked):
         if not checked:
@@ -502,6 +550,7 @@ class ConversationDialog(QDialog):
             self.settings_requested.emit()
             return
         self._confirm_kind = "session"
+        self.session_allow_button.setText("允许本次连续云聊")
         self.confirm_label.setText(
             f"本次连续云聊的目标：\n{self.cloud['endpoint']}\n模型：{self.cloud['model']}\n"
             "仅发送你在本窗口输入的消息，以及最近最多 6 条简短对话（每次当前消息与历史合计不超过 4000 字符）。"
@@ -515,6 +564,15 @@ class ConversationDialog(QDialog):
 
     def allow_session_cloud(self):
         """Explicit button action enables consent only; NEVER emits a message."""
+        if self._confirm_kind == 'memory' and self._target() and not self.busy:
+            self._memory_target = self._target()
+            blocker = QSignalBlocker(self.memory_checkbox)
+            self.memory_checkbox.setChecked(True)
+            del blocker
+            self._confirm_kind = ''
+            self._hide_confirmation()
+            self._update_controls()
+            return
         if self._confirm_kind != "session" or not self._target() or self.busy:
             return
         self._session_target = self._target()
@@ -587,6 +645,7 @@ class ConversationDialog(QDialog):
         self.local_button.setEnabled(not self.busy)
         self.cloud_button.setEnabled(not self.busy)
         self.session_checkbox.setEnabled(not self.busy)
+        self.memory_checkbox.setEnabled(not self.busy)
         self.send_button.setText("等待…" if self.busy else "发送")
 
     def set_busy(self, busy):

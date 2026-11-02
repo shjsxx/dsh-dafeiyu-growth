@@ -267,7 +267,8 @@ def bounded_history(history, current_text=""):
     return list(reversed(rows))
 
 
-def ask_cloud(config, text, timeout=30.0, history=None):
+def ask_cloud(config, text, timeout=30.0, history=None, *, companion_policy=None,
+              memory_context=None, memory_authorized=False):
     """Send approved text and optional explicitly session-approved bounded context.
 
     Default remains exact one-message/no-history. Never tools or DSH session ID.
@@ -287,11 +288,12 @@ def ask_cloud(config, text, timeout=30.0, history=None):
         return {"ok": False, "error": "empty message"}
     if len(approved) > MAX_TEXT:
         return {"ok": False, "error": f"message is longer than {MAX_TEXT} characters"}
+    from generation_context import build_messages
     payload = {
         "model": model,
-        "messages": ([{"role": "system", "content": SYSTEM_PROMPT}]
-                     + bounded_history(history, approved)
-                     + [{"role": "user", "content": approved}]),
+        "messages": build_messages(SYSTEM_PROMPT, approved, bounded_history(history, approved),
+                                   policy=companion_policy, memories=memory_context,
+                                   memory_authorized=memory_authorized),
         "max_tokens": tokens,
         "stream": False,
     }

@@ -10,10 +10,14 @@ chat transcripts beyond the summaries already stored in the growth profile.
 """
 from __future__ import annotations
 
+import copy
+import functools
 import hashlib
 import json
 import math
 import os
+import re
+import threading
 import time
 from pathlib import Path
 
@@ -63,6 +67,55 @@ def _identity(kind, text):
     return hashlib.blake2b((kind + "\0" + text).encode("utf-8"), digest_size=8).hexdigest()
 
 
+def _slot(kind, text):
+    """Stable, hashed factual slots, never semantic/LLM-inferred personality."""
+    canonical = text
+    if kind == "preference" and re.match(r"^称呼\s*[:：]", text):
+        canonical = "name"
+    elif kind == "habit":
+        patterns = (("tool", r"^最常用的工具[是为]"),
+                    ("hour", r"^你最常在\s*\d+\s*点活跃"),
+                    ("streak", r"^已经连续\s*\d+\s*天陪你工作"),
+                    ("project", r"^在 .+ 这个项目上干得最多"),
+                    ("errors", r"^遇到过\s*\d+\s*次工具报错"))
+        for label, pattern in patterns:
+            if re.search(pattern, text):
+                canonical = label
+                break
+        else:
+            canonical = re.sub(r"\d+(?:\.\d+)?\s*(?=次|回|天|小时|分钟)", "#", text)
+    return _identity("slot:" + kind, canonical)
+
+
+def _merge_rows(records):
+    """Latest assertion wins a slot; merge metadata without inventing accesses."""
+    merged = {}
+    for incoming in records:
+        row = dict(incoming)
+        row["slot"] = _slot(row["kind"], row["text"])
+        old = merged.get(row["slot"])
+        if old is None:
+            merged[row["slot"]] = row
+            continue
+        latest, previous = (row, old) if (row["lastSeen"], row["createdAt"]) >= (old["lastSeen"], old["createdAt"]) else (old, row)
+        result = dict(latest)
+        result["createdAt"] = min(old["createdAt"], row["createdAt"])
+        result["hits"] = max(old["hits"], row["hits"])
+        result["previousIds"] = list(dict.fromkeys(previous.get("previousIds", []) +
+            [previous["id"]] + latest.get("previousIds", []))) [-8:]
+        result["previousIds"] = [value for value in result["previousIds"] if value != result["id"]]
+        merged[row["slot"]] = result
+    return list(merged.values())
+
+
+def _locked(method):
+    @functools.wraps(method)
+    def call(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return call
+
+
 def _pairs(pairs):
     result = {}
     for key, value in pairs:
@@ -84,6 +137,9 @@ class MemoryEngine:
         self._reranker = None
         self._reranker_checked = False
         self._vectors_ready = False
+        self._lock = threading.RLock()
+        self._embedding_lock = threading.RLock()
+        self._vector_epoch = 0
         self._load()
 
     def _load(self):
@@ -101,7 +157,7 @@ class MemoryEngine:
             return
         try:
             raw = json.loads(body.decode("utf-8"), object_pairs_hook=_pairs)
-            if not isinstance(raw, dict) or raw.get("version") != VERSION:
+            if not isinstance(raw, dict) or isinstance(raw.get("version"), bool) or raw.get("version") != VERSION:
                 raise ValueError
             records = raw.get("records")
             if not isinstance(records, list):
@@ -122,11 +178,23 @@ class MemoryEngine:
                     "createdAt": _count(row.get("createdAt")),
                     "lastSeen": _count(row.get("lastSeen")),
                     "hits": max(1, _count(row.get("hits"), 1000)),
+                    "slot": _slot(row["kind"], text),
+                    "previousIds": [value for value in row.get("previousIds", [])[-8:]
+                                    if isinstance(value, str) and re.fullmatch(r"[a-f0-9]{16}", value)]
+                                    if isinstance(row.get("previousIds"), list) else [],
                 })
             blocked = raw.get("blocked")
             blocked = [str(value)[:32] for value in blocked[:MAX_RECORDS]] if isinstance(blocked, list) else []
+            blocked_slots = raw.get("blockedSlots", [])
+            blocked_slots = [value for value in blocked_slots[-MAX_RECORDS:]
+                             if isinstance(value, str) and re.fullmatch(r"[a-f0-9]{16}", value)] if isinstance(blocked_slots, list) else []
+            # Old exact tombstones can be promoted when their corresponding row
+            # is still present; hashes alone cannot reconstruct deleted plaintext.
+            blocked_slots = list(dict.fromkeys(blocked_slots +
+                [row["slot"] for row in clean if row["id"] in blocked]))[-MAX_RECORDS:]
+            clean = [row for row in clean if row["id"] not in blocked and row["slot"] not in blocked_slots]
             self.data = {"version": VERSION, "revision": _count(raw.get("revision")),
-                         "records": clean, "blocked": blocked,
+                         "records": _merge_rows(clean), "blocked": blocked, "blockedSlots": blocked_slots,
                          "publicRevision": _count(raw.get("publicRevision"))}
             self.status = "ready"
         except (ValueError, TypeError, UnicodeDecodeError):
@@ -134,8 +202,9 @@ class MemoryEngine:
             self.status, self.error = "protected", "memory file is corrupt or unsupported"
 
     def _empty(self):
-        return {"version": VERSION, "revision": 0, "records": [], "blocked": [], "publicRevision": 0}
+        return {"version": VERSION, "revision": 0, "records": [], "blocked": [], "blockedSlots": [], "publicRevision": 0}
 
+    @_locked
     def _save(self, before):
         temporary = self.path.with_name(self.path.name + f".{os.getpid()}.tmp")
         try:
@@ -162,6 +231,10 @@ class MemoryEngine:
                 pass
             self.status = "ready"
             self.error = ""
+            self._vector_epoch += 1
+            valid = {row["id"] for row in self.data["records"]}
+            self._vectors = {identity: vector for identity, vector in self._vectors.items() if identity in valid}
+            self._vectors_ready = bool(valid) and valid.issubset(self._vectors)
             return True
         except (OSError, ValueError, TypeError):
             self.data = before
@@ -170,24 +243,29 @@ class MemoryEngine:
         finally:
             try:
                 temporary.unlink()
-            except FileNotFoundError:
+            except OSError:
                 pass
 
     def _remember(self, kind, text, source, now):
         text = _plain(text)
         if not text:
             return False
-        identity = _identity(kind, text)
-        if identity in self.data.get("blocked", []):
+        identity, slot = _identity(kind, text), _slot(kind, text)
+        if identity in self.data.get("blocked", []) or slot in self.data.get("blockedSlots", []):
             return False
-        existing = next((row for row in self.data["records"] if row["id"] == identity), None)
+        existing = next((row for row in self.data["records"]
+                         if row["id"] == identity or row.get("slot", _slot(row["kind"], row["text"])) == slot), None)
         if existing:
-            existing["lastSeen"] = now
-            existing["hits"] = min(1000, existing["hits"] + 1)
-            existing["importance"] = min(100, existing["importance"] + 1)
-            return False
+            if existing["id"] == identity:
+                return False  # a profile refresh is NOT evidence of access/relevance
+            prior_ids = existing.get("previousIds", []) + [existing["id"]]
+            existing.update(id=identity, text=text, slot=slot,
+                            source=_plain(source, MAX_SOURCE) or kind, lastSeen=now,
+                            previousIds=[value for value in dict.fromkeys(prior_ids) if value != identity][-8:])
+            return True  # changed grounded assertion: persist while preserving age/hits
         self.data["records"].append({
-            "id": identity, "kind": kind, "text": text, "source": _plain(source, MAX_SOURCE) or kind,
+            "id": identity, "slot": slot, "previousIds": [],
+            "kind": kind, "text": text, "source": _plain(source, MAX_SOURCE) or kind,
             "importance": KIND_WEIGHT[kind], "createdAt": now, "lastSeen": now, "hits": 1,
         })
         return True
@@ -199,12 +277,13 @@ class MemoryEngine:
         keep.sort(key=lambda row: row["lastSeen"], reverse=True)
         return keep
 
+    @_locked
     def ingest_behavior(self, behavior, now=None):
         """Remember explicitly provided name/likes from interaction memory."""
         if self.status == "protected" or not isinstance(behavior, dict):
             return 0
         stamp = int(self._clock() if now is None else now)
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        before = copy.deepcopy(self.data)
         added = 0
         name = _plain(behavior.get("userName"), 20)
         if name and self._remember("preference", "称呼：" + name, "local_preference", stamp):
@@ -220,12 +299,13 @@ class MemoryEngine:
         self.data["revision"] += 1
         return 1 if self._save(before) else 0
 
+    @_locked
     def ingest_state(self, state, now=None):
         """Remember bounded diary/learned summaries from the existing profile."""
         if self.status == "protected" or not isinstance(state, dict):
             return 0
         stamp = int(self._clock() if now is None else now)
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        before = copy.deepcopy(self.data)
         added = 0
         learned = state.get("learned") if isinstance(state.get("learned"), list) else []
         for row in learned[:50]:
@@ -241,6 +321,7 @@ class MemoryEngine:
         self.data["revision"] += 1
         return 1 if self._save(before) else 0
 
+    @_locked
     def ingest_knowledge(self, records, revision, now=None):
         """Absorb already-fetched, validated public records; never fetch here."""
         if self.status == "protected" or not isinstance(records, list):
@@ -249,7 +330,7 @@ class MemoryEngine:
         if revision <= 0 or revision == self.data.get("publicRevision"):
             return 0
         stamp = int(self._clock() if now is None else now)
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        before = copy.deepcopy(self.data)
         added = 0
         for row in records[:600]:
             if not isinstance(row, dict):
@@ -268,6 +349,7 @@ class MemoryEngine:
             self.data["revision"] += 1
         return 1 if changed and self._save(before) else 0
 
+    @_locked
     def ingest_external(self, record, now=None):
         """Remember one bounded, licensed public summary from the crawler."""
         if self.status == "protected" or not isinstance(record, dict):
@@ -278,13 +360,14 @@ class MemoryEngine:
         if not topic or len(text) < 10:
             return 0
         stamp = int(self._clock() if now is None else now)
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]]}
+        before = copy.deepcopy(self.data)
         if not self._remember(kind, topic + "：" + text, source, stamp):
             return 0
         self.data["records"] = self._prune(self.data["records"])
         self.data["revision"] += 1
         return 1 if self._save(before) else 0
 
+    @_locked
     def recent(self, limit=5, kinds=None):
         """Return recently active memories for broad “what do you remember” asks."""
         if self.status == "protected":
@@ -292,28 +375,70 @@ class MemoryEngine:
         allowed = set(kinds) if isinstance(kinds, (list, tuple, set)) else set(KIND_WEIGHT)
         rows = sorted((row for row in self.data["records"] if row["kind"] in allowed),
                       key=lambda row: (row["lastSeen"], row["importance"]), reverse=True)
-        return [{"kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]], "text": row["text"],
-                 "source": row["source"], "importance": row["importance"], "score": 10}
+        return [{"id": row["id"], "slot": row.get("slot", _slot(row["kind"], row["text"])),
+                 "kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]], "text": row["text"],
+                 "source": row["source"], "importance": row["importance"],
+                 "score": 0, "retrieval": "recent"}
                 for row in rows[:max(1, min(20, limit))]]
 
+    @_locked
+    def consolidated(self, limit=12):
+        """Passive, bounded factual view: preferences/habits/episodes only.
+
+        Each item is an existing assertion, never an invented narrative or a
+        personality inference. IDs retain bounded previous row hashes; source
+        references claim only known current provenance. This LOCAL view contains
+        private memories: it is not implicit
+        permission to send them to a provider. No scoring/access counters change.
+        """
+        if self.status == "protected":
+            return []
+        groups = {"preference": "preferences", "habit": "habits", "diary": "episodes"}
+        rows = _merge_rows([dict(row) for row in self.data["records"] if row["kind"] in groups])
+        rows.sort(key=lambda row: (row["lastSeen"], row["createdAt"]), reverse=True)
+        result = []
+        for row in rows[:max(0, min(30, _count(limit, 30)))]:
+            ids = list(dict.fromkeys([row["id"]] + row.get("previousIds", [])))[:9]
+            result.append({"group": groups[row["kind"]], "kind": row["kind"],
+                           "id": row["id"], "ids": ids, "slot": row["slot"],
+                           "text": row["text"], "source": row["source"], "sources": [row["source"]],
+                           "references": [{"id": row["id"], "source": row["source"]}],
+                           "createdAt": row["createdAt"], "lastSeen": row["lastSeen"], "hits": row["hits"]})
+        return result
+
+    def _encode(self, texts):
+        # Session/tokenizer lazy load and encode must not race between recall
+        # and a background warmup. Never acquire the data lock while held here.
+        with self._embedding_lock:
+            return self._embedding.encode(texts)
+
     def prepare_vectors(self, batch=32):
-        """Warm the local vector cache off the UI thread; no network."""
-        if self.status == "protected" or self._vectors_ready:
-            return False
-        if self._embedding is None:
-            self._embedding = EmbeddingBackend()
-        if not self._embedding.files_present():
-            return False
-        rows = [row for row in self.data["records"] if row["id"] not in self._vectors]
+        """Warm copied rows outside data lock; discard results after any mutation."""
+        with self._lock:
+            if self.status == "protected" or self._vectors_ready:
+                return False
+            if self._embedding is None:
+                self._embedding = EmbeddingBackend()
+            if not self._embedding.files_present():
+                return False
+            epoch = self._vector_epoch
+            rows = [dict(row) for row in self.data["records"] if row["id"] not in self._vectors]
         try:
-            for start in range(0, len(rows), max(1, int(batch))):
-                chunk = rows[start:start + max(1, int(batch))]
-                vectors = self._embedding.encode([row["text"] for row in chunk])
+            size = max(1, min(MAX_RECORDS, int(batch)))
+            for start in range(0, len(rows), size):
+                chunk = rows[start:start + size]
+                vectors = self._encode([row["text"] for row in chunk])
                 if len(vectors) != len(chunk):
                     return False
-                for row, vector in zip(chunk, vectors):
-                    self._vectors[row["id"]] = vector
-            self._vectors_ready = True
+                with self._lock:
+                    if epoch != self._vector_epoch:
+                        return False
+                    for row, vector in zip(chunk, vectors):
+                        self._vectors[row["id"]] = vector
+            with self._lock:
+                if epoch != self._vector_epoch:
+                    return False
+                self._vectors_ready = True
             return True
         except (OSError, ValueError, TypeError, RuntimeError):
             return False
@@ -326,20 +451,21 @@ class MemoryEngine:
             return {}
         pending = [row["text"] for row in rows if row["id"] not in self._vectors]
         if pending:
-            vectors = self._embedding.encode(pending)
+            vectors = self._encode(pending)
             if len(vectors) != len(pending):
                 return {}
             for row, vector in zip([row for row in rows if row["id"] not in self._vectors], vectors):
                 self._vectors[row["id"]] = vector
             if len(self._vectors) > MAX_RECORDS:
                 self._vectors = dict(list(self._vectors.items())[-MAX_RECORDS:])
-        query_vector = self._embedding.encode([query])
+        query_vector = self._encode([query])
         if not query_vector:
             return {}
         query_vector = query_vector[0]
         return {row["id"]: max(0.0, min(1.0, sum(a * b for a, b in zip(query_vector, self._vectors[row["id"]]))))
                 for row in rows if row["id"] in self._vectors}
 
+    @_locked
     def reranker(self):
         if self._reranker_checked:
             return self._reranker
@@ -355,6 +481,7 @@ class MemoryEngine:
             self._reranker = None
         return self._reranker
 
+    @_locked
     def recall(self, query, limit=5, kinds=None):
         """Rank memories by local neural embeddings, then hashed concepts."""
         if self.status == "protected":
@@ -400,14 +527,18 @@ class MemoryEngine:
                 else:
                     score = cosine * 100 + row["importance"] * .12
             else:
+                if base <= 0:
+                    continue  # neural shortlist expansion is not lexical evidence
                 score = base
             scored.append((score, row["lastSeen"], row))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
-        return [{"kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]],
+        return [{"id": row["id"], "slot": row.get("slot", _slot(row["kind"], row["text"])),
+                 "kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]],
                  "text": row["text"], "source": row["source"], "importance": row["importance"],
                  "score": round(score, 1)}
                 for score, _, row in scored[:max(1, min(20, limit))]]
 
+    @_locked
     def snapshot(self, recent=3):
         data = self.data or self._empty()
         counts = {"preference": 0, "habit": 0, "diary": 0, "public": 0, "culture": 0}
@@ -419,32 +550,44 @@ class MemoryEngine:
                 "embedding": "ready" if (self._embedding or EmbeddingBackend()).files_present() else "unavailable",
                 "rerank": "on" if self.reranker() else "off",
                 "publicRevision": data.get("publicRevision", 0), "recent": [
-                    {"kindLabel": KIND_LABEL[row["kind"]], "text": row["text"], "source": row["source"]}
+                    {"id": row["id"], "kindLabel": KIND_LABEL[row["kind"]], "text": row["text"], "source": row["source"]}
                     for row in newest]}
 
+    @_locked
     def clear(self):
         if self.status == "protected":
             return False
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]],
-                  "blocked": list(self.data.get("blocked", []))}
+        before = copy.deepcopy(self.data)
         blocked = list(dict.fromkeys(list(self.data.get("blocked", []))
                                      + [row["id"] for row in self.data["records"]]))[-MAX_RECORDS:]
         self.data["blocked"] = blocked
+        self.data["blockedSlots"] = list(dict.fromkeys(self.data.get("blockedSlots", []) +
+            [_slot(row["kind"], row["text"]) for row in self.data["records"]]))[-MAX_RECORDS:]
+        self._vector_epoch += 1
+        self._vectors.clear()
+        self._vectors_ready = False
         self.data["records"] = []
         self.data["publicRevision"] = 0
         self.data["revision"] += 1
         return self._save(before)
 
+    @_locked
     def clear_preferences(self):
         """Forget name/likes and prevent the same rows from being re-ingested."""
         if self.status == "protected":
             return False
-        before = {**self.data, "records": [dict(row) for row in self.data["records"]],
-                  "blocked": list(self.data.get("blocked", []))}
+        before = copy.deepcopy(self.data)
         preferences = [row for row in self.data["records"] if row["kind"] == "preference"]
         blocked = list(dict.fromkeys(list(self.data.get("blocked", []))
                                      + [row["id"] for row in preferences]))[-MAX_RECORDS:]
         self.data["blocked"] = blocked
+        self.data["blockedSlots"] = list(dict.fromkeys(self.data.get("blockedSlots", []) +
+            [_slot(row["kind"], row["text"]) for row in preferences]))[-MAX_RECORDS:]
+        # Purge the whole derived cache rather than leave preference-derived
+        # vectors or an in-flight warmup's results available after forgetting.
+        self._vector_epoch += 1
+        self._vectors.clear()
+        self._vectors_ready = False
         self.data["records"] = [row for row in self.data["records"] if row["kind"] != "preference"]
         self.data["revision"] += 1
         return self._save(before)

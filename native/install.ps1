@@ -2,7 +2,8 @@ param([switch]$Rollback, [switch]$Yes)
 $ErrorActionPreference = 'Stop'
 $upstream = Join-Path $env:USERPROFILE '.dsh\profiles\desktop\node_modules\dsh-dafeiyu'
 $package = Get-Content -LiteralPath (Join-Path $upstream 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($package.version -ne '0.1.23') { throw 'This native patch is tested against dsh-dafeiyu 0.1.23 only. Rebase before upgrading.' }
+$contract = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'upstream_compat.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($package.version -ne $contract.testedVersion) { throw "This native patch is tested against dsh-dafeiyu $($contract.testedVersion) only. Rebase before upgrading." }
 $target = Join-Path $upstream 'runtime\bin\win32-x64\dsh-dafeiyu-helper.exe'
 $source = if ($Rollback) { Join-Path $PSScriptRoot 'backup\dsh-dafeiyu-helper-0.1.23-original.exe' } else { Join-Path $PSScriptRoot 'dist\dsh-dafeiyu-helper.exe' }
 if (-not (Test-Path -LiteralPath $source)) { throw "Missing native binary: $source" }

@@ -1,8 +1,8 @@
-﻿# 云岚 · DSH 桌宠养成 🐟
+# 云岚 · DSH 桌宠养成 🐟
 
 给 DSH 的桌宠**云岚**加一层养成：真实会话事件换经验，经验换等级与阶段，阶段解锁称号；从你的使用习惯里“学”出稳定结论；空闲时由本地神经网络决定动作，摔倒了会记住。
 
-> 诚实说明：成长/习惯仍是**本地统计**；桌面动作由真实的 10→12→4 小型神经网络在本地训练（不是语言模型）。语言默认本地规则；独立云端接口默认逐句确认，只有明确允许“本次连续云聊”后，才附带当前桌宠窗口最多6条短消息、与当前输入合计最多4000字符。关闭窗口即撤销，不涉及其他DSH会话、文件、屏幕或工具调用。
+> 诚实说明：成长/习惯仍是**本地统计**；桌面动作由真实的 10→12→4 小型神经网络在本地训练（不是语言模型）。语言默认本地规则；独立云端接口默认逐句确认，只有明确允许“本次连续云聊”后，才附带当前桌宠窗口最多6条短消息、与当前输入合计最多4000字符。记忆摘要还有**单独**的“本次允许模型使用记忆摘要”开关，默认关闭；开启后只附当前请求相关的最多3条摘要/800字符，并作为不可信资料发送，不并入系统指令。关闭窗口即撤销，不涉及其他DSH会话、文件、屏幕或工具调用。
 
 ## 界面预览
 
@@ -12,7 +12,7 @@
 
 ![右键菜单](docs/screenshots/menu.png)
 
-[查看七页重设计与验证说明](docs/growth-redesign.md)
+[查看七页重设计与验证说明](docs/growth-redesign.md) · [多轮上下文与本地标注边界](docs/companion-context.md)
 
 截图使用合成测试档案和隔离数据，不含真实使用记录。
 
@@ -27,6 +27,32 @@
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
 
+## 0.27.0 · 多轮上下文、本地检索标注与运行时拆分
+
+- **多轮对话不再逐句补丁**：`CompanionContext` 在内存里保留最近 6 行、最多 4000 字符，支持“公园→那里→风很舒服”的话题承接、明确指代、纠正/拒绝/休息后的关系修复。它不是持久化聊天记录，也没有通用理解。
+- **人格策略接入生成链路**：固定枚举的 values/goals/boundaries 与关系修复策略可进入模型指令；修复/休息/拒绝期间被动搭话返回空并跳过气泡，不再出现“刚被要求安静又主动出现”。
+- **记忆发送需要独立同意**：连续云聊同意不自动包含记忆；窗口新增“本次允许模型使用记忆摘要”，默认关闭，仅发送本次相关的最多 3 条摘要/800 字符，且作为“不可信资料”单独消息，不拼接进系统指令。
+- **本地检索标注**：`retrieval_review.py` 支持人工勾选本次命中/无答案，必须显式同意才写本机；按会话组做 60/20/20 划分，少于 5 条或 3 组时明确报 `insufficient_data`，不伪造准确率。`--production` 与评估都调用真实 `MemoryEngine.recall`。
+- **记忆巩固与隐私删除**：同一称呼/计数习惯合并到稳定 slot，保留来源；重复同步不增加 hits；清除时同时清向量缓存和 slot tombstone，旧记忆不会借新 ID 复活。
+- **情绪契约 v3**：`neutral` 明确是弃权而非 calm；报告已覆盖/缺失类别，固定六类 F1 与已支持类 F1 分开；公开数据仍只有 4 类，缺 anxious/tired 会被显式标出。
+- **运行时拆分**：原生 helper 的对话/公开学习/展示/陪伴逻辑拆为 `runtime/conversation_runtime.py`、`public_learning_runtime.py`、`presentation_runtime.py`、`companion_runtime.py` 四个 mixin；入口、窗口、权限仍集中在一个进程。
+- **上游兼容单一来源**：`native/upstream_compat.json` + `upstream_compat.py`，`install.ps1` 不再硬编码第二份版本号。
+- 测试增至 **840 项**；新增 `test_companion_context.py`、`test_generation_context.py`、`test_retrieval_review*.py`、`test_memory_consolidation.py`、`test_emotion_contract.py`、`test_upstream_compat.py`。
+
+**限制**：公开情感数据仍缺 anxious/tired；真实检索标注目前是空库，需要你实际使用并自愿标注，不能把合成 100% 当成真实效果；这不是通用大模型，也没有 Live2D 素材授权。
+
+本地标注不是自动收集：在对话里点「检索反馈」，勾选“同意仅在本机保存该问题和命中标注”才写入 `retrieval_reviews.json`；至少 5 条、3 个独立会话组才会生成分数。也可以用已导出的标注文件运行：
+
+```powershell
+python native/retrieval_review.py --reviews "$env:LOCALAPPDATA\dsh-dafeiyu\retrieval_reviews.json" --memory "$env:LOCALAPPDATA\dsh-dafeiyu\memory.json" --partition test
+```
+
+本地情感标注（CSV 列 `text,label[,source_id,group_id]`）默认只写显式指定/暂存文件，不默认写真实档案：
+
+```powershell
+python native/emotion_dataset_update.py --labeled-file local_emotion.csv --staging
+```
+
 ## 0.26.0 · 审计修复：先让指标和真实链路可信
 
 - **情感评估修正**：所有 truth 都计入；`neutral` 等分类外预测明确记为 abstention，不再被 balanced accuracy / macro F1 漏算；旧版评估（无 `eval_version:2`）强制隐藏，避免把旧指标当成当前模型。
@@ -36,7 +62,7 @@
 - **删除防回灌**：清除记忆时写入 blocked tombstone，旧档案/行为/公开知识不会马上被同步回来；“清除互动记忆”同时清除偏好行。
 - **安全修正**：云 API key 绑定 endpoint，改 endpoint 必须重新输入；环境 key 只用于 DeepSeek/localhost 或显式绑定；爬虫在跟随重定向前拒绝；重排器/连续性损坏数据 fail closed。
 - **工程修正**：CI 安装 onnxruntime/numpy；动作反馈复用决策时 context，避免 `chat_open` 造成的训练/服务时序偏斜。
-- 测试增至 **750 项**；新增 `test_audit_fixes.py`、`test_audit_security.py`、`test_memory_deletion.py`。
+- 当时测试增至 750 项；新增 `test_audit_fixes.py`、`test_audit_security.py`、`test_memory_deletion.py`。
 
 ## 0.25.0 · 领域重排评估（不是硬调底座）
 
@@ -439,7 +465,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（751 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（840 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 

@@ -15,6 +15,7 @@ import urllib.request
 from pathlib import Path
 
 from emotion_model import EmotionModel
+from emotion_eval import EMOTIONS, LABEL_CONTRACT, coverage
 from training_journal import TrainingJournal
 
 DATASET = {
@@ -51,6 +52,14 @@ def download(url=DATASET["url"], timeout=30):
 
 
 def parse_csv(body):
+    """Bounded CSV; accepts mapped Chinese or canonical train labels.
+
+    neutral/平淡 are counted as abstentions, not emitted as training rows.
+    Optional source_id + group_id/dialogue_id produce dict rows; otherwise
+    legacy pairs are preserved. IDs are transient and never journaled.
+    """
+    if len(body) > MAX_BYTES:
+        raise RuntimeError("dataset_too_large")
     text = body.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
     if not reader.fieldnames or "text" not in reader.fieldnames:
@@ -58,20 +67,49 @@ def parse_csv(body):
     label_field = "emotion" if "emotion" in reader.fieldnames else "label" if "label" in reader.fieldnames else ""
     if not label_field:
         raise RuntimeError("dataset_schema")
-    rows, stats = [], {"filtered": 0, "unmapped": 0, "unsafe": 0}
+    rows, stats = [], {"rows_total": 0, "filtered": 0, "unmapped": 0, "unsafe": 0,
+                       "abstentions": 0, "group_tagged": 0}
+    counts = {}
     for record in reader:
+        stats["rows_total"] += 1
+        if stats["rows_total"] > 20000:
+            raise RuntimeError("dataset_too_many_rows")
         content = " ".join(str(record.get("text") or "").split())
-        label = LABEL_MAP.get(str(record.get(label_field) or "").strip())
+        original = str(record.get(label_field) or "").strip()
+        label = original if original in (*EMOTIONS, "neutral") else LABEL_MAP.get(original)
+        if label == "neutral":
+            stats["abstentions"] += 1
+            continue
         if not label:
             stats["unmapped"] += 1
             continue
+        unsafe = any(term in content for term in UNSAFE)
         if (not 4 <= len(content) <= 120 or "http" in content.lower() or "@" in content
-                or any(term in content for term in UNSAFE)
+                or unsafe
                 or sum("\u4e00" <= ch <= "\u9fff" for ch in content) < max(3, len(content) // 3)):
             stats["filtered"] += 1
+            stats["unsafe"] += int(unsafe)
             continue
-        rows.append((content, label))
+        group = str(record.get("group_id") or record.get("dialogue_id") or "").strip()
+        source = str(record.get("source_id") or "").strip()
+        if len(group) > 120 or len(source) > 120:
+            stats["filtered"] += 1
+            continue
+        if group or source:
+            rows.append({"text": content, "label": label, "group_id": group, "source_id": source})
+            stats["group_tagged"] += int(bool(group))
+        else:
+            rows.append((content, label))
+        counts[label] = counts.get(label, 0) + 1
+    stats.update(coverage(counts))
+    stats["label_counts"] = counts
     return rows, stats
+
+
+def load_local(path):
+    """Read at most the same byte budget as download; never crawl or copy text."""
+    with Path(path).open("rb") as stream:
+        return parse_csv(stream.read(MAX_BYTES + 1))
 
 
 def backup_if_exists(path):
@@ -89,29 +127,37 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--staging", action="store_true",
                         help="train into a staging copy; print its path, do not touch the live model")
+    parser.add_argument("--labeled-file", type=Path,
+                        help="local UTF-8 CSV; text,label[,source_id,group_id/dialogue_id]; no download")
+    parser.add_argument("--model-file", type=Path, help="explicit destination profile (required for local input unless staging)")
     args = parser.parse_args()
-    if args.staging:
-        live = EmotionModel().path
-        stage_dir = Path(tempfile.mkdtemp(prefix="yunlan-emotion-"))
-        stage = stage_dir / "emotion.json"
-        if live.is_file():
-            shutil.copy2(live, stage)
+    if args.labeled_file and not (args.model_file or args.staging):
+        parser.error("--labeled-file requires --model-file or --staging; live owner data is not the default")
+    source = "local_labeled_file" if args.labeled_file else "huggingface.co/" + DATASET["id"]
+    if args.staging or args.labeled_file:
+        rows, stats = load_local(args.labeled_file) if args.labeled_file else parse_csv(download())
+        live = args.model_file or EmotionModel().path
+        if args.staging:
+            stage_dir = Path(tempfile.mkdtemp(prefix="yunlan-emotion-"))
+            stage = stage_dir / "emotion.json"
+            if live.is_file():
+                shutil.copy2(live, stage)
+        else:
+            stage = args.model_file
         model = EmotionModel(stage)
-        rows, stats = parse_csv(download())
-        audit = model.learn_dataset(rows, source="huggingface.co/" + DATASET["id"])
-        print(json.dumps({"ok": bool(audit["persisted"]), "staging": str(stage), "live": str(live),
-                          "rows_used": int(audit["rows_used"]), "validation": int(audit["validation"]),
-                          "accuracy_before": audit["accuracy_before"], "accuracy_after": audit["accuracy_after"],
-                          "changed_weights": int(audit["changed_weights"]), "reason": audit["reason"],
-                          "filtered": stats["filtered"], "unmapped": stats["unmapped"]}, ensure_ascii=False))
+        audit = model.learn_dataset(rows, source=source)
+        print(json.dumps({**audit, "ok": bool(audit["persisted"]), "model_file": str(stage),
+                          "live": str(live), "filtered": stats["filtered"], "unmapped": stats["unmapped"],
+                          "staging": str(stage) if args.staging else None,
+                          "audit": audit, "parser": stats, "label_contract": LABEL_CONTRACT}, ensure_ascii=False))
         return 0 if audit["persisted"] else 2
-    model = EmotionModel()
+    model = EmotionModel(args.model_file)
     if model.status == "protected":
         print(json.dumps({"ok": False, "reason": "protected"}, ensure_ascii=False))
         return 1
-    backup = backup_if_exists(model.path)
     rows, stats = parse_csv(download())
-    audit = model.learn_dataset(rows, source="huggingface.co/" + DATASET["id"])
+    backup = backup_if_exists(model.path)
+    audit = model.learn_dataset(rows, source=source)
     journal = TrainingJournal()
     metrics = {
         "dataset_rows": int(audit["rows_total"]), "dataset_skipped": int(audit["skipped"]),
@@ -143,6 +189,7 @@ def main():
         "changed_weights": int(audit["changed_weights"]), "reason": audit["reason"],
         "version_after": int(audit["version_after"]), "filtered": stats["filtered"],
         "unmapped": stats["unmapped"], "backup": bool(backup),
+        "parser": stats, "audit": audit, "label_contract": LABEL_CONTRACT,
     }
     print(json.dumps(result, ensure_ascii=False))
     return 0 if audit["persisted"] else 2

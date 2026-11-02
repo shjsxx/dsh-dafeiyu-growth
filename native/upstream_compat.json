@@ -1,0 +1,5 @@
+{
+  "testedVersion": "0.1.23",
+  "helperDirectory": "runtime/bin/win32-x64",
+  "note": "The native patch is tested against this dsh-dafeiyu version only."
+}
