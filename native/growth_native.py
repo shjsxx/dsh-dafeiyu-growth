@@ -938,6 +938,15 @@ class GrowthDialog(QDialog):
             tile_box.addWidget(meter)
             feeling_grid.addWidget(tile, index // 2, index % 2)
             self.feeling_values[key], self.feeling_bars[key] = number, meter
+        self._heading(emotion_now, "人格倾向", "稳定 + 记忆")
+        personality_card, personality_box = self._card("personalityCard")
+        self.personality_tone = _label("现在的语气：平稳 · 主动性 0.40", "emotionName")
+        self.personality_metrics = _label("温暖 50 · 好奇 50 · 俏皮 50\n稳定 50 · 表达 50", "emotionInfo")
+        self.personality_note = _label("性格慢慢形成；记忆只影响话题与主动性，不改变事实。", "memoryStatus")
+        personality_box.addWidget(self.personality_tone)
+        personality_box.addWidget(self.personality_metrics)
+        personality_box.addWidget(self.personality_note)
+        emotion_now.addWidget(personality_card)
         radar_card, radar_box = self._card("emotionRadarCard")
         self.emotion_radar = RadarChart()
         radar_box.addWidget(self.emotion_radar)
@@ -1236,6 +1245,25 @@ class GrowthDialog(QDialog):
         self._refresh_abilities()
         self._emotion_protected = status in ("read_only", "protected")
         self.update_learning(getattr(self, "_learning_info", {}))
+
+    def update_personality(self, snapshot):
+        """Passive personality summary; no model call or file write here."""
+        snapshot = snapshot if isinstance(snapshot, dict) else {}
+        traits = snapshot.get("traits") if isinstance(snapshot.get("traits"), dict) else {}
+        if snapshot.get("status") == "protected":
+            self.personality_tone.setText("人格存档受保护；当前不调整语气。")
+            self.personality_metrics.setText("未覆盖原文件，也不会假装已学习。")
+            return
+        labels = snapshot.get("labels") if isinstance(snapshot.get("labels"), dict) else {}
+        def value(key):
+            return int(round(max(0, min(100, _number(traits.get(key))))))
+        self.personality_tone.setText(
+            f"现在的语气：{_text(snapshot.get('toneLabel'), '平稳')} · 主动性 {_number(snapshot.get('initiative'), .4):.2f}")
+        self.personality_metrics.setText(
+            f"温暖 {value('warmth')} · 好奇 {value('curiosity')} · 俏皮 {value('playfulness')}\n"
+            f"稳定 {value('steadiness')} · 表达 {value('expressiveness')}")
+        self.personality_note.setText("性格慢慢形成；记忆只影响话题与主动性，不改变事实。"
+                                      if snapshot.get("simulated") else "人格状态来自本地统计。")
 
     def update_companion(self, info):
         info = info if isinstance(info, dict) else {}

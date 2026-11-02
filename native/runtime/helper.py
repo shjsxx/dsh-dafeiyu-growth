@@ -263,6 +263,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from memory_engine import MemoryEngine
         from memory_reply import broad_memory_query, compose_memory_answer, compose_public_answer
         from public_crawler import PoetryCrawler
+        from personality_engine import PersonalityEngine
         from behavior import BehaviorLearner
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
@@ -484,6 +485,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.emotion = EmotionModel()
             self.learning = LearningHub(self.brain, self.emotion)
             self.memory = MemoryEngine()
+            self.personality = PersonalityEngine()
             self._memory_knowledge_revision = -1
             self.crawler = PoetryCrawler()
             self.crawler_busy = False
@@ -1004,7 +1006,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         def _talk_text(self) -> str:
             mood = self.emotion.current().get("label", "neutral")
             if mood in ("sad", "tired", "anxious", "anger"):
-                return self.learning.companion.line(user_mood=mood)
+                return self._personality_talk(self.learning.companion.line(user_mood=mood))
             feeling = self.learning.companion.snapshot()
             if feeling["mood"] == "curious" and random.random() < .30:
                 fact = self.learning.knowledge.example(sequence=random.randrange(10000))
@@ -1019,7 +1021,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             name = self.learner.data.get("userName", "")
             if name and random.random() < .25:
                 return f"{name}，你忙你的，我就在旁边。"
-            return self.learning.companion.line(user_mood=mood)
+            return self._personality_talk(self.learning.companion.line(user_mood=mood))
 
         def _maybe_talk(self, force: bool = False) -> None:
             now_ms = self._now_ms()
@@ -1044,7 +1046,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.learner.note_greeting()
             self._sync_bubble_size()
             self.update()
-            self.next_talk_ms = now_ms + (random.randint(120000, 240000) if self._idle_only() else random.randint(300000, 600000))
+            mood = self.emotion.current().get("label", "neutral")
+            pace = 1.25 - 0.5 * self.personality.initiative(mood, bool(self.memory.recent(1)))
+            self.next_talk_ms = now_ms + int((random.randint(120000, 240000) if self._idle_only() else random.randint(300000, 600000)) * pace)
 
         def _neural_context(self) -> dict:
             now = time.localtime()
@@ -2246,6 +2250,19 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if self.memory.ingest_external(record) and self.growth_dialog is not None:
                 self.growth_dialog.update_memory(self.memory.snapshot())
 
+        def _sync_personality(self) -> None:
+            self.personality.update(self.learning.companion.snapshot(), self.emotion.snapshot(),
+                                    self.growth_state)
+            mood = self.emotion.current().get("label", "neutral")
+            has_memory = bool(self.memory.recent(1, kinds=("preference", "habit", "diary", "culture")))
+            if self.growth_dialog is not None:
+                self.growth_dialog.update_personality(self.personality.snapshot(mood, has_memory))
+
+        def _personality_talk(self, base: str) -> str:
+            mood = self.emotion.current().get("label", "neutral")
+            hits = self.memory.recent(3, kinds=("preference", "habit", "diary", "culture"))
+            return self.personality.proactive(base, hits, mood)
+
         def _sync_memory(self) -> None:
             """Absorb local summaries and already-validated public records."""
             try:
@@ -2288,6 +2305,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.growth_state = next_state
             self._sync_memory()
             self._sync_bubble_size()
+            self._sync_personality()
             if self.growth_dialog is not None:
                 self.growth_dialog.update_state(self.growth_state)
                 self.growth_dialog.update_neural(self.brain.info())
@@ -2318,6 +2336,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.growth_dialog.online_enabled_changed.connect(self._set_online_enabled)
                 self.growth_dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
                 self.growth_dialog.memory_clear_requested.connect(self._clear_memory_engine)
+            self._sync_personality()
             self.growth_dialog.update_state(self.growth_state)
             self.growth_dialog.update_behavior(self.learner.snapshot())
             self.growth_dialog.update_neural(self.brain.info())
@@ -2548,6 +2567,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     if public_answer:
                         reply = {"text": public_answer, "action": None}
                         meta = public_meta
+            if (reply.get("text") in DEFAULT_REPLIES or mood in ("sad", "tired", "anxious", "anger")) \
+                    and not meta.startswith("记忆引擎"):
+                reply = dict(reply, text=self.personality.decorate(
+                    str(reply.get("text", "")), mood, bool(self.memory.recent(1))))
             if any(word in text for word in ("实时动态", "最新动态", "最新地震", "联网动态")):
                 snap = self.online_state.snapshot()
                 if snap.get("summary"):

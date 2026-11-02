@@ -3,8 +3,10 @@
 本文件定义数据边界与接口。**成长引擎已实现**（`native/growth_engine.py`），
 **记忆引擎已实现**（`native/memory_engine.py`）：版本化 `memory.json`、本地回顾/习惯
 汇总、吸收公开学习器已校验记录、检索与清除。人格引擎尚未实现；当前“本领”页通过
-`native/ability_model.py` 提供只读六维练习指数。引擎只写自己的快照，界面只读，
-不直接训练或授予权限。
+`native/ability_model.py` 提供只读六维练习指数。**人格引擎已实现**
+（`native/personality_engine.py`）：版本化 `personality.json`、五维倾向、语气与主动性，
+由陪伴/情绪/记忆驱动本地语气和主动搭话。引擎只写自己的快照，界面只读，不直接训练
+或授予权限。
 
 ## 成长引擎（已实现）
 

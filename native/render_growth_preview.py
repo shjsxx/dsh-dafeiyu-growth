@@ -105,6 +105,9 @@ def apply_fixture(dialog, fixture):
                           'recent': [{'kindLabel': '诗文', 'text': '关雎：关关雎鸠，在河之洲。'},
                                      {'kindLabel': '偏好', 'text': '喜欢：夜里散步'},
                                      {'kindLabel': '公开知识', 'text': '法国：首都是巴黎'}]})
+    dialog.update_personality({'status': 'ready', 'simulated': True, 'toneLabel': '温暖',
+                               'initiative': .58, 'traits': {'warmth': 62, 'curiosity': 58,
+                               'playfulness': 41, 'steadiness': 60, 'expressiveness': 55}})
 
 
 def render(out, width=456, height=640):

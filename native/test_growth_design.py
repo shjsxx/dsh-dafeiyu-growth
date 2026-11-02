@@ -103,6 +103,17 @@ class GrowthDesignTests(unittest.TestCase):
         self.assertIn('受保护', self.dialog.memory_counts.text())
         self.assertFalse(self.dialog.memory_clear.isEnabled())
 
+    def test_personality_card_shows_tone_initiative_and_protected_state(self):
+        self.dialog.update_personality({'status': 'ready', 'simulated': True, 'toneLabel': '温暖',
+                                        'initiative': .58,
+                                        'traits': {'warmth': 62, 'curiosity': 58, 'playfulness': 41,
+                                                   'steadiness': 60, 'expressiveness': 55}})
+        self.assertIn('温暖', self.dialog.personality_tone.text())
+        self.assertIn('0.58', self.dialog.personality_tone.text())
+        self.assertIn('温暖 62', self.dialog.personality_metrics.text())
+        self.dialog.update_personality({'status': 'protected'})
+        self.assertIn('受保护', self.dialog.personality_tone.text())
+
     def test_new_data_page_keeps_both_knowledge_and_voice_audit_panels(self):
         page = self.dialog.page_scrolls[6].widget().layout()
         self.assertLess(page.indexOf(self.dialog.data_panel), page.indexOf(self.dialog.voice_data_panel))

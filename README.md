@@ -27,6 +27,14 @@
 
 插件需要 Node.js ≥ 22.19；原生补丁要求上游 `dsh-dafeiyu@0.1.23` 的 desktop profile，升级上游后需先重新适配。本仓库面向 GitHub 分发，`package.json` 暂为 `private`，不发布 npm 包。
 
+## 0.18.0 · 人格引擎（语气 / 情绪 / 主动性）
+
+- 新增 `native/personality_engine.py`：独立 `personality.json`，五维稳定倾向（温暖/好奇/俏皮/稳定/表达），按陪伴状态、情绪与互动缓慢更新，带版本、上限、原子写入与损坏保护。
+- **接入记忆**：当前语气由情绪 + 记忆相关度决定（轻柔/温暖/俏皮/好奇/平稳）；主动性由表达/好奇与记忆命中计算。
+- **接入对话**：默认/安慰类回复会带一句人格语气；主动搭话在主动性足够且命中记忆时，会引用真实记忆话题（“我刚刚想起…”），并随主动性调整下次搭话间隔。
+- 情感页新增「人格倾向」卡：当前语气、主动性、五维数值；明确标注“模拟”，不声称意识。
+- 不使用随机伪造情绪、不新增权限；云端聊天仍不自动获得本地记忆。
+
 ## 0.17.0 · 记忆进入对话 + 受限公开爬虫
 
 - **记忆真正影响对话**：「你记得我喜欢什么/我叫什么/记得我说过…」会从记忆引擎与已明确提供的称呼/喜好回答；公开记忆只在知识型问题且相关度足够时引用；没有记忆会直说，不编造。
@@ -361,7 +369,7 @@ node tools/growth.mjs path
 
 首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
 
-测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（691 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`node --test test/growth.test.js test/client.test.js test/server.audit.test.js test/store.persistence.test.js`（36 项）；`python -m unittest discover -s native -p "test_*.py" -v`（697 项，需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
 
 ## 自查结论与已知限制
 
