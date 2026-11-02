@@ -35,6 +35,17 @@ Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留
 
 仅用于本地生成哈希特征；原始文本不分发、不写入本仓库，也不加入日志。
 
+## 本地语义模型（可选，不随仓库分发）
+
+`native/embedding_backend.py` 可选下载 **BAAI/bge-small-zh-v1.5**（MIT License，
+FlagEmbedding）的量化 ONNX 权重与词表，经 ModelScope 上的 `Xenova` 转换仓库固定
+revision 获取：
+
+- 固定 revision：`313386ad7ffad360a4870fd1910f8ecaf1a05151`
+- 本地目录：`%LOCALAPPDATA%\dsh-dafeiyu\models\bge-small-zh-v1.5`
+- 首次下载约 24 MB；之后离线推理，记忆文本不发送到任何服务器
+- 模型权重不提交到本仓库；未下载时自动回退到本地哈希检索
+
 ## 公开爬虫来源
 
 `native/public_crawler.py` 只读取一个固定公开文件：

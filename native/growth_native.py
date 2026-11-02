@@ -1149,6 +1149,10 @@ class GrowthDialog(QDialog):
             return
         self.memory_clear.setEnabled(bool(local + public))
         self.memory_counts.setText(f"本地记忆 {local} 条 · 公开记忆 {public} 条 · 版本 r{_fmt(_count(snapshot.get('revision')))}")
+        self.memory_counts.setToolTip(
+            "语义检索：本地 BGE-small-zh ONNX（首次下载，之后离线）"
+            if snapshot.get("embedding") == "ready" else
+            "语义检索：BGE 模型尚未下载，当前使用本地哈希 + 同义概念；不会联网检索记忆。")
         rows = snapshot.get("recent") if isinstance(snapshot.get("recent"), list) else []
         lines = []
         for row in rows[:3]:

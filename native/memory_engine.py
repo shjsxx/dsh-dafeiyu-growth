@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from semantic_memory import similarity as semantic_similarity
+from embedding_backend import EmbeddingBackend
 
 VERSION = 1
 MAX_BYTES = 512 * 1024
@@ -78,6 +79,8 @@ class MemoryEngine:
         self.status = "new"
         self.error = ""
         self.data = None
+        self._embedding = None
+        self._vectors = {}
         self._load()
 
     def _load(self):
@@ -275,8 +278,30 @@ class MemoryEngine:
                  "source": row["source"], "importance": row["importance"], "score": 10}
                 for row in rows[:max(1, min(20, limit))]]
 
+    def _embedding_scores(self, query, rows):
+        """Neural rerank when the optional local model is installed."""
+        if self._embedding is None:
+            self._embedding = EmbeddingBackend()
+        if not self._embedding.files_present() or not rows:
+            return {}
+        pending = [row["text"] for row in rows if row["id"] not in self._vectors]
+        if pending:
+            vectors = self._embedding.encode(pending)
+            if len(vectors) != len(pending):
+                return {}
+            for row, vector in zip([row for row in rows if row["id"] not in self._vectors], vectors):
+                self._vectors[row["id"]] = vector
+            if len(self._vectors) > MAX_RECORDS:
+                self._vectors = dict(list(self._vectors.items())[-MAX_RECORDS:])
+        query_vector = self._embedding.encode([query])
+        if not query_vector:
+            return {}
+        query_vector = query_vector[0]
+        return {row["id"]: max(0.0, min(1.0, sum(a * b for a, b in zip(query_vector, self._vectors[row["id"]]))))
+                for row in rows if row["id"] in self._vectors}
+
     def recall(self, query, limit=5, kinds=None):
-        """Rank memories by bounded character-bigram overlap and importance."""
+        """Rank memories by local neural embeddings, then hashed concepts."""
         if self.status == "protected":
             return []
         query = _plain(query, 80)
@@ -284,15 +309,31 @@ class MemoryEngine:
             return []
         allowed = set(kinds) if isinstance(kinds, (list, tuple, set)) else set(KIND_WEIGHT)
         grams = {query[i:i + 2] for i in range(len(query) - 1)}
-        scored = []
+        candidates = []
         for row in self.data["records"]:
             if row["kind"] not in allowed:
                 continue
             semantic = semantic_similarity(query, row["text"])
             overlap = sum(1 for gram in grams if gram in row["text"])
-            if semantic < .045 and not overlap:
-                continue
             score = semantic * 100 + row["importance"] * .15 + overlap * 1.2
+            if semantic >= .03 or overlap:
+                candidates.append((score, row))
+        candidates.sort(key=lambda item: (item[0], item[1]["lastSeen"]), reverse=True)
+        if not candidates:
+            candidates = [(0, row) for row in sorted(self.data["records"], key=lambda row: row["lastSeen"], reverse=True)
+                          if row["kind"] in allowed][:40]
+        candidates = candidates[:40]
+        rows = [row for _, row in candidates]
+        neural = self._embedding_scores(query, rows)
+        scored = []
+        for base, row in candidates:
+            if row["id"] in neural:
+                cosine = neural[row["id"]]
+                if cosine < .40:
+                    continue
+                score = cosine * 100 + row["importance"] * .12
+            else:
+                score = base
             scored.append((score, row["lastSeen"], row))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [{"kind": row["kind"], "kindLabel": KIND_LABEL[row["kind"]],
@@ -308,6 +349,7 @@ class MemoryEngine:
         newest = sorted(data["records"], key=lambda row: row["lastSeen"], reverse=True)[:max(0, min(10, recent))]
         return {"version": VERSION, "status": self.status, "error": self.error,
                 "revision": data["revision"], "total": len(data["records"]), "counts": counts,
+                "embedding": "ready" if (self._embedding or EmbeddingBackend()).files_present() else "unavailable",
                 "publicRevision": data.get("publicRevision", 0), "recent": [
                     {"kindLabel": KIND_LABEL[row["kind"]], "text": row["text"], "source": row["source"]}
                     for row in newest]}

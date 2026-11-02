@@ -235,6 +235,7 @@ class DataPanel(QWidget):
         row.addWidget(self.ingest_count_label, 1, Qt.AlignmentFlag.AlignRight)
         recent_box.addLayout(row)
         self.ingest_totals_label = self._label(prop="dataMuted")
+        self.ingest_totals_label.setStyleSheet("font-size:11px;")
         self.recent_label = self._label(name="dataRecent", prop="dataMuted")
         self.recent_label.setMinimumHeight(26)
         recent_box.addWidget(self.ingest_totals_label)
@@ -259,11 +260,13 @@ class DataPanel(QWidget):
             self.source_labels[source] = label
         source_box.addLayout(grid)
         self.platform_label = self._label("知乎 · 待接入    短视频 · 待接入  ｜  仅元数据，未连接", "dataPlatforms")
+        self.platform_label.setStyleSheet("font-size:11px;")
         self.platform_label.setToolTip("平台尚未连接；仅限官方公开 API/RSS，不采集私密内容、不下载视频。")
         source_box.addWidget(self.platform_label)
         root.addWidget(sources)
 
         self.training_totals_label = self._label(name="dataTrainingTotals")
+        self.training_totals_label.setStyleSheet("font-size:10px;")
         root.addWidget(self.training_totals_label)
         self.update_data({})
 

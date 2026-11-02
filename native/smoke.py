@@ -313,6 +313,13 @@ def install_smoke_probe(application, window, directory):
             assert window.learner.data["pets"] == 0 and window.learner.data["chats"] == 0
             assert window.learner.data["balance"] == balance_before
             result['forgotMemory'] = True
+            window.memory.ingest_state({'diary': [{'text': '今天完成了一次本地回顾'}]})
+            memory_state = window.memory.snapshot()
+            result['memoryEmbedding'] = memory_state.get('embedding')
+            if result['memoryEmbedding'] == 'ready':
+                neural_hits = window.memory.recall('写了一次总结', 3)
+                result['memoryNeuralHits'] = len(neural_hits)
+                assert neural_hits, 'local ONNX embedding should rerank a paraphrase'
             assert window.growth_dialog.grab().save(str(out / 'growth-card-memory.png'))
             window.growth_dialog.close()
             window._refresh_growth()
