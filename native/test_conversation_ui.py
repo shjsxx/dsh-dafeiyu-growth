@@ -41,6 +41,22 @@ class ConversationUiTests(unittest.TestCase):
         self.assertTrue(dialog.input.isEnabled())
         dialog.deleteLater()
 
+    def test_memory_context_is_separate_explicit_consent(self):
+        dialog = ConversationDialog()
+        self.assertFalse(dialog.memory_context_enabled())
+        dialog.set_cloud_state({"endpoint": "https://api.example/v1/chat/completions",
+                                "model": "m", "max_tokens": 64, "key_saved": True})
+        dialog.memory_checkbox.click()
+        self.assertFalse(dialog.memory_context_enabled())
+        self.assertEqual(dialog._confirm_kind, "memory")
+        dialog.allow_session_cloud()
+        self.assertTrue(dialog.memory_context_enabled())
+        dialog.set_cloud_state({"endpoint": "https://other.example/v1/chat/completions",
+                                "model": "m", "max_tokens": 64, "key_saved": True})
+        self.assertFalse(dialog.memory_context_enabled())
+        self.assertFalse(dialog.memory_checkbox.isChecked())
+        dialog.deleteLater()
+
     def test_reply_reenables_input(self):
         dialog = ConversationDialog()
         dialog.set_busy(True)

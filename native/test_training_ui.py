@@ -125,6 +125,17 @@ class TrainingUiTests(unittest.TestCase):
         self.assertIn("计算机 25", self.panel.knowledge_label.text())
         self.assertIn("样本 50 · 更新 20 · v3 · 就绪", self.panel.brain_label.text())
 
+    def test_evaluation_panel_shows_emotion_holdout_and_action_diversity(self):
+        info = data()
+        info["brain"].update(diversity=.72, avg_reward=-.1, positive_ratio=.6)
+        info["evaluation"] = {"accuracy": .709, "balanced_accuracy": .651,
+                              "macro_f1": .68, "support": 461}
+        self.panel.update_data(info)
+        self.assertIn("准确率 71%", self.panel.evaluation_label.text())
+        self.assertIn("macro F1 0.68", self.panel.evaluation_label.text())
+        self.assertIn("多样性 0.72", self.panel.brain_label.text())
+        self.assertIn("均奖励 -0.10", self.panel.brain_label.text())
+
     def test_hostile_strings_and_private_fields_are_never_displayed(self):
         secret = '<img src="file:///PRIVATE" onerror="upload()">PRIVATE_API_KEY\nhttps://secret.invalid'
         row = event(metrics={"loss_after": .6, "upload": secret, "reward": secret},

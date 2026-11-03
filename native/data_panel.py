@@ -45,35 +45,47 @@ FINAL_STATE_TEXT = {
 
 PANEL_QSS = """
 QWidget#dataPanel { background: transparent; }
-QWidget#dataPanel QLabel { background: transparent; color: #3F5268;
+QWidget#dataPanel QLabel { background: transparent; color: #435E68;
     font-family: "Microsoft YaHei UI"; font-size: 13px; }
-QWidget#dataPanel QLabel#dataHeading { color: #14293F; font-size: 18px; font-weight: 700; }
-QWidget#dataPanel QLabel#dataReadOnly { color: #4A6C82; font-size: 12px; }
-QWidget#dataPanel QFrame#dataHeroCard {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #172F49, stop:1 #24526A);
-    border: none; border-radius: 12px; }
+QWidget#dataPanel QLabel#dataHeading { color: #17343D; font-size: 18px; font-weight: 700; }
+QWidget#dataPanel QLabel#dataReadOnly { color: #627B84; font-size: 12px; }
+QWidget#dataPanel QFrame#dataHeroCard { background: #EFF8F5;
+    border: 1px solid #BFDCD5; border-radius: 12px; }
 QWidget#dataPanel QFrame#dataHeroCard QLabel[dataValue="true"] {
-    color: #FFFFFF; font-size: 22px; font-weight: 700; }
-QWidget#dataPanel QFrame#dataHeroCard QLabel[dataCaption="true"] { color: #C6E0ED; font-size: 12px; }
+    color: #11595F; font-size: 24px; font-weight: 700; }
+QWidget#dataPanel QFrame#dataHeroCard QLabel[dataCaption="true"] { color: #435E68; font-size: 12px; }
 QWidget#dataPanel QFrame[dataCard="true"] {
-    background: #FFFFFF; border: 1px solid #DDE8F0; border-radius: 11px; }
-QWidget#dataPanel QLabel[dataSection="true"] { color: #162F47; font-size: 13px; font-weight: 700; }
-QWidget#dataPanel QLabel[dataMuted="true"] { color: #5C7084; font-size: 12px; }
-QWidget#dataPanel QFrame#dataSegments { background: #E7EEF5; border-radius: 9px; }
-QWidget#dataPanel QPushButton { background: transparent; color: #43586C;
-    border: 1px solid transparent; border-radius: 7px; padding: 4px 6px;
+    background: #FFFFFF; border: 1px solid #D9E6E8; border-radius: 12px; }
+QWidget#dataPanel QLabel[dataSection="true"] { color: #17343D; font-size: 13px; font-weight: 700; }
+QWidget#dataPanel QLabel[dataMuted="true"] { color: #627B84; font-size: 12px; }
+QWidget#dataPanel QFrame#dataSegments { background: #E7EFF0; border-radius: 9px; }
+QWidget#dataPanel QPushButton { background: transparent; color: #627B84;
+    border: 1px solid transparent; border-radius: 7px; padding: 2px 8px;
     font-family: "Microsoft YaHei UI"; font-size: 13px; }
-QWidget#dataPanel QPushButton:checked { background: #FFFFFF; color: #146B67;
-    border-color: #C9DFE3; font-weight: 700; }
-QWidget#dataPanel QPushButton:hover { color: #176F74; }
-QWidget#dataPanel QPushButton:focus { border-color: #6BA4B1; }
-QWidget#dataPanel QLabel[dataMetric="true"] { color: #12676A; font-size: 19px; font-weight: 700; }
-QWidget#dataPanel QLabel[dataMetricCaption="true"] { color: #566B7E; font-size: 12px; }
-QWidget#dataPanel QProgressBar { background: #E7EFF6; border: none; border-radius: 2px; }
-QWidget#dataPanel QProgressBar::chunk { background: #4FA3AB; border-radius: 2px; }
-QWidget#dataPanel QLabel[dataSource="true"] { color: #40586C; font-size: 12px; }
-QWidget#dataPanel QLabel#dataPlatforms { color: #5A6B7B; font-size: 12px; }
-QWidget#dataPanel QLabel#dataTrainingTotals { color: #446276; font-size: 12px; }
+QWidget#dataPanel QPushButton:hover { color: #11595F; background: #EFF8F5; }
+QWidget#dataPanel QPushButton:pressed { color: #11595F; background: #DBEEEA; }
+QWidget#dataPanel QPushButton:checked { background: #FFFFFF; color: #11595F;
+    border-color: #D9E6E8; font-weight: 700; }
+QWidget#dataPanel QPushButton:focus { border-color: #187E83; }
+QWidget#dataPanel QPushButton:disabled { color: #7D9299; background: #EDF2F3; }
+QWidget#dataPanel QLabel[dataMetric="true"] { color: #187E83; font-size: 24px; font-weight: 700; }
+QWidget#dataPanel QLabel[dataMetricCaption="true"] { color: #627B84; font-size: 12px; }
+QWidget#dataPanel QProgressBar { background: #E7EFF0; border: none; border-radius: 2px; }
+QWidget#dataPanel QProgressBar::chunk { background: #187E83; border-radius: 2px; }
+QWidget#dataPanel QLabel[dataSource="true"] { color: #435E68; background: #F3F6F7;
+    border-radius: 5px; padding: 2px 6px; font-size: 12px; }
+QWidget#dataPanel QLabel[dataSource="true"][sourceState="indexed"],
+QWidget#dataPanel QLabel[dataSource="true"][sourceState="available"] { color: #11595F; background: #EFF8F5; }
+QWidget#dataPanel QLabel[dataSource="true"][sourceState="error"] { color: #AF4C56; background: #FCEFF0; }
+QWidget#dataPanel QLabel[dataSource="true"][sourceState="pending"],
+QWidget#dataPanel QLabel[dataSource="true"][sourceState="unconnected"] { color: #A77739; background: #FFF5E5; }
+QWidget#dataPanel QLabel#dataPlatforms { color: #627B84; font-size: 12px; }
+QWidget#dataPanel QLabel#dataTrainingTotals { color: #627B84; font-size: 12px; }
+QWidget#dataPanel QLabel#dataRecent[empty="true"] { color: #627B84; font-size: 12px; }
+QWidget#dataPanel QLabel#dataRecent[empty="false"] { color: #435E68; font-size: 12px; }
+QWidget#dataPanel QLabel[modelState="error"], QWidget#dataPanel QLabel[modelState="protected"] {
+    color: #AF4C56; }
+QWidget#dataPanel QLabel[modelState="read_only"] { color: #A77739; }
 """
 
 
@@ -174,7 +186,7 @@ class DataPanel(QWidget):
 
         hero = QFrame()
         hero.setObjectName("dataHeroCard")
-        hero.setFixedHeight(62)
+        hero.setFixedHeight(60)
         hero_box = QHBoxLayout(hero)
         hero_box.setContentsMargins(13, 6, 13, 6)
         hero_box.setSpacing(12)
@@ -183,8 +195,8 @@ class DataPanel(QWidget):
             column = QVBoxLayout()
             column.setSpacing(0)
             value = self._label("0", prop="dataValue")
-            column.addWidget(value)
             column.addWidget(self._label(title, prop="dataCaption"))
+            column.addWidget(value)
             hero_box.addLayout(column, 1)
             self.hero_values[key] = value
         root.addWidget(hero)
@@ -222,8 +234,9 @@ class DataPanel(QWidget):
         self.ingest_count_label = self._label(prop="dataMuted")
         row.addWidget(self.ingest_count_label, 1, Qt.AlignmentFlag.AlignRight)
         recent_box.addLayout(row)
-        self.ingest_totals_label = self._label()
-        self.recent_label = self._label()
+        self.ingest_totals_label = self._label(prop="dataMuted")
+        self.ingest_totals_label.setStyleSheet("font-size:11px;")
+        self.recent_label = self._label(name="dataRecent", prop="dataMuted")
         self.recent_label.setMinimumHeight(26)
         recent_box.addWidget(self.ingest_totals_label)
         recent_box.addWidget(self.recent_label)
@@ -238,7 +251,7 @@ class DataPanel(QWidget):
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(4)
-        grid.setVerticalSpacing(2)
+        grid.setVerticalSpacing(4)
         self.source_labels = {}
         for index, source in enumerate(SOURCE_TEXT):
             label = self._label(prop="dataSource")
@@ -247,11 +260,13 @@ class DataPanel(QWidget):
             self.source_labels[source] = label
         source_box.addLayout(grid)
         self.platform_label = self._label("知乎 · 待接入    短视频 · 待接入  ｜  仅元数据，未连接", "dataPlatforms")
+        self.platform_label.setStyleSheet("font-size:11px;")
         self.platform_label.setToolTip("平台尚未连接；仅限官方公开 API/RSS，不采集私密内容、不下载视频。")
         source_box.addWidget(self.platform_label)
         root.addWidget(sources)
 
         self.training_totals_label = self._label(name="dataTrainingTotals")
+        self.training_totals_label.setStyleSheet("font-size:10px;")
         root.addWidget(self.training_totals_label)
         self.update_data({})
 
@@ -272,7 +287,7 @@ class DataPanel(QWidget):
         frame = QFrame()
         frame.setProperty("dataCard", True)
         box = QVBoxLayout(frame)
-        box.setContentsMargins(10, 5, 10, 5)
+        box.setContentsMargins(12, 4, 12, 4)
         box.setSpacing(3)
         return frame, box
 
@@ -340,6 +355,14 @@ class DataPanel(QWidget):
         if label.text() != text:
             label.setText(text)
 
+    @staticmethod
+    def _state(label, key, value):
+        """Repolish only when a fixed presentation enum actually changes."""
+        if label.property(key) != value:
+            label.setProperty(key, value)
+            label.style().unpolish(label)
+            label.style().polish(label)
+
     def _metric(self, label, value):
         self._set(label, _compact(value))
         label.setToolTip(str(value))
@@ -359,6 +382,7 @@ class DataPanel(QWidget):
         self.knowledge_label.setToolTip(f"当前已收录知识 {count} 条")
         knowledge_state = MODEL_STATE_TEXT.get(_enum(knowledge.get("status"), MODEL_STATE_TEXT), "待快照")
         self._set(self.knowledge_revision_label, f"r{_compact(_count(knowledge.get('revision')))} · {knowledge_state}")
+        self._state(self.knowledge_revision_label, "modelState", _enum(knowledge.get("status"), MODEL_STATE_TEXT) or "new")
         domains = _mapping(knowledge.get("domains"))
         clean_domains = {domain: _count(domains.get(domain)) for domain in DOMAIN_TEXT}
         total = sum(clean_domains.values())
@@ -372,6 +396,7 @@ class DataPanel(QWidget):
                     self.domain_bars[domain].setValue(progress)
         emotion_state = MODEL_STATE_TEXT.get(_enum(emotion.get("status"), MODEL_STATE_TEXT), "待快照")
         self._set(self.emotion_revision_label, f"r{_compact(_count(emotion.get('revision')))} · {emotion_state}")
+        self._state(self.emotion_revision_label, "modelState", _enum(emotion.get("status"), MODEL_STATE_TEXT) or "new")
         for key, label in self.emotion_values.items():
             self._metric(label, _count(emotion.get(key)))
 
@@ -387,6 +412,7 @@ class DataPanel(QWidget):
             suffix = f"新增 {_compact(row['added'])}" if row["status"] in ("success", "no_change") else "不计新增"
             lines.append(f"{SOURCE_TEXT[row['source']]} · {FINAL_STATE_TEXT[row['status']]} · {suffix}")
         self._set(self.recent_label, "\n".join(lines) if lines else "暂无已结束的公开收录记录\n进行中、排队及私密输入不展示")
+        self._state(self.recent_label, "empty", not lines)
 
         catalog = info.get("sourceCatalog")
         states = {}
@@ -403,6 +429,7 @@ class DataPanel(QWidget):
         for source, label in self.source_labels.items():
             state_text = SOURCE_STATE_TEXT.get(states.get(source), "待确认")
             self._set(label, f"{SOURCE_TEXT[source]} · {state_text}")
+            self._state(label, "sourceState", states.get(source, "unknown"))
         # platformSources and companion intentionally cannot assert connectivity,
         # leak arbitrary mood/reason/name, or turn metadata into an active feed.
         steps = _count(totals.get("weight_steps"))

@@ -161,6 +161,19 @@ class KnowledgeStore:
             counts[row["domain"]] = counts.get(row["domain"], 0) + 1
         return {"status": self.status, "error": self.error, "count": len(self.data["records"]), "revision": self.data["revision"], "domains": counts, "sources": copy.deepcopy(self.data["sources"])}
 
+    def public_records(self, limit=600):
+        """Bounded, read-only public summaries for the memory engine.
+
+        Only already-validated records cross this boundary; no private queries,
+        source payloads, URLs or user text are included.
+        """
+        rows = []
+        for identity, row in sorted(self.data["records"].items())[:max(0, min(1000, int(limit)))]:
+            source = identity.split(":", 1)[0]
+            rows.append({"topic": row["topic"], "text": row["answer"], "domain": row["domain"],
+                         "source": source, "sourceName": CATALOG[source]["name"] if source in CATALOG else source})
+        return rows
+
     def lookup(self, text):
         if not isinstance(text, str) or len(text) > 240:
             return None

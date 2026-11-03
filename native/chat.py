@@ -26,6 +26,7 @@ DEFAULT_REPLIES = (
 )
 
 LIKE_PATTERN = re.compile(r"我(?:很|最|超|挺)?喜欢\s*([^\s，。,.!！?？：:；;\"'“”‘’]{1,30})[。.!！]?$")
+EVENT_PATTERN = re.compile(r"(?:去了|吃了|看了|做了|见了|逛了|买了|玩了)([^，。,.!！?？\s]{1,14})")
 # A local keyword companion must prefer doing nothing over acting on a refusal,
 # a question about an activity, or a quoted/hypothetical request.
 ACTION_REFUSAL = re.compile(r"(?:不|别|勿|莫|禁止|停止|不用|无需|不要|不能|不许|不准|别再|不想|不愿|不必)")
@@ -83,19 +84,33 @@ def reply_to(text, name="", mood=""):
         return {"text": "那我动给你看。", "action": action, "name": ""}
     if any(word in raw for word in ("晚安", "睡觉")):
         return {"text": "晚安。我把灯留着，也把桌面看住。", "action": None, "name": ""}
+    if any(word in raw for word in ("不想加油", "不想努力", "不想坚持", "不想撑", "撑不住", "没动力", "不想干了")):
+        return {"text": "那就不加油了。先不用撑着。是今天太累，还是有什么事一直压着？", "action": None, "name": ""}
     if any(word in raw for word in ("累", "困", "休息", "睡")):
         return {"text": "累了就靠一会儿，我帮你看着桌面。", "action": None, "name": ""}
     if any(word in raw for word in ("早", "早安", "早上好")):
         return {"text": "早呀。今天想先做哪件事？", "action": None, "name": ""}
     if any(word in raw for word in ("你好", "嗨", "在吗", "hello", "hi")):
         greeting = f"{name}，我在呢。" if name else "我在呢。"
-        return {"text": greeting + "今天也一起加油。", "action": None, "name": ""}
+        return {"text": greeting + "今天想聊点什么？不想聊，就这样待一会儿也行。", "action": None, "name": ""}
     if not ACTION_REFUSAL.search(raw) and any(word in raw for word in ("喜欢你", "爱你", "想你")):
         return {"text": "我也喜欢你。会一直待在你桌面上的。", "action": None, "name": ""}
     if "喜欢" in raw:
         return {"text": "我只会记下明确的偏好，比如「我喜欢喝咖啡」。这句话没有保存成偏好。", "action": None, "name": ""}
     if any(word in raw for word in ("摸头", "摸摸", "摸一下")):
         return {"text": "摸头就摸头，别把我发型弄乱。", "action": None, "name": ""}
+    if any(word in raw for word in ("搞笑", "逗我", "笑话", "整活")):
+        return {"text": "那我转个圈，顺便假装自己没差点转晕。", "action": None, "name": ""}
+    if any(word in raw for word in ("快来", "过来", "来一下", "来找我")):
+        return {"text": "来啦来啦，我小跑过来。", "action": None, "name": ""}
+    if any(word in raw for word in ("难过", "伤心", "不开心", "失落", "委屈")):
+        return {"text": "嗯，我听着。你不用马上好起来，我陪你待一会儿。", "action": None, "name": ""}
+    if any(word in raw for word in ("哭", "流泪", "眼泪", "想哭")):
+        return {"text": "想哭就哭一小会儿，我不催你，也不逗你。", "action": None, "name": ""}
+    if any(word in raw for word in ("无聊", "没意思", "好闲")):
+        return {"text": "那我们来数云朵，或者你随便说一件小事，我陪你把它聊大。", "action": None, "name": ""}
+    if any(word in raw for word in ("打瞌睡", "困了", "好困", "想睡", "眯一会")):
+        return {"text": "困了就眯一会儿，我把脚步放轻，Zzz。", "action": None, "name": ""}
     if any(word in raw for word in ("谢谢", "多谢")):
         return {"text": "不用谢，我本来就想帮你。", "action": None, "name": ""}
     if any(word in raw for word in ("学习", "练习", "本领")):
@@ -104,6 +119,10 @@ def reply_to(text, name="", mood=""):
         return {"text": "嗯，云岚，山里的雾。", "action": None, "name": ""}
     if any(word in raw for word in ("可爱", "好看", "漂亮")):
         return {"text": "谢谢，你这么说我很开心。", "action": None, "name": ""}
+    event = EVENT_PATTERN.search(raw)
+    if event and mood in ("neutral", "calm", "joy"):
+        place = event.group(1)[:14]
+        return {"text": f"{place}那边怎么样？我想听你多说一点。", "action": None, "name": ""}
     if mood == "sad":
         return {"text": "听起来不太好受。我不追问，先陪你待一会儿。", "action": None, "name": ""}
     if mood == "tired":

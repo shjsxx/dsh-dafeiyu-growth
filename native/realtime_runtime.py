@@ -4,7 +4,6 @@ Provider transcripts are unverified data: they never enter the computer parser,
 text-chat provider, or automatic fitting. Only owner-reviewed text can locally
 adapt emotion. Every session is volatile and bound to endpoint/model/key/settings.
 """
-import math
 import time
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton, QScrollArea, QFrame, QHBoxLayout

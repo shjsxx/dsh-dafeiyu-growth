@@ -37,6 +37,12 @@ class ChatReplyTests(unittest.TestCase):
         self.assertIn("累", reply_to("有点累了")["text"])
         self.assertIn("喜欢", reply_to("我喜欢你")["text"])
 
+    def test_personal_event_gets_a_topic_question_not_a_generic_line(self):
+        reply = reply_to("我昨天去了公园", "", "calm")
+        self.assertIn("公园", reply["text"])
+        self.assertIn("怎么样", reply["text"])
+        self.assertNotIn("慢慢来", reply["text"])
+
     def test_unknown_text_is_deterministic(self):
         first = reply_to("今天天气不错")
         second = reply_to("今天天气不错")

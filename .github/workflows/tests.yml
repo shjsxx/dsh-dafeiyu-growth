@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Python dependencies
-        run: python -m pip install --upgrade pip PySide6 pywin32 websockets
+        run: python -m pip install --upgrade pip PySide6 pywin32 websockets onnxruntime numpy
       - name: Native tests (headless Qt)
         env:
           QT_QPA_PLATFORM: offscreen

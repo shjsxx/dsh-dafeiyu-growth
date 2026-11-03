@@ -413,6 +413,24 @@ class NeuralBrain:
         with self._lock:
             return copy.deepcopy(self._state["replay"])
 
+    def action_stats(self) -> dict:
+        """Numeric replay statistics; no context or free-form data."""
+        counts = [0] * OUTPUT_SIZE
+        rewards = []
+        for row in self._state["replay"]:
+            counts[int(row["action"])] += 1
+            rewards.append(float(row["reward"]))
+        total = len(self._state["replay"])
+        entropy = 0.0
+        for count in counts:
+            if count:
+                share = count / total
+                entropy -= share * math.log(share)
+        return {"counts": counts,
+                "diversity": round(entropy / math.log(OUTPUT_SIZE), 4) if total else 0.0,
+                "avg_reward": round(sum(rewards) / len(rewards), 4) if rewards else 0.0,
+                "positive_ratio": round(sum(1 for value in rewards if value > 0) / len(rewards), 4) if rewards else 0.0}
+
     def info(self) -> dict:
         """Detached training/health metadata containing no user text."""
         with self._lock:
@@ -426,6 +444,7 @@ class NeuralBrain:
                 "replay_capacity": REPLAY_CAPACITY,
                 "status": self.status,
                 "error": self.error,
+                **self.action_stats(),
             }
 
     def _is_writer(self):
@@ -569,9 +588,17 @@ class NeuralBrain:
             history = candidate["replay"]
             schedule = [sample]
             if history:
-                # Counter-seeded replay is diverse, bounded, and reproducible
-                # across a restart without persisting a large RNG state.
-                replay_index = random.Random(candidate["sample_count"]).randrange(len(history))
+                # Curriculum replay: prefer strong feedback on rare actions,
+                # rotate deterministically so one sample cannot dominate.
+                counts = [0] * OUTPUT_SIZE
+                for row in history:
+                    counts[int(row["action"])] += 1
+                ranked = sorted(
+                    range(len(history)),
+                    key=lambda index: (abs(history[index]["reward"]) + 1.0 / (1 + counts[history[index]["action"]]),
+                                       index),
+                    reverse=True)
+                replay_index = ranked[candidate["sample_count"] % min(8, len(ranked))]
                 schedule.append(history[replay_index])
                 schedule.append(sample)
             try:

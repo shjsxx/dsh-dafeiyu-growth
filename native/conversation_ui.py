@@ -65,6 +65,7 @@ class ConversationDialog(QDialog):
     voice_tools_requested = Signal()
     online_refresh_requested = Signal()
     online_enabled_changed = Signal(bool)
+    retrieval_review_requested = Signal()
     closed = Signal()
 
     def __init__(self, parent=None):
@@ -153,6 +154,19 @@ class ConversationDialog(QDialog):
         self.online_summary.setWordWrap(True)
         self.online_summary.hide()
         layout.addWidget(self.online_summary)
+
+        extra = QHBoxLayout()
+        self._memory_target = None
+        self.memory_checkbox = QCheckBox("本次允许模型使用记忆摘要")
+        self.memory_checkbox.setToolTip("默认关闭。需单独确认；最多3条摘要/800字符，关闭窗口或切换目标即撤销。")
+        self.memory_checkbox.clicked.connect(self._memory_clicked)
+        extra.addWidget(self.memory_checkbox, 1)
+        self.review_button = QPushButton("检索反馈")
+        self.review_button.setToolTip("自愿在本机标注这次命中；不自动保存聊天、不上传、不训练。")
+        self.review_button.setEnabled(False)
+        self.review_button.clicked.connect(self.retrieval_review_requested.emit)
+        extra.addWidget(self.review_button)
+        layout.addLayout(extra)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -300,7 +314,9 @@ class ConversationDialog(QDialog):
         Never calls raise_, activateWindow or setFocus; existing draft, channel,
         busy state and consent are unchanged. Expanded windows stay expanded.
         """
-        self.add_message("assistant", text, meta)
+        # Proactive lines may be composed from durable local memories. They
+        # were not supplied by the user and never become automatic history.
+        self.add_message("assistant", text, meta, context=False)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self._fit_size()
         self.show()
@@ -376,8 +392,9 @@ class ConversationDialog(QDialog):
     def is_cloud_mode(self):
         return self.cloud_button.isChecked()
 
-    def _append_row(self, widget, role=None, text="", eligible=False):
-        entry = {"widget": widget, "role": role, "content": text, "eligible": bool(eligible)}
+    def _append_row(self, widget, role=None, text="", eligible=False, private_context=False):
+        entry = {"widget": widget, "role": role, "content": text, "eligible": bool(eligible),
+                 "private_context": bool(private_context)}
         self.messages.insertWidget(self.messages.count() - 1, widget)
         self._rows.append(entry)
         while len(self._rows) > MAX_HISTORY_ROWS:
@@ -392,7 +409,7 @@ class ConversationDialog(QDialog):
         self._scroll_settle_timer.start()
         return entry
 
-    def add_message(self, role, text, meta="", *, context=True):
+    def add_message(self, role, text, meta="", *, context=True, private_context=False):
         """Append a plaintext bubble. Only exact user/assistant roles qualify.
 
         Hosts should use add_system for status/network notices, or context=False
@@ -424,7 +441,8 @@ class ConversationDialog(QDialog):
         if role != "user":
             row.addStretch()
         safe_role = role if isinstance(role, str) and role in ("user", "assistant") else None
-        return self._append_row(widget, safe_role, text, context and safe_role is not None)
+        return self._append_row(widget, safe_role, text, context and safe_role is not None,
+                                private_context=private_context)
 
     def add_system(self, text):
         label = _plain_label(str(text)[:MAX_MESSAGE_CHARS], "chatHint")
@@ -471,6 +489,8 @@ class ConversationDialog(QDialog):
         for entry in reversed(rows):
             if not entry["eligible"] or entry["role"] not in ("user", "assistant"):
                 continue
+            if entry.get('private_context') and not self.memory_context_enabled():
+                continue
             content = entry["content"][:min(MAX_CONTEXT_MESSAGE_CHARS, remaining)]
             if content:
                 result.append({"role": entry["role"], "content": content})
@@ -483,25 +503,87 @@ class ConversationDialog(QDialog):
         """History for cloud_submitted's handler; never duplicates its str arg."""
         return self.cloud_context(exclude_latest=True)
 
-    def _reset_session(self):
+    def reset_local_context(self):
+        """Erase RAM rows and revoke both grants without closing the window.
+
+        Used by explicit forget/reset, not by routine refresh. Host must also
+        invalidate its in-flight request identity before calling this method.
+        """
+        self._reset_session()
+        self.pending_text = ''
+        self._awaiting_user = None
+        self._confirm_kind = ''
+        self._hide_confirmation()
+        self._scroll_timer.stop()
+        self._scroll_settle_timer.stop()
+        self._scroll_pending = False
+        for entry in self._rows:
+            widget = entry['widget']
+            self.messages.removeWidget(widget)
+            widget.hide()
+            widget.deleteLater()
+            entry['content'] = ''
+            entry['eligible'] = False
+        self._rows.clear()
+        self.input.clear()
+        self.review_button.setEnabled(False)
+        self.set_busy(False)
+
+    def _reset_session(self, *, reset_memory=True):
         self._session_target = None
         blocker = QSignalBlocker(self.session_checkbox)
         self.session_checkbox.setChecked(False)
         del blocker
+        if reset_memory:
+            self._memory_target = None
+            if hasattr(self, 'memory_checkbox'):
+                blocker = QSignalBlocker(self.memory_checkbox)
+                self.memory_checkbox.setChecked(False)
+                del blocker
+
+    def memory_context_enabled(self):
+        return self._target() is not None and self._memory_target == self._target()
+
+    def set_retrieval_available(self, available):
+        self.review_button.setEnabled(bool(available) and not self.busy)
+
+    def _memory_clicked(self, checked):
+        self._memory_target = None
+        blocker = QSignalBlocker(self.memory_checkbox)
+        self.memory_checkbox.setChecked(False)
+        del blocker
+        if not checked:
+            self.cancel_confirm()
+            return
+        self.cancel_confirm()
+        if not self._target():
+            self.add_system('先配置模型接口，再单独允许记忆摘要；没有发送任何资料。')
+            return
+        self._confirm_kind = 'memory'
+        self.confirm_label.setText(
+            f"单独允许本地记忆摘要发送到：{self.cloud['endpoint']} · {self.cloud['model']}\n"
+            '仅在你点击发送时附带最多3条相关摘要、最多800字符；可能含本地偏好/回顾。'
+            '历史+当前消息+摘要合计不超过4000字符。不附完整存档、其他DSH会话、文件或工具。'
+            '仅本窗口/本目标有效，关闭窗口或更改接口模型立即撤销。现在允许不会发送消息。')
+        self.session_allow_button.setText('允许本次记忆摘要')
+        self.session_allow_button.show()
+        self.confirm_send_button.hide()
+        self._show_confirmation()
 
     def _session_clicked(self, checked):
         if not checked:
-            self._reset_session()
+            self._reset_session(reset_memory=False)
             if self._confirm_kind == "session":
                 self.cancel_confirm()
             return
-        self._reset_session()
+        self._reset_session(reset_memory=False)
         self.cancel_confirm()
         if not self._target():
             self.add_system("先在「接口设置」配置有效的云端地址与模型，再允许本次连续云聊。")
             self.settings_requested.emit()
             return
         self._confirm_kind = "session"
+        self.session_allow_button.setText("允许本次连续云聊")
         self.confirm_label.setText(
             f"本次连续云聊的目标：\n{self.cloud['endpoint']}\n模型：{self.cloud['model']}\n"
             "仅发送你在本窗口输入的消息，以及最近最多 6 条简短对话（每次当前消息与历史合计不超过 4000 字符）。"
@@ -515,6 +597,15 @@ class ConversationDialog(QDialog):
 
     def allow_session_cloud(self):
         """Explicit button action enables consent only; NEVER emits a message."""
+        if self._confirm_kind == 'memory' and self._target() and not self.busy:
+            self._memory_target = self._target()
+            blocker = QSignalBlocker(self.memory_checkbox)
+            self.memory_checkbox.setChecked(True)
+            del blocker
+            self._confirm_kind = ''
+            self._hide_confirmation()
+            self._update_controls()
+            return
         if self._confirm_kind != "session" or not self._target() or self.busy:
             return
         self._session_target = self._target()
@@ -546,9 +637,12 @@ class ConversationDialog(QDialog):
         self.pending_text = text
         self.input.clear()
         self._confirm_kind = "message"
+        context_notice = (
+            '不含对话历史；另按你单独允许的本次记忆权限，附带最多3条相关摘要/800字符。'
+            if self.memory_context_enabled() else '仅这一段，不含历史或本地记忆摘要。')
         self.confirm_label.setText(
             f"将发送到 {self.cloud['endpoint']} · {self.cloud['model']} · 最多 {self.cloud['max_tokens']} tokens：\n{text}\n"
-            "仅这一段，不含历史、其他 DSH 会话、文件、屏幕或工具调用。"
+            + context_notice + '不含其他 DSH 会话、文件、屏幕或工具调用。'
         )
         self.session_allow_button.hide()
         self.confirm_send_button.show()
@@ -587,17 +681,19 @@ class ConversationDialog(QDialog):
         self.local_button.setEnabled(not self.busy)
         self.cloud_button.setEnabled(not self.busy)
         self.session_checkbox.setEnabled(not self.busy)
+        self.memory_checkbox.setEnabled(not self.busy)
         self.send_button.setText("等待…" if self.busy else "发送")
 
     def set_busy(self, busy):
         self.busy = bool(busy)
         self._update_controls()
 
-    def show_reply(self, text, meta="", error=False):
+    def show_reply(self, text, meta="", error=False, *, private_context=False):
         if self._awaiting_user is not None:
             self._awaiting_user["eligible"] = not error
             self._awaiting_user = None
-        self.add_message("assistant", text, meta if meta else ("云端错误" if error else "本地"), context=not error)
+        self.add_message("assistant", text, meta if meta else ("云端错误" if error else "本地"),
+                         context=not error, private_context=private_context)
         self.set_busy(False)
         # A delayed reply to an inactive proactive window must not steal focus.
         if self.isActiveWindow():

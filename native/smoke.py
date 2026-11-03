@@ -28,6 +28,20 @@ def install_smoke_probe(application, window, directory):
 
     def exercise():
         try:
+            # A packaged PYZ module has __file__ but not its source bytes unless
+            # build.ps1 explicitly includes them. Test real compatibility IO.
+            import embedding_backend
+            import semantic_memory
+            from embedding_benchmark import Reranker
+            assert Path(embedding_backend.__file__).is_file()
+            assert Path(semantic_memory.__file__).is_file()
+            rerank_path = out / 'smoke-rerank-v2.json'
+            empty_assets = out / 'empty-embedding-model'
+            Reranker().save(rerank_path, model_dir=empty_assets)
+            loaded = Reranker.load(rerank_path, model_dir=empty_assets)
+            assert loaded is not None and loaded.valid
+            result['rerankerV2Compatibility'] = loaded.compatibility
+
             window.apply_message({"protocolVersion": 1, "kind": "state", "state": "IDLE",
                                   "message": "云岚陪你待命", "detail": "DSH · 等待下一次任务"})
             window.apply_message({"protocolVersion": 1, "kind": "balance", "summary": "余额未配置"})
@@ -172,6 +186,17 @@ def install_smoke_probe(application, window, directory):
             )
             assert result['spinRestored'], 'spin should return to the start point'
 
+            # 5d-2. Emotion reactions draw procedural effects without new assets.
+            for reaction in ('cry', 'bored', 'sleepy', 'funny', 'sad'):
+                window._stop_motion()
+                assert window._trigger_reaction(reaction), reaction
+                QTest.qWait(500)
+                assert window.reaction and window.reaction['key'] == reaction
+                assert window.grab().save(str(out / f'reaction-{reaction}.png'))
+                window.reaction = None
+                QTest.qWait(30)
+            result['reactions'] = ['cry', 'bored', 'sleepy', 'funny', 'sad']
+
             # 5e. Local emotion reader learns explicit self-report without saving raw text.
             reading = window.learning.observe_emotion("我今天有点难过")
             window.learning.adapt("chat", reading.get("mood", "neutral"), "local_chat")
@@ -302,6 +327,13 @@ def install_smoke_probe(application, window, directory):
             assert window.learner.data["pets"] == 0 and window.learner.data["chats"] == 0
             assert window.learner.data["balance"] == balance_before
             result['forgotMemory'] = True
+            window.memory.ingest_state({'diary': [{'text': '今天完成了一次本地回顾'}]})
+            memory_state = window.memory.snapshot()
+            result['memoryEmbedding'] = memory_state.get('embedding')
+            if result['memoryEmbedding'] == 'ready':
+                neural_hits = window.memory.recall('写了一次总结', 3)
+                result['memoryNeuralHits'] = len(neural_hits)
+                assert neural_hits, 'local ONNX embedding should rerank a paraphrase'
             assert window.growth_dialog.grab().save(str(out / 'growth-card-memory.png'))
             window.growth_dialog.close()
             window._refresh_growth()
@@ -331,6 +363,17 @@ def install_smoke_probe(application, window, directory):
             window.online_state.set_enabled(False, owner_action=True)
             result['auditedLiveFixture'] = True
             window._ensure_conversation()
+            window.conversation.show()
+            window.memory.ingest_state({'diary': [{'text': '公园有一座白桥'}]})
+            window._conversation_local('我昨天去了公园')
+            window._conversation_local('你还记得公园吗')
+            assert '白桥' in window.last_reply_text
+            assert window.conversation._rows[-1]['private_context'] is True
+            window._reset_conversation_context()
+            assert not window.conversation._rows
+            assert not window.last_reply_text and not window._latest_retrieval
+            assert not window.conversation.memory_context_enabled()
+            result['conversationRuntimeAndPrivacyReset'] = True
             window.conversation.set_cloud_state({'endpoint': 'https://changed.invalid/v1/chat/completions', 'model': 'changed', 'max_tokens': 16})
             window._conversation_cloud('do not send this to a changed target')
             assert not window.cloud_busy

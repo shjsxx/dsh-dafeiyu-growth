@@ -11,6 +11,12 @@ native/backup/
 # Verification screenshots/results may contain personal usage statistics
 native/verification/
 audit-backup/
+# Keep conversation screenshots local unless independently regenerated as fixtures
+docs/screenshots/dialogue-fix.png
+docs/screenshots/menu.png
+docs/screenshots/reaction-bored.png
+docs/screenshots/reaction-cry.png
+docs/screenshots/reaction-sleepy.png
 
 # Python
 __pycache__/
@@ -28,6 +34,11 @@ npm-debug.log*
 # Local runtime data (configuration, keys, profiles, audits)
 realtime.json
 cloud.json
+memory.json
+growth.json
+personality.json
+continuity.json
+embedding_rerank.json
 profile.json
 training.json
 training.json.bak
@@ -40,6 +51,21 @@ knowledge.json
 companion.json
 result.json
 process.log
+retrieval_reviews*.json
+# Feedback exports, private data snapshots and atomic-write leftovers
+*.jsonl
+*.bak
+*.tmp
+*.sqlite
+*.sqlite3
+*.db
+# Raw voice and locally downloaded/trained model assets
+*.wav
+*.pcm
+*.onnx
+*.safetensors
+*.pt
+*.pth
 .env
 .env.*
 *.pem

@@ -26,6 +26,34 @@ Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留
 本项目是非官方粉丝作品，与 DeepSeek 无隶属或背书关系；相关名称、商标与角色权利归
 各自权利人。
 
+## 情感数据集
+
+`native/emotion_dataset_update.py` 可选地读取公开许可的中文情感数据集：
+
+- **zzhdbw/Simplified_Chinese_Multi-Emotion_Dialogue_Dataset** — Apache-2.0，修订 `d0d148b971f09c8269bc7afa045e37802a73eaa9`
+- 翻译自 **Johnson8187/Chinese_Multi-Emotion_Dialogue_Dataset** — MIT，修订 `f3854f9489071a4dc0bb69f2366d95095837ce68`
+
+仅用于本地生成哈希特征；原始文本不分发、不写入本仓库，也不加入日志。
+
+## 本地语义模型（可选，不随仓库分发）
+
+`native/embedding_backend.py` 可选下载 **BAAI/bge-small-zh-v1.5**（MIT License，
+FlagEmbedding）的量化 ONNX 权重与词表，经 ModelScope 上的 `Xenova` 转换仓库固定
+revision 获取：
+
+- 固定 revision：`313386ad7ffad360a4870fd1910f8ecaf1a05151`
+- 本地目录：`%LOCALAPPDATA%\dsh-dafeiyu\models\bge-small-zh-v1.5`
+- 首次下载约 24 MB；之后离线推理，记忆文本不发送到任何服务器
+- 模型权重不提交到本仓库；未下载时自动回退到本地哈希检索
+
+## 公开爬虫来源
+
+`native/public_crawler.py` 只读取一个固定公开文件：
+
+- **chinese-poetry/chinese-poetry** — MIT License，Copyright (c) 2016 JackeyGao；
+  文件 `诗经/shijing.json` 中的《诗经》文本为公版，经 GitHub 内容 API 读取。
+  每次只取一首诗的标题与前两行，不抓取仓库其他内容、不接收用户提供的 URL。
+
 ## 原生目录中的第三方资料
 
 | 文件 | 内容 | 许可 |

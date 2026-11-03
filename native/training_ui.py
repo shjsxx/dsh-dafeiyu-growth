@@ -23,67 +23,69 @@ PAGE_SIZE = 30
 # No UI/model integration imports: this module owns only a passive child widget.
 PANEL_QSS = """
 QWidget#trainingPanel { background: transparent; }
-QWidget#trainingPanel QLabel { color: #44576C; background: transparent;
+QWidget#trainingPanel QLabel { color: #435E68; background: transparent;
     font-family: "Microsoft YaHei UI"; font-size: 13px; }
-QWidget#trainingPanel QLabel#trainingHeading { color: #1C2C40; font-size: 18px; font-weight: 700; }
-QWidget#trainingPanel QLabel[caption="true"] { color: #5F7284; font-size: 12px; }
-QWidget#trainingPanel QLabel#trainingWarning { color: #7E5228; background: #FFF4E5;
-    border: 1px solid #EBD6B6; border-radius: 7px; padding: 2px 7px; font-size: 12px; }
-QWidget#trainingPanel QFrame#trainingSegments { background: #E4EDF1; border-radius: 9px; }
-QWidget#trainingPanel QPushButton[segment="true"] { color: #5D7186; background: transparent;
-    border: none; border-radius: 7px; padding: 0 12px; font-size: 12px; }
-QWidget#trainingPanel QPushButton[segment="true"]:checked { color: #0E6668;
-    background: #FFFFFF; font-weight: 700; }
-QWidget#trainingPanel QFrame[metricTile="true"] { background: #FFFFFF;
-    border: 1px solid #E3EAF0; border-radius: 12px; }
-QWidget#trainingPanel QFrame[metricTile="true"][accent="true"] { background: #EAF6F3; border-color: #CFE8E2; }
-QWidget#trainingPanel QLabel[pulseValue="true"] { color: #23384C; font-size: 26px; font-weight: 700; }
-QWidget#trainingPanel QFrame[accent="true"] QLabel[pulseValue="true"] { color: #167A77; }
+QWidget#trainingPanel QLabel#trainingHeading { color: #17343D; font-size: 18px; font-weight: 700; }
+QWidget#trainingPanel QLabel[caption="true"] { color: #627B84; font-size: 12px; }
+QWidget#trainingPanel QLabel[section="true"] { color: #17343D; font-size: 13px; font-weight: 600; }
+QWidget#trainingPanel QLabel#trainingWarning { color: #A77739; background: #FFF5E5;
+    border: 1px solid #E9D7B7; border-radius: 8px; padding: 2px 8px; font-size: 12px; }
+QWidget#trainingPanel QFrame#trainingSegments { background: #E7EFF0; border-radius: 9px; }
+QWidget#trainingPanel QComboBox, QWidget#trainingPanel QPushButton {
+    color: #435E68; background: #FFFFFF; border: 1px solid #D9E6E8;
+    border-radius: 7px; padding: 2px 8px;
+    font-family: "Microsoft YaHei UI"; font-size: 13px; }
+QWidget#trainingPanel QPushButton:hover, QWidget#trainingPanel QComboBox:hover {
+    background: #EFF8F5; border-color: #8CBAB9; }
+QWidget#trainingPanel QPushButton:pressed { background: #DBEEEA; color: #11595F; }
+QWidget#trainingPanel QPushButton:focus, QWidget#trainingPanel QComboBox:focus {
+    border: 1px solid #187E83; }
+QWidget#trainingPanel QPushButton:disabled, QWidget#trainingPanel QComboBox:disabled {
+    color: #7D9299; background: #EDF2F3; border-color: #D9E6E8; }
+QWidget#trainingPanel QPushButton[segment="true"] { color: #627B84; background: transparent;
+    border: 1px solid transparent; padding: 0 12px; }
+QWidget#trainingPanel QPushButton[segment="true"]:hover { color: #11595F; background: #EFF8F5; }
+QWidget#trainingPanel QPushButton[segment="true"]:checked { color: #11595F;
+    background: #FFFFFF; border-color: #D9E6E8; font-weight: 700; }
+QWidget#trainingPanel QPushButton[segment="true"]:focus { border-color: #187E83; }
+QWidget#trainingPanel QPushButton#trainingLearn { color: #FFFFFF; background: #187E83;
+    border-color: #187E83; font-weight: 600; padding: 2px 14px; }
+QWidget#trainingPanel QPushButton#trainingLearn:hover { background: #176F74; }
+QWidget#trainingPanel QPushButton#trainingLearn:pressed { background: #11595F; }
+QWidget#trainingPanel QPushButton#trainingLearn:focus { border: 2px solid #11595F; }
+QWidget#trainingPanel QPushButton#trainingLearn:disabled { color: #7D9299;
+    background: #E7EFF0; border-color: #D9E6E8; }
+QWidget#trainingPanel QFrame[metricTile="true"], QWidget#trainingPanel QFrame#trainingSummaryCard,
+QWidget#trainingPanel QFrame#trainingCoverage, QWidget#trainingPanel QFrame#trainingPlatforms {
+    background: #FFFFFF; border: 1px solid #D9E6E8; border-radius: 12px; }
+QWidget#trainingPanel QFrame[metricTile="true"][accent="true"] { background: #EFF8F5; border-color: #BFDCD5; }
+QWidget#trainingPanel QLabel[pulseValue="true"] { color: #17343D; font-size: 24px; font-weight: 700; }
+QWidget#trainingPanel QFrame[accent="true"] QLabel[pulseValue="true"] { color: #187E83; }
 QWidget#trainingPanel QLabel[pulseValue="true"][compactValue="true"] { font-size: 18px; }
-QWidget#trainingPanel QLabel[pulseCaption="true"] { color: #4F6679; font-size: 12px; }
-QWidget#trainingPanel QFrame#trainingSummaryCard, QWidget#trainingPanel QFrame#trainingCoverage,
-QWidget#trainingPanel QFrame#trainingPlatforms { background: #FFFFFF;
-    border: 1px solid #E3EAF0; border-radius: 11px; }
+QWidget#trainingPanel QLabel[pulseCaption="true"] { color: #435E68; font-size: 12px; }
 QWidget#trainingPanel QLabel[sourceState="indexed"], QWidget#trainingPanel QLabel[sourceState="connected"] {
-    color: #187E73; background: #EAF6F1; border-radius: 5px; padding: 2px 6px; font-size: 11px; }
-QWidget#trainingPanel QLabel[sourceState="available"] { color: #527286;
-    background: #EFF4F7; border-radius: 5px; padding: 2px 6px; font-size: 11px; }
+    color: #11595F; background: #EFF8F5; border-radius: 5px; padding: 2px 6px; font-size: 12px; }
+QWidget#trainingPanel QLabel[sourceState="available"] { color: #187E83;
+    background: #EFF8F5; border-radius: 5px; padding: 2px 6px; font-size: 12px; }
 QWidget#trainingPanel QLabel[sourceState="unknown"], QWidget#trainingPanel QLabel[sourceState="disabled"],
 QWidget#trainingPanel QLabel[sourceState="pending"], QWidget#trainingPanel QLabel[sourceState="unconnected"] {
-    color: #8A775B; background: #F7F2E9; border-radius: 5px; padding: 2px 6px; font-size: 11px; }
-QWidget#trainingPanel QLabel[sourceState="error"] { color: #A36551;
-    background: #FFF0EA; border-radius: 5px; padding: 2px 6px; font-size: 11px; }
-QWidget#trainingPanel QComboBox, QWidget#trainingPanel QPushButton {
-    color: #52667A; background: #FFFFFF; border: 1px solid #DAE3E9;
-    border-radius: 7px; padding: 2px 9px;
-    font-family: "Microsoft YaHei UI"; font-size: 13px; }
-QWidget#trainingPanel QPushButton:hover { background: #EEF7F5; border-color: #A4CEC5; }
-QWidget#trainingPanel QPushButton:disabled { color: #A7B2BD; background: #F2F5F7; }
-QWidget#trainingPanel QPushButton#trainingLearn { color: white; background: #218A83; border-color: #218A83; font-weight: 600; }
-QWidget#trainingPanel QPushButton#trainingLearn:hover { background: #2B9B92; }
-QWidget#trainingPanel QPushButton#trainingLearn:disabled { color: #A7B0BA; background: #E7EDF2; border-color: #E7EDF2; }
+    color: #A77739; background: #FFF5E5; border-radius: 5px; padding: 2px 6px; font-size: 12px; }
+QWidget#trainingPanel QLabel[sourceState="error"] { color: #AF4C56;
+    background: #FCEFF0; border-radius: 5px; padding: 2px 6px; font-size: 12px; }
 QWidget#trainingPanel QListWidget, QWidget#trainingPanel QPlainTextEdit {
-    background: #FFFFFF; color: #4E6276; border: 1px solid #E0E7ED;
+    background: #FFFFFF; color: #435E68; border: 1px solid #D9E6E8;
     border-radius: 10px; padding: 5px;
     font-family: "Microsoft YaHei UI"; font-size: 13px;
-    selection-background-color: #DDF0EA; selection-color: #215E58; }
-QWidget#trainingPanel QListWidget::item { padding: 6px 5px; border: none; }
-QWidget#trainingPanel QListWidget::item:selected { background: #E5F3EE; color: #215E58; border-radius: 6px; }
+    selection-background-color: #DBEEEA; selection-color: #11595F; }
+QWidget#trainingPanel QListWidget:focus, QWidget#trainingPanel QPlainTextEdit:focus { border-color: #187E83; }
+QWidget#trainingPanel QListWidget::item { padding: 8px; border: none; }
+QWidget#trainingPanel QListWidget::item:hover { background: #F3F6F7; border-radius: 6px; }
+QWidget#trainingPanel QListWidget::item:selected { background: #DBEEEA; color: #11595F; border-radius: 6px; }
 QWidget#trainingPanel QScrollBar:vertical { background: transparent; width: 6px; margin: 3px 0; }
-QWidget#trainingPanel QScrollBar::handle:vertical { background: #C7D7DF; border-radius: 3px; min-height: 24px; }
+QWidget#trainingPanel QScrollBar::handle:vertical { background: #B4CDCF; border-radius: 3px; min-height: 24px; }
+QWidget#trainingPanel QScrollBar::handle:vertical:hover { background: #187E83; }
 QWidget#trainingPanel QScrollBar::add-line:vertical, QWidget#trainingPanel QScrollBar::sub-line:vertical { height: 0; }
 QWidget#trainingPanel QScrollBar::add-page:vertical, QWidget#trainingPanel QScrollBar::sub-page:vertical { background: transparent; }
-
-QWidget#dataPanel { background: transparent; }
-QWidget#dataPanel QLabel { color: #617089; background: transparent; font-family: "Microsoft YaHei UI"; font-size: 11px; }
-QWidget#dataPanel QLabel#dataHeading { color: #172B46; font-size: 16px; font-weight: 700; }
-QWidget#dataPanel QLabel#dataHero { color: #FFFFFF; font-size: 15px; font-weight: 700; }
-QWidget#dataPanel QLabel#dataSub { color: #B9D3E6; font-size: 10px; }
-QWidget#dataPanel QFrame#dataHeroCard { background: #2F7195; border-radius: 15px; }
-QWidget#dataPanel QFrame[dataTile="true"] { background: #FFFFFF; border: 1px solid #E3E9F1; border-radius: 12px; }
-QWidget#dataPanel QLabel[dataValue="true"] { color: #173A58; font-size: 19px; font-weight: 700; }
-QWidget#dataPanel QLabel[dataTitle="true"] { color: #8090A4; font-size: 10px; }
-QWidget#dataPanel QLabel[dataDetail="true"] { color: #617089; font-size: 10px; }
 """
 
 _METRIC_LABELS = {
@@ -97,6 +99,16 @@ _METRIC_LABELS = {
     "added": "新增条目", "changed": "变更条目", "removed": "移除条目",
     "validated": "校验条目", "rejected": "拒绝条目", "bytes": "资料字节数",
     "duration_ms": "用时（毫秒）", "event_count": "互动计数", "characters": "临时文字字符数（不保存原文）",
+    "dataset_rows": "公开数据行数", "dataset_skipped": "过滤/跳过行数", "dataset_validation": "留出验证行数",
+    "dataset_accuracy": "留出准确率",
+    "dataset_accuracy_before": "更新前留出准确率", "dataset_accuracy_after": "更新后留出准确率",
+    "dataset_balanced": "平衡准确率",
+    "dataset_balanced_before": "更新前平衡准确率", "dataset_balanced_after": "更新后平衡准确率",
+    "dataset_macro_f1": "macro F1",
+    "dataset_macro_f1_before": "更新前 macro F1", "dataset_macro_f1_after": "更新后 macro F1",
+    "dataset_duplicates": "重复行", "dataset_conflicts": "冲突标签行",
+    "dataset_classes": "覆盖类别数", "dataset_min_class": "最小类别样本",
+    "changed_weights": "变化权重项",
     "audio_input_bytes": "音频发送字节数（交给套接字）", "audio_output_bytes": "收到的音频字节数", "played_ms": "设备实际处理播报（毫秒）",
     "input_tokens": "服务报告输入 tokens", "output_tokens": "服务报告输出 tokens", "input_audio_tokens": "其中音频输入 tokens", "output_audio_tokens": "其中音频输出 tokens", "cached_tokens": "其中缓存输入 tokens",
 }
@@ -287,7 +299,7 @@ class TrainingPanel(QWidget):
         heading.addStretch()
         self.learning_button = QPushButton("现在学习")
         self.learning_button.setObjectName("trainingLearn")
-        self.learning_button.setFixedHeight(28)
+        self.learning_button.setFixedHeight(32)
         self.learning_button.setAutoDefault(False)
         self.learning_button.setToolTip("交给主程序的学习调度器；此面板不会自行训练或联网。")
         self.learning_button.clicked.connect(self.learning_requested.emit)
@@ -296,7 +308,7 @@ class TrainingPanel(QWidget):
 
         segments = QFrame()
         segments.setObjectName("trainingSegments")
-        segments.setFixedHeight(28)
+        segments.setFixedHeight(32)
         segment_box = QHBoxLayout(segments)
         segment_box.setContentsMargins(3, 2, 3, 2)
         segment_box.setSpacing(3)
@@ -316,7 +328,7 @@ class TrainingPanel(QWidget):
         box.addWidget(segments)
 
         self.warning_label = self._label(name="trainingWarning", wrap=False)
-        self.warning_label.setFixedHeight(24)
+        self.warning_label.setFixedHeight(22)
         box.addWidget(self.warning_label)
         self.view_stack = QStackedWidget()
         self.view_stack.setMinimumWidth(0)
@@ -356,7 +368,7 @@ class TrainingPanel(QWidget):
     def _page_box(page):
         box = QVBoxLayout(page)
         box.setContentsMargins(0, 0, 0, 0)
-        box.setSpacing(6)
+        box.setSpacing(4)
         return box
 
     def _view_changed(self, index):
@@ -367,7 +379,7 @@ class TrainingPanel(QWidget):
     def _build_overview(self):
         box = self._page_box(self.overview_page)
         grid = QGridLayout()
-        grid.setSpacing(7)
+        grid.setSpacing(8)
         self.pulse_values = {}
         self.pulse_captions = {}
         for index, (key, title, hint) in enumerate((
@@ -382,14 +394,15 @@ class TrainingPanel(QWidget):
             tile.setFixedHeight(75)
             tile.setToolTip(hint)
             tile_box = QVBoxLayout(tile)
-            tile_box.setContentsMargins(12, 7, 12, 8)
+            tile_box.setContentsMargins(12, 4, 12, 4)
             tile_box.setSpacing(0)
             value = self._label("0", f"pulse-{key}", False)
             value.setProperty("pulseValue", True)
-            caption = self._label(title, f"pulseCaption-{key}", False)
+            caption = self._label(title, f"pulseCaption-{key}")
             caption.setProperty("pulseCaption", True)
-            tile_box.addWidget(value)
+            caption.setFixedHeight(32)
             tile_box.addWidget(caption)
+            tile_box.addWidget(value)
             grid.addWidget(tile, index // 2, index % 2)
             self.pulse_values[key] = value
             self.pulse_captions[key] = caption
@@ -400,16 +413,21 @@ class TrainingPanel(QWidget):
         card = QFrame()
         card.setObjectName("trainingSummaryCard")
         card_box = QVBoxLayout(card)
-        card_box.setContentsMargins(11, 8, 11, 8)
-        card_box.setSpacing(3)
+        card_box.setContentsMargins(12, 7, 12, 7)
+        card_box.setSpacing(1)
         self.summary_label = self._label(wrap=False)
+        self.summary_label.setProperty("section", True)
         self.summary_label.setFixedHeight(20)
         self.knowledge_label = self._label()
         self.knowledge_label.setProperty("caption", True)
-        self.knowledge_label.setFixedHeight(30)
+        self.knowledge_label.setFixedHeight(26)
         self.brain_label = self._label(wrap=False)
         self.brain_label.setProperty("caption", True)
         self.brain_label.setFixedHeight(16)
+        self.evaluation_label = self._label(wrap=False)
+        self.evaluation_label.setProperty("caption", True)
+        self.evaluation_label.setFixedHeight(16)
+        self.evaluation_label.setToolTip("情感指标来自确定的分层留出集；动作多样性来自数值回放，不代表实际成功率。")
         self.public_import_label = self._label(wrap=False)
         self.public_import_label.setProperty("caption", True)
         self.public_import_label.setFixedHeight(16)
@@ -417,12 +435,12 @@ class TrainingPanel(QWidget):
         self.source_label.setProperty("caption", True)
         self.source_label.setFixedHeight(16)
         for label in (self.summary_label, self.knowledge_label, self.brain_label,
-                      self.public_import_label, self.source_label):
+                      self.evaluation_label, self.public_import_label, self.source_label):
             card_box.addWidget(label)
         box.addWidget(card)
         note = self._label("收录 ≠ 训练；情感适应不等于 SGD。\n只展示来源与数值，不保存私聊原文。")
         note.setProperty("caption", True)
-        note.setFixedHeight(32)
+        note.setFixedHeight(28)
         box.addWidget(note)
         box.addStretch()
 
@@ -460,6 +478,12 @@ class TrainingPanel(QWidget):
         self.history_list.setFixedHeight(150)
         self.history_list.setMinimumWidth(0)
         self.history_list.currentItemChanged.connect(self._selection_changed)
+        self.history_empty_label = self._label("暂无匹配记录\n可切换领域或类型；学习后会显示审计摘要。")
+        self.history_empty_label.setProperty("caption", True)
+        self.history_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_box = QVBoxLayout(self.history_list.viewport())
+        empty_box.setContentsMargins(16, 12, 16, 12)
+        empty_box.addWidget(self.history_empty_label)
         box.addWidget(self.history_list)
 
         pages = QHBoxLayout()
@@ -496,12 +520,12 @@ class TrainingPanel(QWidget):
         coverage = QFrame()
         coverage.setObjectName("trainingCoverage")
         rows = QVBoxLayout(coverage)
-        rows.setContentsMargins(10, 7, 10, 7)
-        rows.setSpacing(2)
+        rows.setContentsMargins(12, 8, 12, 8)
+        rows.setSpacing(4)
         self.source_status_labels = {}
         for key, (title, hint) in _SOURCE_CATALOG.items():
             row = QWidget()
-            row.setFixedHeight(25)
+            row.setFixedHeight(28)
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
             line.setSpacing(5)
@@ -566,9 +590,34 @@ class TrainingPanel(QWidget):
         self._set_label(self.knowledge_label, f"知识库 {count} 条" + (f" · {facts}" if facts else ""))
         self.knowledge_label.setToolTip(self.knowledge_label.text())
         brain_status = _enum(brain.get("status"), _BRAIN_STATUSES)
+        def number_or_zero(value):
+            number = _number(value)
+            return 0 if number is None else number
         self._set_label(self.brain_label,
                         f"动作模型：样本 {_count(brain.get('samples'))} · 更新 {_count(brain.get('updates'))} · "
-                        f"v{_count(brain.get('version'))} · {_BRAIN_STATUSES.get(brain_status, '暂无状态')}")
+                        f"v{_count(brain.get('version'))} · {_BRAIN_STATUSES.get(brain_status, '暂无状态')} · "
+                        f"多样性 {number_or_zero(brain.get('diversity')):.2f} · 均奖励 {number_or_zero(brain.get('avg_reward')):+.2f}")
+        evaluation = _mapping(info.get("evaluation"))
+        if evaluation:
+            value = _number(evaluation.get("accuracy"))
+            accuracy = f"{int(round(value * 100))}%" if value is not None else "—"
+            value = _number(evaluation.get("balanced_accuracy"))
+            balanced = f"{int(round(value * 100))}%" if value is not None else "—"
+            self._set_label(self.evaluation_label,
+                            f"情感留出：准确率 {accuracy} · 平衡 {balanced} · "
+                            f"macro F1 {number_or_zero(evaluation.get('macro_f1')):.2f} · "
+                            f"验证 {_count(evaluation.get('support'))}")
+            missing = evaluation.get("missing_labels")
+            missing = [str(item)[:20] for item in missing[:6]] if isinstance(missing, list) else []
+            supported = _number(evaluation.get("macro_f1_supported"))
+            coverage = ("；留出集缺少 " + "、".join(missing)) if missing else ""
+            supported_text = f"；仅已覆盖类 F1 {supported:.2f}" if supported is not None else ""
+            if evaluation.get("reason") == "no_improvement":
+                self.evaluation_label.setToolTip("上次更新未达到采纳门槛；这里显示的是当前模型的旧评估，不是新一轮训练结果" + coverage + supported_text + "。")
+            else:
+                self.evaluation_label.setToolTip("来自确定的分层留出集；macro F1 按固定六类分母，缺类会拉低" + supported_text + coverage + "。不是心理诊断或泛化保证。")
+        else:
+            self._set_label(self.evaluation_label, "情感留出：尚无评估；完成一次公开数据学习后显示。")
         self.summary_label.setToolTip(
             f"动作 SGD {steps} 步 · 情感适应 {passes} 次（加性适应，非反向传播）\n" + self.brain_label.text() +
             f"\n本记录期累计新增知识 {_count(totals.get('knowledge_added'))} 条。\n"
@@ -671,6 +720,7 @@ class TrainingPanel(QWidget):
             self._displayed = visible
             if preserve_scroll:
                 self.history_list.verticalScrollBar().setValue(scroll)
+        self.history_empty_label.setVisible(not visible)
         self.newer_button.setEnabled(self._page > 0)
         self.older_button.setEnabled(self._page + 1 < page_count)
         self._set_label(self.page_label, f"{self._page + 1 if page_count else 0} / {page_count} · {len(rows)} 条")

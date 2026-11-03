@@ -381,7 +381,10 @@ class ProactiveConversationUiTests(unittest.TestCase):
         dialog.input.setText("云端第一条")
         QTest.keyClick(dialog.input, Qt.Key.Key_Return)
         self.assertEqual(cloud[0][0], "云端第一条")
-        self.assertEqual([entry["content"] for entry in cloud[0][1]], ["你好，今天想聊什么？", "本地继续", "本地回应"])
+        # Proactive bubbles can contain durable private facts, not user-authored
+        # dialogue. They must not be laundered into history by session consent.
+        self.assertEqual([entry["content"] for entry in cloud[0][1]], ["本地继续", "本地回应"])
+        self.assertNotIn('你好，今天想聊什么？', str(cloud[0][1]))
         self.assertTrue(dialog.confirm_bar.isHidden())
         dialog.show_reply("成功回复", "云端")
         dialog.input.setText("失败的输入")
