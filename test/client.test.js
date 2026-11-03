@@ -1,78 +1,27 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { runInNewContext } from 'node:vm'
+import React from 'react'
+import {renderToStaticMarkup} from 'react-dom/server'
+import {loadClient, source, settingsSlots} from './helpers/load-client.js'
 
-const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-const settingsSlots = ['plugins.bundle.config', 'settings.plugins.tab', 'settings.plugin.item']
-
-function loadClient(state = null) {
-  const injections = []
-  const registrations = []
-  const errors = []
-  const effects = []
-  let client
-  const React = {
-    createElement: (type, props, ...children) => ({ type, props, children }),
-    useCallback: (callback) => callback,
-    useEffect: (effect) => { effects.push(effect) },
-    useState: (initial) => [initial === null ? state : initial, () => {}],
-  }
-  runInNewContext(source, {
-    window: { __ModuleLoader__: { load({ id, factory }) {
-      assert.equal(id, 'dsh-dafeiyu-growth')
-      client = factory((name) => {
-        assert.equal(name, 'react')
-        return React
-      })
-    } } },
-    console: { error: (...args) => errors.push(args) },
-  }, { filename: 'lib/client.js' })
-  client.apply({ slots: {
-    inject(slot, callback) {
-      injections.push(slot)
-      callback()
-    },
-    register(options, component) { registrations.push({ options, component }) },
-  } })
-  assert.deepEqual(errors, [], 'registration errors must not be swallowed')
-  return { client, injections, registrations, effects }
-}
-
-test('client registers settings cards without injecting or registering a shell overlay', () => {
-  const { client, injections, registrations, effects } = loadClient()
-  assert.equal(client.name, 'dsh-dafeiyu-growth-client')
-  assert.deepEqual(Array.from(client.inject), ['slots'])
-  assert.equal(injections.includes('shell.overlay'), false)
-  assert.deepEqual(injections, settingsSlots)
-  assert.equal(registrations.some(({ options }) => options.name === 'shell.overlay'), false)
-  assert.deepEqual(registrations.map(({ options }) => options.name), settingsSlots)
-  const component = registrations[0].component
-  for (const registration of registrations) {
-    assert.equal(registration.component, component)
-    assert.equal(registration.options.id, 'dsh-dafeiyu-growth')
-    assert.equal(registration.options.label(), '云岚养成')
-  }
-  const card = component()
-  assert.equal(card.type, 'ul')
-  assert.equal(card.children[0].children[0], '正在读取成长数据…')
-  assert.equal(effects.length, 1, 'settings card retains its growth data hook')
+test('client preserves settings slot contracts with only external React and no shell overlay', () => {
+  const {client,registrations,injections} = loadClient({fetch() { throw Error('module import must not fetch') }})
+  assert.equal(client.name,'dsh-dafeiyu-growth-client')
+  assert.deepEqual(Array.from(client.inject),['slots'])
+  assert.deepEqual(injections,settingsSlots)
+  assert.deepEqual(registrations.map(row => row.options.name),settingsSlots)
+  assert.ok(registrations.every(row => row.component === registrations[0].component))
+  assert.ok(registrations.every(row => row.options.label() === '云岚养成'))
+  assert.ok(!injections.includes('shell.overlay'))
 })
 
-test('registered settings card retains growth stats and Traits rendering', () => {
-  const traits = { stamina: 20, wit: 30, affinity: 40, calm: 50 }
-  const { registrations } = loadClient({
-    level: 2, stage: { name: '云芽' }, xp: 45, into: 5, need: 60, streak: 3,
-    counters: { turns: 2, okTurns: 2, errorTurns: 0, toolCalls: 5, toolErrors: 0, recoveries: 0, approvals: 0 },
-    traits, learned: [], diary: [],
-  })
-  const card = registrations[0].component()
-  assert.equal(card.type, 'ul')
-  assert.match(JSON.stringify(card), /Lv\.2 · 云芽/)
-  const traitsElement = card.children[2].children[1]
-  assert.equal(typeof traitsElement.type, 'function')
-  assert.equal(traitsElement.props.traits, traits)
-  const renderedTraits = traitsElement.type(traitsElement.props)
-  assert.equal(renderedTraits.children.length, 4)
-  assert.deepEqual(renderedTraits.children.map((row) => row.children[0].children[0]), ['体力', '灵性', '亲和', '定力'])
+test('initial render is scoped accessible skeleton, never fake user statistics', () => {
+  const {registrations} = loadClient()
+  const html = renderToStaticMarkup(React.createElement(registrations[0].component))
+  assert.match(html,/云岚成长仪表盘/)
+  assert.match(html,/data-ui-version="0.28.0"/)
+  assert.match(html,/正在读取成长数据/)
+  assert.match(html,/class="ylg"/)
+  assert.doesNotMatch(html,/5417|12,805|Lv\.18/)
+  assert.doesNotMatch(source,/dangerouslySetInnerHTML|shell\.overlay|https?:\/\//)
 })

@@ -12,6 +12,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Frontend development dependencies
+        run: npm ci
+      - name: Verify committed client artifact
+        run: npm run check:client
       - name: Node tests
         run: npm test
       - uses: actions/setup-python@v5
@@ -31,3 +35,10 @@ jobs:
           $files = $json[0].files | ForEach-Object { $_.path }
           if ($files -notcontains 'native/live_online.py') { throw 'live_online.py missing from package' }
           if ($files -notcontains 'requirements-native.txt') { throw 'requirements-native.txt missing from package' }
+          if ($files -notcontains 'web/App.jsx') { throw 'Web source missing from package' }
+          $privatePattern = 'native/(verification|backup|dist|\.build)/|(?:^|/)(?:dialogue-fix|menu|reaction-(?:cry|sleepy|bored))\.png$|(?:^|/)(?:cloud|realtime|growth|memory|profile|personality|training|behavior|neural|emotion|learning|online|knowledge|companion|continuity|embedding_rerank)\.json$|retrieval_reviews|yunlan-growth-summary|(?:^|/)\.env(?:\.|$)|\.(?:key|pem|pfx|p12|sqlite3?|db|jsonl|wav|pcm|onnx|safetensors|pt|pth|bak|log)$'
+          if ($files -match $privatePattern) { throw 'Private artifacts must not enter package' }
+          $manifest = Get-Content -Raw package.json | ConvertFrom-Json
+          foreach ($image in @($files | Where-Object { $_ -like 'docs/screenshots/*.png' })) {
+            if ($manifest.files -notcontains $image) { throw 'Screenshot requires an explicit reviewed allowlist entry' }
+          }
