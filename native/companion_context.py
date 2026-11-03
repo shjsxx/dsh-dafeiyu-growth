@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from memory_reply import QUESTION_WORDS, wants_memory
+
 MAX_TURNS = 6  # individual user/assistant rows, not six pairs
 MAX_CHARS = 4000
 MAX_TOPICS = 5
@@ -135,6 +137,17 @@ class CompanionContext:
         topic = explicit or (self._topics[-1]["topic"] if self._topics else "")
         result = dict(reply) if isinstance(reply, dict) else {"text": _text(reply)}
         answer = ""
+        # Explicit factual/memory requests belong to the structured answer path,
+        # not to this small conversational referent resolver. A mentioned noun
+        # alone is not evidence that the user wants to discuss their feelings.
+        factual = wants_memory(raw) or (any(word in raw for word in QUESTION_WORDS)
+                                             and not any(word in raw for word in REFERENCES))
+        if factual and intent not in ("repair", "refusal", "rest", "clarification"):
+            result.update(intent=intent, topic=topic, handled=False,
+                          personality_policy=personality_policy(intent, self._repair))
+            if not result.get("text"):
+                result["text"] = "这句我还没完全理解。你希望我先回应哪一点？"
+            return result
         if intent == "repair":
             answer = "抱歉，刚才没接住你的意思。我先不猜，也不重复刚才的话。"
             answer += f"你更正的是{explicit}，我会按这次更正接着听。" if explicit else "你希望我先纠正哪一点？"

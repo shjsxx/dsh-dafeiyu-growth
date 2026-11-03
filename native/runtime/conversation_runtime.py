@@ -42,12 +42,37 @@ class ConversationRuntime:
             self.conversation.add_system('检索标注已仅在本机保存；没有上传或训练。' if ok else
                                          '检索标注未保存；请检查本地标注文件的保护状态。')
 
-    def _record_exchange(self, text, answer, mood='neutral'):
+    def _dialogue_context(self):
+        # Native/voice input can arrive before any conversation window exists.
         if not hasattr(self, 'dialogue_context'):
             self.dialogue_context = CompanionContext()
-        self.dialogue_context.record(text, answer, mood=mood)
+        return self.dialogue_context
+
+    def _reset_conversation_context(self):
+        """Forget RAM-only context and invalidate outstanding model requests.
+
+        Also purge any open dialog's visible/history/consent state.
+        """
+        dialog = getattr(self, 'conversation', None)
+        if dialog is not None:
+            dialog.reset_local_context()
+        self._dialogue_context().clear()
+        self.last_user_text = ''
+        self.last_reply_text = ''
+        self.last_topic = ''
+        self.last_proactive = ''
+        self._last_reply_private = False
+        self._latest_retrieval = None
+        self._pending_model_text = ''
+        self._pending_model_request = None
+        self.cloud_busy = False
+        self.conversation_serial += 1
+
+    def _record_exchange(self, text, answer, mood='neutral', *, private_context=False):
+        self._dialogue_context().record(text, answer, mood=mood)
         self.last_user_text = str(text)[:200]
         self.last_reply_text = str(answer)[:300]
+        self._last_reply_private = bool(private_context)
 
     def _place_conversation(self, dialog) -> None:
         screen = QApplication.screenAt(QPoint(self.pet_x, self.pet_y)) or QApplication.primaryScreen()
@@ -65,11 +90,8 @@ class ConversationRuntime:
 
     def _ensure_conversation(self) -> None:
         if self.conversation is None:
-            self.conversation_serial += 1
-            self.dialogue_context = CompanionContext()
+            self._reset_conversation_context()
             self._review_group = uuid.uuid4().hex
-            self._latest_retrieval = None
-            self._pending_model_text = ''
             dialog = ConversationDialog(self)
             dialog.local_submitted.connect(self._conversation_local)
             dialog.cloud_submitted.connect(self._conversation_cloud)
@@ -105,11 +127,7 @@ class ConversationRuntime:
             self._voice_stop()
         self.chat_open = False
         self.conversation = None
-        if hasattr(self, 'dialogue_context'):
-            self.dialogue_context.clear()
-        self._latest_retrieval = None
-        self._pending_model_text = ''
-        self.conversation_serial += 1
+        self._reset_conversation_context()
         # Dismissing a proactive card means give the owner some space.
         self.next_talk_ms = self._now_ms() + 300000
 
@@ -136,11 +154,22 @@ class ConversationRuntime:
             self.learner.add_like(reply["like"])
         if self._chat_may_learn:
             self.learner.note_chat()
-        proposal = self.dialogue_context.plan(text, reply=reply, mood=mood)
+        proposal = self._dialogue_context().plan(text, reply=reply, mood=mood)
         self.personality.observe(text, intent=proposal['intent'])
-        if proposal['handled'] and not (reply.get('action') or reply.get('name') or reply.get('like')):
+        private_context = bool(name and not learned and name in str(reply.get('text', '')))
+        previous_private = getattr(self, '_last_reply_private', False)
+        memory_answer, memory_meta = (None, '')
+        if proposal['intent'] not in ('repair', 'rest', 'refusal'):
+            memory_answer, memory_meta = self._memory_answer(text)
+        if memory_answer:
+            reply = {"text": memory_answer, "action": None}
+            meta = memory_meta
+            private_context = True
+        elif proposal['handled'] and not (reply.get('action') or reply.get('name') or reply.get('like')):
             reply = proposal
             meta = '本地上下文 · ' + proposal['intent']
+            if proposal['intent'] != 'share':
+                private_context = private_context or previous_private
             # Prepare review candidates without persisting the query.
             hits = self.memory.recall(text, 5, kinds=('preference', 'habit', 'diary'))
             self._capture_retrieval(text, hits)
@@ -148,25 +177,22 @@ class ConversationRuntime:
             reply = {"text": meta_reply(text, self.last_user_text, self.last_reply_text)
                      or fallback_reply(text, self.last_user_text), "action": None}
             meta = "本地对话 · 更正"
+            private_context = private_context or previous_private
         elif is_followup(text):
             reply = {"text": followup_reply(text, self.last_topic, self.last_reply_text), "action": None}
             meta = "本地对话 · 追问"
+            private_context = private_context or previous_private
         else:
-            memory_answer, memory_meta = self._memory_answer(text)
-            if memory_answer:
-                reply = {"text": memory_answer, "action": None}
-                meta = memory_meta
-            else:
-                reply, meta = self.learning.companion_reply(text, reply, mood)
-                if reply.get("text") in DEFAULT_REPLIES:
-                    public_answer, public_meta = compose_public_answer(text, self.memory.recall(text, 5))
-                    if public_answer:
-                        reply = {"text": public_answer, "action": None}
-                        meta = public_meta
-                    else:
-                        reply = self.dialogue_context.plan(text, reply=None, mood=mood)
-                        reply['action'] = None
-                        meta = '本地上下文 · 澄清' 
+            reply, meta = self.learning.companion_reply(text, reply, mood)
+            if reply.get("text") in DEFAULT_REPLIES:
+                public_answer, public_meta = compose_public_answer(text, self.memory.recall(text, 5))
+                if public_answer:
+                    reply = {"text": public_answer, "action": None}
+                    meta = public_meta
+                else:
+                    reply = self._dialogue_context().plan(text, reply=None, mood=mood)
+                    reply['action'] = None
+                    meta = '本地上下文 · 澄清'
         if (reply.get("text") in DEFAULT_REPLIES or mood in ("sad", "tired", "anxious", "anger")) \
                 and not meta.startswith(("记忆引擎", "本地对话", "本地上下文")):
             reply = dict(reply, text=self.personality.decorate(
@@ -181,8 +207,11 @@ class ConversationRuntime:
                 reply = dict(reply, text="动态来源还没有成功记录。开启「动态公开资料」后，我会校验官方资料；失败时会如实显示，不编造最新结果。", action=None)
             if self.online_state.enabled:
                 self._start_online(manual=True)
-        elif self.last_proactive and text.strip("。.!！ ") in ("好呀", "好啊", "继续", "然后呢", "聊聊", "愿意", "想聊"):
+        elif self.last_proactive and not proposal['handled'] and not private_context \
+                and not is_meta_question(text) and not is_followup(text) \
+                and text.strip("。.!！ ") in ("好呀", "好啊", "继续", "然后呢", "聊聊", "愿意", "想聊"):
             reply = dict(reply, text="好呀，那我们接着聊。你想先说说今天的心情，还是问我一条基础知识？也可以说「实时动态」，看看最近校验的公开资料。", action=None)
+        self.last_proactive = ''
         if mood != "neutral":
             meta += f" · 情绪线索偏{LABELS.get(mood, '情绪')}"
         reaction_key = detect_reaction(text, mood)
@@ -190,9 +219,10 @@ class ConversationRuntime:
             self._trigger_reaction(reaction_key)
         if not is_meta_question(text) and not is_followup(text):
             self.last_topic = extract_topic(text)
-        self._record_exchange(text, str(reply.get("text", "")), mood)
+        self._record_exchange(text, str(reply.get("text", "")), mood, private_context=private_context)
         if self.conversation is not None and self.conversation.isVisible():
-            self.conversation.show_reply(str(reply.get("text", "嗯。")), meta)
+            self.conversation.show_reply(str(reply.get("text", "嗯。")), meta,
+                                         private_context=private_context)
             if self.direct_input_source == 'voice_direct' and self.voice_engine:
                 self._speak_voice_reply(str(reply.get('text', '嗯。')), self.voice_engine.generation)
         if self.growth_dialog is not None and self.growth_dialog.isVisible():
@@ -218,24 +248,25 @@ class ConversationRuntime:
             dialog.set_cloud_state(config)
             dialog.show_reply("接口、模型或输出上限已变更；没有发送。请核对新目标后重新确认。", "本地提示", True)
             return
-        proposal = self.dialogue_context.plan(text)
+        proposal = self._dialogue_context().plan(text)
         self.personality.observe(text, intent=proposal['intent'])
         if proposal['intent'] in ('repair', 'rest', 'refusal'):
             answer = proposal['text']
-            dialog.show_reply(answer, '本地上下文 · 未发送模型')
-            self._record_exchange(text, answer)
+            private_context = getattr(self, '_last_reply_private', False)
+            dialog.show_reply(answer, '本地上下文 · 未发送模型', private_context=private_context)
+            self._record_exchange(text, answer, private_context=private_context)
             return
         if is_meta_question(text):
             answer = meta_reply(text, self.last_user_text, self.last_reply_text)
-            dialog.show_reply(answer, "本地对话 · 更正 · 未发送云端")
-            self._record_exchange(text, answer)
+            private_context = getattr(self, '_last_reply_private', False)
+            dialog.show_reply(answer, "本地对话 · 更正 · 未发送云端", private_context=private_context)
+            self._record_exchange(text, answer, private_context=private_context)
             return
         memory_answer, memory_meta = self._memory_answer(text)
         if memory_answer:
-            dialog.show_reply(memory_answer, memory_meta + " · 未发送云端")
-            self._record_exchange(text, memory_answer)
+            dialog.show_reply(memory_answer, memory_meta + " · 未发送云端", private_context=True)
+            self._record_exchange(text, memory_answer, private_context=True)
             return
-        self.last_user_text = text[:200]
         history = dialog.context_before_current()
         if not config.get("endpoint") or not config.get("model"):
             if self.conversation is not None:
@@ -268,9 +299,16 @@ class ConversationRuntime:
             # This request's own local retrieval, not a stale earlier turn.
             hits = self.memory.recall(text, 5, kinds=('preference', 'habit', 'diary'))
             self._capture_retrieval(text, hits)
+        request_id = uuid.uuid4().hex
         context = {'policy': self.personality.personality_policy(proposal['intent']),
-                   'memories': hits[:3], 'memory_authorized': authorized}
+                   'memories': hits[:3], 'memory_authorized': authorized,
+                   'requestId': request_id,
+                   # Authorized history may itself contain private earlier replies.
+                   '_memory_context_used': bool(authorized and (hits or history))}
         self._pending_model_text = text[:2000]
+        self._pending_model_request = {'id': request_id, 'session': self.conversation_serial,
+                                       'text': text[:2000], 'mood': reading.get('mood', 'neutral')}
+        self.last_proactive = ''
         threading.Thread(target=self._cloud_worker, args=(config, text, history, self.conversation_serial,
                          self.voice_engine.generation if self.direct_input_source == 'voice_direct' and self.voice_engine else None,
                          context), daemon=True).start()
@@ -306,8 +344,13 @@ class ConversationRuntime:
                 result = ask_cloud(config, text, history=history)
         except Exception:
             result = {"ok": False, "error": "云端请求失败"}
+        if not isinstance(result, dict):
+            result = {"ok": False, "error": "云端返回异常"}
         result["requestSession"] = session_serial
         result['voiceGeneration'] = voice_generation
+        if isinstance(context, dict):
+            result['requestId'] = context.get('requestId')
+            result['_memory_context_used'] = context.get('_memory_context_used') is True
         try:
             self.cloud_reply.emit(result)
         except RuntimeError:
@@ -315,23 +358,29 @@ class ConversationRuntime:
 
 
     def _on_cloud_reply(self, result) -> None:
-        self.cloud_busy = False
         if not isinstance(result, dict):
             result = {"ok": False, "error": "云端返回异常"}
         if result.get("requestSession", self.conversation_serial) != self.conversation_serial:
-            return  # Closed dialogue: never leak its late reply into a new one.
+            return  # Closed dialogue: never mutate a newer request's state.
+        pending = getattr(self, '_pending_model_request', None)
+        if result.get('requestId') is not None and (
+                not pending or result['requestId'] != pending['id']):
+            return
+        self.cloud_busy = False
+        self._pending_model_request = None
+        self._pending_model_text = ''
         active = self.conversation is not None and self.conversation.isVisible()
         if result.get("ok"):
             host = urllib.parse.urlsplit(str(result.get("endpoint", ""))).hostname or "云端"
             text = str(result.get("text", ""))[:1200]
             mood = self.emotion.current().get("label", "neutral")
-            pending = getattr(self, '_pending_model_text', '')
             if pending:
-                self._record_exchange(pending, text, mood)
-            self._pending_model_text = ''
+                self._record_exchange(pending['text'], text, pending.get('mood', mood),
+                                      private_context=result.get('_memory_context_used') is True)
             self.last_reply_text = text[:300]
             if active:
-                self.conversation.show_reply(text, f"云端 · {host}")
+                self.conversation.show_reply(text, f"云端 · {host}",
+                                             private_context=result.get('_memory_context_used') is True)
                 self._speak_voice_reply(text, result.get('voiceGeneration'))
             else:
                 self._show_overlay(text, f"云端 · {host} · 仅本次显示，不写入成长记录", "SUCCESS", 12000)

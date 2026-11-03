@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from smoke_environment import build_environment, FILES
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / 'verification' / ('packaged' if len(sys.argv) > 1 else 'source')
@@ -12,29 +13,13 @@ fixture = OUTPUT / 'profile.json'
 # Synthetic fixture only: the smoke test must never copy the owner's real
 # profile (it contains session ids, tool usage and diary text) into the repo.
 fixture.write_bytes((ROOT / 'fixtures' / 'smoke-profile.json').read_bytes())
-for name in ('behavior.json', 'neural.json', 'cloud.json', 'realtime.json', 'emotion.json', 'learning.json', 'online.json', 'knowledge.json', 'companion.json', 'training.json', 'training.json.bak', 'result.json'):
+for name in sorted(set(FILES.values()) - {'profile.json'} | {'training.json.bak', 'result.json'}):
     target = (OUTPUT / name).resolve()
     assert target.parent == OUTPUT.resolve(), 'cleanup must stay inside isolated verification output'
     if target.exists():
         target.unlink()
-env = os.environ.copy()
-env.pop('DSH_DAFEIYU_REALTIME_KEY', None)
-env.update({
-    'QT_QPA_PLATFORM': 'offscreen',
-    'QT_QPA_FONTDIR': str(Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'Fonts'),
-    'PYTHONIOENCODING': 'utf-8',
-    'PYTHONPATH': str(ROOT),
-    'DSH_DAFEIYU_GROWTH_FILE': str(fixture),
-    'DSH_DAFEIYU_LEARNING_FILE': str(OUTPUT / 'learning.json'),
-    'DSH_DAFEIYU_ONLINE_FILE': str(OUTPUT / 'online.json'),
-    'DSH_DAFEIYU_TRAINING_FILE': str(OUTPUT / 'training.json'),
-    'DSH_DAFEIYU_REALTIME_FILE': str(OUTPUT / 'realtime.json'),
-    'DSH_DAFEIYU_KNOWLEDGE_FILE': str(OUTPUT / 'knowledge.json'),
-    'DSH_DAFEIYU_COMPANION_FILE': str(OUTPUT / 'companion.json'),
-    'DSH_DAFEIYU_LAYOUT_PATH': str(OUTPUT / 'layout.json'),
-    'DSH_DAFEIYU_GROWTH_SMOKE_DIR': str(OUTPUT),
-    'DSH_DAFEIYU_ASSET_ROOT': str(Path.home() / '.dsh' / 'profiles' / 'desktop' / 'node_modules' / 'dsh-dafeiyu'),
-})
+env = build_environment(os.environ, OUTPUT, ROOT,
+                        Path.home() / '.dsh' / 'profiles' / 'desktop' / 'node_modules' / 'dsh-dafeiyu')
 command = [sys.argv[1]] if len(sys.argv) > 1 else [sys.executable, str(ROOT / 'runtime' / 'helper.py')]
 command = command + ['--smoke-probe']
 with (OUTPUT / 'process.log').open('w', encoding='utf-8') as stream:

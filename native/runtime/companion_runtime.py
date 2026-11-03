@@ -112,17 +112,17 @@ class CompanionRuntime:
 
 
     def _clear_memory_engine(self) -> None:
+        self._reset_conversation_context()
         ok = self.memory.clear()
-        if hasattr(self, 'dialogue_context'):
-            self.dialogue_context.clear()
-        self._latest_retrieval = None
         from retrieval_review import RetrievalReviewStore
         reviews_ok = RetrievalReviewStore().clear()
+        message = ('记忆引擎和本地检索反馈已清除。' if ok and reviews_ok else
+                   '记忆引擎已清除，但本地检索反馈清除失败，请检查存档。' if ok else
+                   '记忆引擎清除失败；对话上下文与发送授权已撤销，请检查存档。')
         ok = bool(ok and reviews_ok)
         if self.growth_dialog is not None:
             self.growth_dialog.update_memory(self.memory.snapshot())
-        self._show_overlay("记忆引擎已清除。" if ok else "无法清除记忆引擎；未改写原文件。",
-                           "云岚 · 记忆", "SUCCESS" if ok else "ERROR", 4200)
+        self._show_overlay(message, "云岚 · 记忆", "SUCCESS" if ok else "ERROR", 4200)
         self._sync_bubble_size()
 
 
@@ -160,15 +160,15 @@ class CompanionRuntime:
 
 
     def _forget_memory(self) -> None:
+        self._reset_conversation_context()
         ok = self.learner.forget_user()
         preference_ok = self.memory.clear_preferences()
-        if hasattr(self, 'dialogue_context'):
-            self.dialogue_context.clear()
-        self._latest_retrieval = None
+        from retrieval_review import RetrievalReviewStore
+        reviews_ok = RetrievalReviewStore().clear()
         if self.growth_dialog is not None:
             self.growth_dialog.update_behavior(self.learner.snapshot())
             self.growth_dialog.update_memory(self.memory.snapshot())
-            self.growth_dialog.report_memory_status(ok and preference_ok)
+            self.growth_dialog.report_memory_status(ok and preference_ok and reviews_ok)
         self.next_talk_ms = self._now_ms() + 120000
 
 

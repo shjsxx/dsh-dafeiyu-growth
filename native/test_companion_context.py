@@ -131,6 +131,17 @@ class CompanionContextTests(unittest.TestCase):
         self.assertEqual(policy['values'], ['respect_autonomy', 'honesty', 'low_interrupt'])
         self.assertEqual(personality_policy(secret)['intent'], 'idle_share')
 
+    def test_factual_memory_and_knowledge_requests_do_not_claim_topic_handling(self):
+        context = CompanionContext()
+        self.exchange(context, '我昨天去了公园')
+        for text in ('你还记得公园吗', '介绍音乐', '公园是什么', '讲讲音乐'):
+            reply = {'text': '结构化事实回答', 'action': None}
+            plan = context.plan(text, reply=reply)
+            self.assertFalse(plan['handled'], text)
+            self.assertEqual(plan['text'], reply['text'])
+        # Genuine local referent questions still use the RAM-only topic chain.
+        self.assertTrue(context.plan('那里怎么样')['handled'])
+
     def test_intents_and_explicit_local_reply_are_preserved(self):
         context = CompanionContext()
         for text, intent in (('我很难过', 'support'), ('这是什么意思', 'clarification'),

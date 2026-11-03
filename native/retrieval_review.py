@@ -208,6 +208,9 @@ def evaluate_labels(engine, rows, *, split='test', minimum_groups=3, k=5):
     if any(not isinstance(row, dict) or not _identity(row.get('id')) for row in records):
         return {**base, 'status': 'engine_unavailable'}
     known = {row['id'] for row in records}
+    if len(known) != len(records):
+        # A relevance ID must identify exactly one corpus record.
+        return {**base, 'status': 'engine_unavailable'}
     eligible, stale, stale_candidates = [], 0, set()
     for row in selected:
         stale_candidates.update(set(row['candidates']) - known)

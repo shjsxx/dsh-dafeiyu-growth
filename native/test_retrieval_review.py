@@ -167,6 +167,25 @@ class RetrievalReviewEvaluationTests(unittest.TestCase):
         self.assertLess(result['ndcg5'], .5)
         self.assertFalse(result['training_performed'])
 
+    def test_all_no_answer_rows_have_no_answerable_rank_metrics(self):
+        rows = [label(i, no_answer=True) for i in range(6)]
+        engine = Engine({f'问题{i}': [] for i in range(6)})
+        result = evaluate_labels(engine, rows, split='all')
+        self.assertEqual(result['status'], 'evaluated')
+        self.assertEqual(result['answerable'], 0)
+        for key in ('hit1', 'mrr', 'ndcg_at_k', 'recall_at_k'):
+            self.assertIsNone(result[key])
+        self.assertEqual(result['no_answer_accuracy'], 1)
+        self.assertEqual(result['end_to_end_accuracy'], 1)
+
+    def test_same_text_candidates_are_scored_only_by_stable_id(self):
+        rows = [label(i, relevant=['b']) for i in range(6)]
+        engine = Engine({f'问题{i}': [{'id': 'a', 'text': 'same'}, {'id': 'b', 'text': 'same'}]
+                         for i in range(6)})
+        result = evaluate_labels(engine, rows, split='all')
+        self.assertEqual(result['mrr'], .5)
+        self.assertEqual(result['hit1'], 0)
+
     def test_multirelevance_recall_and_k_name(self):
         rows = [label(i, relevant=['a', 'b']) for i in range(6)]
         result = evaluate_labels(Engine(), rows, split='all', k=1)

@@ -101,8 +101,14 @@ def unprotect_secret(value: str) -> str:
 
 
 def _validate_endpoint(endpoint: str) -> str:
-    endpoint = " ".join(str(endpoint or "").split())
-    parsed = urllib.parse.urlsplit(endpoint)
+    endpoint = str(endpoint or '').strip()
+    if len(endpoint) > 2048 or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in endpoint):
+        raise CloudConfigError('endpoint contains whitespace or control characters')
+    try:
+        parsed = urllib.parse.urlsplit(endpoint)
+        parsed.port  # Reject malformed/out-of-range ports before any transport.
+    except ValueError as error:
+        raise CloudConfigError('endpoint is malformed') from error
     if parsed.scheme not in ("https", "http") or not parsed.hostname:
         raise CloudConfigError("endpoint must be an http(s) URL")
     if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
@@ -170,21 +176,31 @@ def load_config(path=None, env=None):
         protected = raw.get("key_protected")
         key_endpoint = raw.get("key_endpoint")
         if isinstance(protected, str) and protected:
-            if isinstance(key_endpoint, str) and key_endpoint and key_endpoint != config["endpoint"]:
+            try:
+                bound_endpoint = normalize_endpoint(key_endpoint) if key_endpoint else None
+            except CloudConfigError:
+                bound_endpoint = ''
+            invalid_binding = ('key_endpoint' in raw and not isinstance(key_endpoint, str))
+            if (invalid_binding or not config['endpoint']
+                    or (bound_endpoint is not None and bound_endpoint != config['endpoint'])):
                 config["error"] = "saved API key belongs to a different endpoint; re-enter it"
             else:
                 try:
                     config["key"] = unprotect_secret(protected)
                     config["key_saved"] = True
-                except (CloudConfigError, OSError):
+                except (CloudConfigError, OSError, UnicodeError):
                     config["error"] = "saved API key cannot be decrypted; re-enter it"
     if not config["key"]:
         env_key = env.get("DSH_DAFEIYU_CLOUD_KEY", "")
         env_endpoint = env.get("DSH_DAFEIYU_CLOUD_KEY_ENDPOINT", "")
-        host = urllib.parse.urlsplit(config["endpoint"]).hostname if config["endpoint"] else ""
-        env_allowed = (not host or host in ("api.deepseek.com", "localhost", "127.0.0.1")
-                       or (env_endpoint and env_endpoint == config["endpoint"]))
-        if env_key and env_allowed:
+        target = urllib.parse.urlsplit(config['endpoint'])
+        try:
+            env_allowed = (normalize_endpoint(env_endpoint) == config['endpoint']) if env_endpoint else (
+                not target.hostname or (target.scheme == 'https' and target.hostname == 'api.deepseek.com'
+                                        and target.port in (None, 443)))
+        except (CloudConfigError, ValueError):
+            env_allowed = False
+        if isinstance(env_key, str) and env_key and env_allowed:
             config["key"] = env_key
     return config
 
@@ -205,13 +221,16 @@ def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False)
         previous = {}
     if not isinstance(previous, dict):
         previous = {}
-    previous_endpoint = previous.get("endpoint")
+    try:
+        previous_endpoint = normalize_endpoint(previous.get('key_endpoint') or previous.get('endpoint'))
+    except CloudConfigError:
+        previous_endpoint = ''
     protected = previous.get("key_protected", "")
     if clear_key:
         protected = ""
     elif key:
         protected = protect_secret(str(key))
-    elif protected and previous_endpoint and previous_endpoint != endpoint:
+    elif protected and previous_endpoint != endpoint:
         raise CloudConfigError("endpoint changed; re-enter the API key for the new endpoint")
     document = {
         "version": VERSION,
@@ -326,8 +345,14 @@ def ask_cloud(config, text, timeout=30.0, history=None, *, companion_policy=None
         return {"ok": False, "error": "cloud response is too large"}
     try:
         data = json.loads(body.decode("utf-8"))
-        choice = data["choices"][0]
-        content = choice.get("message", {}).get("content") or choice.get("text")
+        if not isinstance(data, dict) or not isinstance(data.get('choices'), list):
+            raise ValueError('invalid choices')
+        choice = data['choices'][0]
+        if not isinstance(choice, dict):
+            raise ValueError('invalid choice')
+        message = choice.get('message')
+        content = message.get('content') if isinstance(message, dict) else None
+        content = content or choice.get('text')
     except (ValueError, KeyError, IndexError, TypeError, UnicodeDecodeError):
         return {"ok": False, "error": "cloud response format was not recognized"}
     if not isinstance(content, str) or not content.strip():
