@@ -45,6 +45,21 @@ knowledge.json
 companion.json
 result.json
 process.log
+retrieval_reviews*.json
+# Feedback exports, private data snapshots and atomic-write leftovers
+*.jsonl
+*.bak
+*.tmp
+*.sqlite
+*.sqlite3
+*.db
+# Raw voice and locally downloaded/trained model assets
+*.wav
+*.pcm
+*.onnx
+*.safetensors
+*.pt
+*.pth
 .env
 .env.*
 *.pem
