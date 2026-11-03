@@ -11,6 +11,8 @@ native/backup/
 # Verification screenshots/results may contain personal usage statistics
 native/verification/
 audit-backup/
+# Keep conversation screenshots local unless independently regenerated as fixtures
+docs/screenshots/dialogue-fix.png
 
 # Python
 __pycache__/
