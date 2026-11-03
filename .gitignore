@@ -52,6 +52,7 @@ companion.json
 result.json
 process.log
 retrieval_reviews*.json
+yunlan-growth-summary*.json
 # Feedback exports, private data snapshots and atomic-write leftovers
 *.jsonl
 *.bak
