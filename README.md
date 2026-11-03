@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | ![成长概览](docs/screenshots/growth-overview.png) | ![情感工作台](docs/screenshots/growth-emotion.png) | ![训练总览](docs/screenshots/growth-training.png) |
 
-![右键菜单](docs/screenshots/menu.png)
+公开截图仅保留能核实为合成夹具生成的预览；其他运行截图保留本地，不随仓库上传。
 
 [查看七页重设计与验证说明](docs/growth-redesign.md) · [多轮上下文与本地标注边界](docs/companion-context.md)
 
@@ -114,9 +114,7 @@ python native/emotion_dataset_update.py --labeled-file local_emotion.csv --stagi
 - 反应是程序化绘制（眼泪/Zzz/星星/速度线），不引入不可分发的上游角色帧；持续 4–6 秒后自动结束。
 - 减少动态模式下不动画，但仍显示文字气泡；不新增权限。
 
-| 无聊 | 打瞌睡 | 流泪 |
-| --- | --- | --- |
-| ![无聊](docs/screenshots/reaction-bored.png) | ![打瞌睡](docs/screenshots/reaction-sleepy.png) | ![流泪](docs/screenshots/reaction-cry.png) |
+反应示意：无聊显示问号与省略号，打瞌睡显示 Zzz，流泪显示程序化眼泪。运行截图不随公开仓库分发。
 
 ## 0.20.0 · 对话修复：不再用随机话术糊弄
 
@@ -180,7 +178,7 @@ python native/emotion_dataset_update.py --labeled-file local_emotion.csv --stagi
 - 右键菜单改用岚青视觉：白色面板与细边框、分组标题（外观/陪伴）、原创线性图标、统一 13px 字号与 8px 间距。
 - 常用动作置顶；大小/气泡大小改为带选中标记的子菜单；漫游/搭话/减少动态用勾选图标显示状态；关闭使用红色图标。
 - 保留全部菜单项、对象名、快捷键、选中/禁用逻辑与后续动作；未增加新功能或新权限。
-- 实机验证：右键打开菜单、点击第一项仍能打开成长卡；菜单截图见 `docs/screenshots/menu.png`。
+- 实机验证：右键打开菜单、点击第一项仍能打开成长卡；运行截图仅保留本地。
 
 ## 0.12.0 · 公开许可情感数据集更新
 

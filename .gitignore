@@ -13,6 +13,10 @@ native/verification/
 audit-backup/
 # Keep conversation screenshots local unless independently regenerated as fixtures
 docs/screenshots/dialogue-fix.png
+docs/screenshots/menu.png
+docs/screenshots/reaction-bored.png
+docs/screenshots/reaction-cry.png
+docs/screenshots/reaction-sleepy.png
 
 # Python
 __pycache__/
