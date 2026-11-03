@@ -10,7 +10,6 @@
 | --- | --- | --- |
 | ![成长概览](docs/screenshots/growth-overview.png) | ![情感工作台](docs/screenshots/growth-emotion.png) | ![训练总览](docs/screenshots/growth-training.png) |
 
-公开截图仅保留能核实为合成夹具生成的预览；其他运行截图保留本地，不随仓库上传。
 
 [查看七页重设计与验证说明](docs/growth-redesign.md) · [多轮上下文与本地标注边界](docs/companion-context.md)
 
