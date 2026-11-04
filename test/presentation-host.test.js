@@ -37,6 +37,25 @@ test('presentation payloads are bounded and typed', () => {
   assert.equal(host.state.pets.yunlan.anim.data.name, 'move');
 });
 
+test('sleep state routes persist and pause presentations', () => {
+  const sleepFile = path.join(root, 'sleep.json');
+  const cfg = {
+    renderConfig: { main: { animations: { sleep: [{ start: ['a'], loop: ['b'], end: ['c'] }] } } },
+    stateMap: {}, intentMap: {}, sleepFile,
+  };
+  const base = 'dsh-pet-bridge://dsh-pet/dsh-pet-7340';
+  const host = new PresentationHost(cfg);
+  assert.equal(host.route(new URL(base + '/sleep?pet=yunlan'), 'POST').status, 200);
+  assert.deepEqual(host.state.pets.yunlan.sleep.data, { sleeping: true, start: 'a', loop: 'b', end: 'c' });
+  assert.equal(host.apply({ kind: 'presentation', seq: 1, text: '任务完成', state: 'SUCCESS', ttlMs: 4000 }), false);
+  const restored = new PresentationHost(cfg);
+  assert.deepEqual(restored.state.pets.yunlan.sleep.data, { sleeping: true, start: 'a', loop: 'b', end: 'c' });
+  assert.equal(restored.route(new URL(base + '/wake?pet=yunlan'), 'POST').status, 200);
+  assert.deepEqual(restored.state.pets.yunlan.sleep.data, { sleeping: false });
+  assert.equal(restored.apply({ kind: 'presentation', seq: 1, text: '任务完成', state: 'SUCCESS', ttlMs: 4000 }), true);
+  assert.equal(restored.route(new URL(base + '/sleep?pet=other'), 'POST').status, 400);
+});
+
 test('routes expose only the renderer essentials', () => {
   const cfg = { renderConfig: { main: {} }, stateMap: {}, intentMap: {} };
   const host = new PresentationHost(cfg);

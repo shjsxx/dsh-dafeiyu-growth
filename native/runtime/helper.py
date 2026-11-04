@@ -1350,8 +1350,6 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             self.update()
 
         def _stop_motion(self) -> None:
-            if self.external_renderer and self.renderer is not None:
-                self.renderer.send({'kind': 'stop'})
             motion = self.motion
             if motion is None:
                 return

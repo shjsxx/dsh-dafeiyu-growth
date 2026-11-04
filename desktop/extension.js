@@ -13,9 +13,15 @@ PetSprite.prototype.switchTo = function(...args) {
 PetSprite.prototype.onContextMenu = function(event) {
   if (this.dragState.active || this.dragState.dragging || this.justDragged || this.menuOpen) return;
   event.preventDefault();
+  // showInactive windows may swallow the first click to activate; menus must be clickable.
+  window.petBridge?.requestKeyboardFocus?.();
   this.stopThrow(); this.stopMove();
   const coreItem = { label: '云岚菜单…（对话 / 成长 / 设置）', action: 'core-menu' };
-  const tree = [coreItem].concat(window.PetShared.buildMenuTree(this.animations));
+  const tree = [coreItem];
+  if (Array.isArray(this.animations.sleep) && this.animations.sleep.length) {
+    tree.push({ label: this.sleeping ? '起来' : '睡觉', action: this.sleeping ? 'wake' : 'sleep' });
+  }
+  tree.push(...window.PetShared.buildMenuTree(this.animations));
   this.menuOpen = true;
   window.__dshPetDebug.menuOpen = true;
   this.setInteractive(true);
@@ -31,7 +37,7 @@ PetSprite.prototype.onContextMenu = function(event) {
         window.yunlanBridge.command('open-menu');
         return;
       }
-      this.onMenuAction(leaf, undefined, true);
+      this.onMenuAction(leaf, undefined, false);
     },
     onClose: () => {
       this.menuOpen = false;
@@ -80,6 +86,7 @@ document.addEventListener('pointerdown', function(event) {
 document.addEventListener('pointerup', function(event) {
   const press = petPress; petPress = null;
   if (!press || !press.hit.isConnected) return;
+  if (sprites.some(sprite => sprite.sleeping)) return; // a sleeping pet wakes through its own state machine
   if (Date.now() - press.at > 700) return;
   if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4) return;
   const rect = press.hit.getBoundingClientRect();

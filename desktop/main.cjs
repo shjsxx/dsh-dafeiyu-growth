@@ -9,7 +9,7 @@ function smokeInteraction() { return process.argv.includes('--smoke-interact'); 
 const runtimeRoot=arg('--runtime-root'); const dataDir=arg('--user-data-dir')||arg('--user-data');
 if(!runtimeRoot || !path.isAbsolute(runtimeRoot) || !dataDir || !path.isAbsolute(dataDir)) throw Error('Explicit runtime and data directories required');
 const rendererRoot=path.join(runtimeRoot,'runtime','electron-helper');
-const cfg=buildConfig(runtimeRoot); const host=new PresentationHost(cfg);
+const cfg=buildConfig(runtimeRoot); cfg.sleepFile=path.join(dataDir,'sleep.json'); const host=new PresentationHost(cfg);
 app.setName('yunlan-dsh-pet'); app.setPath('userData',dataDir);
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features','HardwareMediaKeyHandling');
@@ -97,7 +97,7 @@ app.whenReady().then(async()=>{
       if(relative.startsWith('pic/')) return fileResponse(safeFile(path.join(runtimeRoot,'assets','pic'),relative.slice(4)),request);
     }
     let body;
-    if(request.method==='POST') {const raw=await request.text();if(raw.length>16384)return json({ok:false},413);try{body=JSON.parse(raw);}catch{return json({ok:false},400);}}
+    if(request.method==='POST') {const raw=await request.text();if(raw.length>16384)return json({ok:false},413);if(raw){try{body=JSON.parse(raw);}catch{return json({ok:false},400);}}}
     const result=host.route(url,request.method,body);
     // Avoid a tight loop: this restricted host returns full snapshots rather than implementing the upstream delta store.
     if(relative==='state') await new Promise(resolve=>setTimeout(resolve,150));
@@ -137,7 +137,7 @@ app.whenReady().then(async()=>{
   const image=nativeImage.createFromPath(path.join(runtimeRoot,'assets','pic','cursor-grab.png'));
   tray=new Tray(image.isEmpty()?nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='):image);
   tray.setToolTip('云岚 · dsh-pet 外壳');
-  tray.setContextMenu(Menu.buildFromTemplate([{label:'和云岚聊天',click:()=>emit({kind:'command',command:'open-conversation'})},{label:'查看成长卡',click:()=>emit({kind:'command',command:'open-growth'})},{label:'显示云岚',click:()=>emit({kind:'command',command:'show'})},{label:'紧急停止',click:()=>emit({kind:'command',command:'emergency-stop'})}]));
+  tray.setContextMenu(Menu.buildFromTemplate([{label:'和云岚聊天',click:()=>emit({kind:'command',command:'open-conversation'})},{label:'查看成长卡',click:()=>emit({kind:'command',command:'open-growth'})},{label:'让云岚睡觉',click:()=>host.setSleep(true)},{label:'叫醒云岚',click:()=>host.setSleep(false)},{label:'显示云岚',click:()=>emit({kind:'command',command:'show'})},{label:'紧急停止',click:()=>emit({kind:'command',command:'emergency-stop'})}]));
   const query=new URLSearchParams({bridge:'1',configUrl:'dsh-pet-bridge://dsh-pet/dsh-pet-7340/config',scale:'1',petIndex:'0',workAreaX:String(left),workAreaY:String(top),workAreaW:String(right-left),workAreaH:String(bottom-top),areas:JSON.stringify(areas),panels:JSON.stringify(panels),workAreas:JSON.stringify(areas),primaryIndex:String(displays.findIndex(d=>d.id===primary.id))});
   await win.loadURL('yunlan-pet://ui/index.html?'+query);
   if(smokeInteraction()) {
@@ -151,6 +151,10 @@ app.whenReady().then(async()=>{
       if(!win) return;
       win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});return 'menu';})()").catch(()=>{});
     },11200);
+    setTimeout(()=>{
+      if(!win) return;
+      win.webContents.executeJavaScript("(()=>{const nodes=[...document.querySelectorAll('*')].filter(e=>e.children.length===0&&e.textContent.trim()==='睡觉');if(!nodes.length)return 'no-sleep-item';nodes[nodes.length-1].click();return 'sleep-click';})()").catch(()=>{});
+    },11800);
   }
   // Explicit smoke mode only: records renderer diagnostics without reading user data or starting core.
   const smoke=arg('--smoke-out');

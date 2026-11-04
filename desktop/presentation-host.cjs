@@ -19,10 +19,60 @@ class PresentationHost {
     this.current = null;
     this.receipts = new Map();
     this.state = { sections: {}, pets: { yunlan: {} } };
+    this.sleepFile = typeof config.sleepFile === 'string' ? config.sleepFile : null;
+    this.sleep = this.loadSleep();
+    if (this.sleep) this.leaf('sleep', this.sleep);
+  }
+  animationNames() {
+    const a = this.config.renderConfig?.main?.animations || {};
+    const names = new Set();
+    for (const key of ['idle', 'turn', 'drag', 'clicks']) for (const name of a[key] || []) names.add(name);
+    for (const action of a.moves?.actions || []) names.add(action.name);
+    for (const category of a.categories || []) for (const name of category.actions || []) names.add(name);
+    for (const slots of Object.values(a.events || {})) for (const slot of slots || []) {
+      if (typeof slot === 'string') names.add(slot); else for (const name of slot || []) names.add(name);
+    }
+    for (const set of a.sleep || []) for (const key of ['start', 'loop', 'end']) for (const name of set[key] || []) names.add(name);
+    return names;
+  }
+  loadSleep() {
+    if (!this.sleepFile) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(this.sleepFile, 'utf8'));
+      const names = this.animationNames();
+      if (data?.sleeping === true && ['start', 'loop', 'end'].every(key => typeof data[key] === 'string' && names.has(data[key]))) {
+        return { sleeping: true, start: data.start, loop: data.loop, end: data.end };
+      }
+    } catch {}
+    return null;
+  }
+  persistSleep() {
+    if (!this.sleepFile) return;
+    try {
+      if (this.sleep) fs.writeFileSync(this.sleepFile, JSON.stringify(this.sleep));
+      else if (fs.existsSync(this.sleepFile)) fs.unlinkSync(this.sleepFile);
+    } catch {}
+  }
+  setSleep(sleeping) {
+    if (sleeping) {
+      const sets = this.config.renderConfig?.main?.animations?.sleep;
+      if (!Array.isArray(sets) || sets.length === 0) return false;
+      const set = sets[Math.floor(Math.random() * sets.length)];
+      const pick = (pool) => Array.isArray(pool) && pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      const start = pick(set.start), loop = pick(set.loop), end = pick(set.end);
+      if (!start || !loop || !end) return false;
+      this.sleep = { sleeping: true, start, loop, end };
+    } else {
+      this.sleep = { sleeping: false };
+    }
+    this.leaf('sleep', this.sleep);
+    this.persistSleep();
+    return true;
   }
   leaf(key, value) { this.state.pets.yunlan[key] = { counter: ++this.counter, data: value }; }
   apply(message) {
     if (!message || typeof message !== 'object') return false;
+    if (this.sleep?.sleeping === true) return false;
     if (message.kind === 'clear') { this.leaf('say', { kind: 'clear' }); this.current = null; return true; }
     if (message.kind !== 'presentation' || !Number.isSafeInteger(message.seq) || message.seq <= this.seq ||
       typeof message.text !== 'string' || message.text.length > 2000 || !STATES.has(message.state) ||
@@ -42,6 +92,11 @@ class PresentationHost {
   route(url, method, body) {
     if (url.pathname === '/dsh-pet-7340/config' && method === 'GET') return { status: 200, value: this.config.renderConfig };
     if (url.pathname === '/dsh-pet-7340/state' && method === 'GET') return { status: 200, value: this.state };
+    if ((url.pathname === '/dsh-pet-7340/sleep' || url.pathname === '/dsh-pet-7340/wake') && method === 'POST') {
+      if (url.searchParams.get('pet') !== 'yunlan') return { status: 400, value: { ok: false } };
+      const sleeping = url.pathname.endsWith('/sleep');
+      return this.setSleep(sleeping) ? { status: 200, value: { ok: true } } : { status: 503, value: { ok: false } };
+    }
     const report = /^\/dsh-pet-7340\/playback\/(yunlan-\d+)\/report$/.exec(url.pathname);
     if (report && method === 'POST') {
       const entry = this.receipts.get(report[1]);

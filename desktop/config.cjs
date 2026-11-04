@@ -16,7 +16,7 @@ function buildConfig(runtimeRoot) {
   const defaults = parseJsonc(fs.readFileSync(path.join(runtimeRoot,'assets','config.jsonc'),'utf8'));
   // Only rendering configuration survives. Prompts, cloud model choices, upstream memory and generation are excluded.
   const conf = {};
-  for(const name of ['animations','animationWeights','physics','font','confineToScreen']) if(defaults[name]!==undefined) conf[name]=defaults[name];
+  for(const name of ['animations','animationWeights','physics','font','confineToScreen','sleepRefuseTexts','sleepStartTexts','sleepEndTexts']) if(defaults[name]!==undefined) conf[name]=defaults[name];
   conf.pets = [{id:'yunlan',name:'云岚',size:360,display:'desktop',position:{corner:'bottom-right',marginX:35,marginY:20},fixedEnabled:false,balanceEnabled:false,whisperEnabled:false,workStatusEnabled:false}];
   conf.voiceEnabled=false; conf.clickSoundEnabled=false; conf.chatImageEnabled=false; conf.chatAnimationEnabled=false;
   conf.eventsRefreshSec={whisper:86400,sleepTalk:86400,balance:86400};
