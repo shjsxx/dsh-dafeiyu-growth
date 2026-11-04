@@ -270,6 +270,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
         from presentation import ambient_pose
         from reactions import detect_reaction, plan as plan_reaction
         from behavior import BehaviorLearner
+        from action_preferences import ActionPreferences
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
         from neural_brain import NeuralBrain
@@ -484,6 +485,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             # Self-directed desktop behaviour: practice running/jumping, learn
             # from tumbles, and gradually become steadier. Local rules only.
             self.learner = BehaviorLearner()
+            self.action_preferences = ActionPreferences()
+            self.last_action_name = ""
+            self.last_action_ms = 0
             self.motion = None
             self.motion_enabled = self.layout.get("desktopRoaming", True) and os.environ.get("DSH_DAFEIYU_MOTION", "1") != "0"
             self.pet_tilt = 0.0
@@ -562,7 +566,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             self.motion_timer = QTimer(self)
             self.motion_timer.setTimerType(Qt.TimerType.PreciseTimer)
             self.motion_timer.timeout.connect(self._motion_tick)
-            self.motion_timer.start(16)
+            self.motion_timer.start(120 if self.external_renderer else 16)
             self.drag_origin: QPoint | None = None
             self.pet_origin: QPoint | None = None
             self.pet_x = 0
@@ -576,7 +580,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             self.animation_timer = QTimer(self)
             self.animation_timer.setTimerType(Qt.TimerType.PreciseTimer)
             self.animation_timer.timeout.connect(self._tick)
-            self.animation_timer.start(self._animation_interval_ms())
+            self.animation_timer.start(200 if self.external_renderer else self._animation_interval_ms())
+            self.preference_timer = QTimer(self)
+            self.preference_timer.timeout.connect(self._offer_preferred_action)
+            self.preference_timer.start(75000)
             self.micro_timer = QTimer(self)
             self.micro_timer.setSingleShot(True)
             self.micro_timer.timeout.connect(self._play_idle_micro)
@@ -640,6 +647,32 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                 return self._external_motion('hop', kwargs.get('allow_during_chat', False))
             return ActionRuntime._start_hop(self, *args, **kwargs)
 
+        def _record_external_action(self, name, action_kind, distance):
+            if not isinstance(name, str) or not name:
+                return
+            now_ms = self._now_ms()
+            self.last_action_name = name
+            self.last_action_ms = now_ms
+            self.action_preferences.observe(name, 'shown')
+            if action_kind == 'move':
+                self.learner.note_run(max(40.0, min(10000.0, float(distance or 0))))
+                self.learning.adapt('run_ok', source='local_motion')
+                context = self._neural_context()
+                self.last_neural = (context, 'run')
+                self.last_neural_ms = now_ms
+            elif action_kind in ('jump', 'hop'):
+                self.learner.note_jump()
+                self.learning.adapt('run_ok', source='local_motion')
+                context = self._neural_context()
+                self.last_neural = (context, 'hop')
+                self.last_neural_ms = now_ms
+            else:
+                self.learner.note_action(name)
+                self.last_neural = None
+                self.last_neural_ms = 0
+            if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                self.growth_dialog.update_behavior(self.learner.snapshot())
+
         def _external_interaction(self, spot):
             if not self.external_renderer or not self._presentation_visible() or self.menu_open:
                 return
@@ -685,11 +718,15 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     card = self._current_card()
                     if card:
                         self._present_external(card[0], card[2], 4200)
+            elif kind == 'action':
+                self._record_external_action(event['name'], event['actionKind'], event['distance'])
             elif kind == 'anchor':
                 self.renderer_anchor = event
                 self.pet_x, self.pet_y = event['x'], event['y']
-                self.setFixedSize(event['width'], event['height'])
-                self.move(event['x'], event['y'])
+                if self.width() != event['width'] or self.height() != event['height']:
+                    self.setFixedSize(event['width'], event['height'])
+                if abs(self.x() - event['x']) > 1 or abs(self.y() - event['y']) > 1:
+                    self.move(event['x'], event['y'])
             elif kind == 'command':
                 command = event['command']
                 if command == 'open-conversation':
@@ -715,6 +752,15 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     if not self.renderer_visible:
                         self._voice_stop()
                         self._stop_motion()
+
+        def _offer_preferred_action(self):
+            if (not self.external_renderer or not self._presentation_visible()
+                    or self.reduced_motion or self.menu_open or self.tasks or self.dragging):
+                return
+            name = self.action_preferences.choose()
+            if not name:
+                return
+            self._present_external('', 'IDLE', 1800, name)
 
         def apply_message(self, message: dict[str, Any]) -> None:
             recorder.record(message)
@@ -1238,6 +1284,26 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
 
         def _neural_feedback(self, reward: float) -> None:
             self.last_interaction_ms = self._now_ms()
+            action_name = self.last_action_name
+            has_pref = bool(action_name and self.last_action_ms and
+                            self._now_ms() - self.last_action_ms <= 120000)
+            if has_pref:
+                self.action_preferences.observe(
+                    action_name, 'liked' if reward > 0 else 'disliked')
+            if has_pref and action_name not in ('rest', 'run', 'hop', 'talk'):
+                if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                    self.growth_dialog.update_neural(self.brain.info())
+                self._show_overlay(
+                    "记下啦，我会多表演这个动作。" if reward > 0 else "明白，这个动作我会少做一点。",
+                    "已更新全动作偏好 · 可在成长卡查看",
+                    "SUCCESS", 4200)
+                self.last_action_name = ""
+                self.last_action_ms = 0
+                self.last_neural = None
+                self.last_neural_ms = 0
+                self._sync_bubble_size()
+                self.update()
+                return
             last = self.last_neural
             if last and self.last_neural_ms and self._now_ms() - self.last_neural_ms > 120000:
                 last = None
@@ -2305,8 +2371,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             spin_action.setObjectName("yunlan-spin")
             feedback_yes = menu.addAction(theme_icon("heart", size=18), "喜欢刚才的动作")
             feedback_no = menu.addAction(theme_icon("heart", "#9AAFB5", 18), "这个动作不太行")
-            feedback_yes.setEnabled(self.last_neural is not None)
-            feedback_no.setEnabled(self.last_neural is not None)
+            feedback_yes.setEnabled(self.last_neural is not None or bool(getattr(self, 'last_action_name', '')))
+            feedback_no.setEnabled(self.last_neural is not None or bool(getattr(self, 'last_action_name', '')))
             menu.addSeparator()
             menu_header("外观")
             size_menu = menu.addMenu("大小")

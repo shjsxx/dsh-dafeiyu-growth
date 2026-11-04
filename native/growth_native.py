@@ -729,7 +729,8 @@ class GrowthDialog(QDialog):
         practice.setSpacing(8)
         self.practice_values = {}
         for index, (key, caption) in enumerate((("runs", "桌面小跑"), ("jumps", "起跳"),
-                                                ("falls", "摔倒"), ("recoveries", "自己爬起"))):
+                                                ("falls", "摔倒"), ("recoveries", "自己爬起"),
+                                                ("actions", "桌面动作"))):
             value = _label("0", f"practice-{key}", False)
             value.setStyleSheet("font-size:20px;font-weight:700;color:#17343D;")
             value.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1501,7 +1502,8 @@ class GrowthDialog(QDialog):
         """Show skills learned from the companion's own practice."""
         snapshot = snapshot if isinstance(snapshot, dict) else {}
         self._behavior_snapshot = dict(snapshot)
-        for key, caption in (("runs", "桌面小跑"), ("jumps", "起跳"), ("falls", "摔倒"), ("recoveries", "自己爬起")):
+        for key, caption in (("runs", "桌面小跑"), ("jumps", "起跳"), ("falls", "摔倒"),
+                             ("recoveries", "自己爬起"), ("actions", "桌面动作")):
             if key in self.practice_values:
                 self.practice_values[key].setText(_fmt(_count(snapshot.get(key))))
         for key in ("agility", "balance"):

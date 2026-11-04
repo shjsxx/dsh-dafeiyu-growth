@@ -3,6 +3,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 const commands = new Set(['open-menu', 'open-conversation', 'open-growth', 'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings', 'emergency-stop', 'show', 'hide', 'feedback-positive', 'feedback-negative', 'interact-head', 'interact-poke']);
 contextBridge.exposeInMainWorld('yunlanBridge', {
   command(name) { if (commands.has(name)) ipcRenderer.send('yunlan:command', name); },
+  action(payload) {
+    if (!payload || typeof payload.name !== 'string' || payload.name.length > 80) return;
+    if (!['move', 'jump', 'hop', 'action', 'click'].includes(payload.kind)) return;
+    const distance = Number.isFinite(payload.distance) ? Math.max(0, Math.min(10000, payload.distance)) : 0;
+    ipcRenderer.send('yunlan:action', { name: payload.name, kind: payload.kind, distance });
+  },
   ready() { ipcRenderer.send('yunlan:ready'); },
   onControl(callback) { ipcRenderer.on('yunlan:control', (_, value) => callback(value)); },
 });

@@ -79,7 +79,8 @@ class PresentationHost {
       !Number.isFinite(message.ttlMs) || message.ttlMs < 0 || message.ttlMs > 600000) return false;
     this.seq = message.seq;
     this.leaf('say', message.text ? { text: message.text, duration: message.ttlMs, anim: false } : { kind: 'clear' });
-    let animation = this.config.intentMap[message.intent] || this.config.stateMap[message.state];
+    let animation = this.animationNames().has(message.intent) ? message.intent
+      : (this.config.intentMap[message.intent] || this.config.stateMap[message.state]);
     if (animation) {
       const id = 'yunlan-' + message.seq;
       this.current = id;

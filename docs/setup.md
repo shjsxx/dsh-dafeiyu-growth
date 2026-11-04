@@ -240,7 +240,7 @@ node tools/growth.mjs path
 
 激活文件缺省不存在；存在但字段/路径无效时核心失败关闭，不会悄悄回退旧形象。安装前需准备固定运行时（`prepared-3c99b1b`，含 `verify.mjs` 回执）和独立的 Electron 运行时副本。首次安装会把当前上游 Helper 备份到 `native/backup/`（不提交、不随 npm 发布）；若当前已是补丁版本且没有备份，`-Rollback` 需先重装 dsh-dafeiyu 0.1.23。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23。升级不删除成长数据。
 
-测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（0.29.0 本次原生回归为 **915 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
+测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（0.29.1 本次原生回归为 **921 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`native/test_action_preferences.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
 
 ## 自查结论与已知限制
 

@@ -54,6 +54,15 @@ def sanitize_event(value):
         return {'kind': 'ready'}
     if kind == 'command' and isinstance(value.get('command'), str) and value.get('command') in COMMANDS:
         return {'kind': 'command', 'command': value['command']}
+    if kind == 'action':
+        name = value.get('name')
+        action_kind = value.get('actionKind')
+        distance = value.get('distance', 0)
+        if (isinstance(name, str) and 0 < len(name) <= 80 and
+                action_kind in ('move', 'jump', 'hop', 'action', 'click') and
+                type(distance) in (int, float) and 0 <= distance <= 10000):
+            return {'kind': 'action', 'name': name, 'actionKind': action_kind, 'distance': distance}
+        return None
     if kind == 'status' and type(value.get('visible')) is bool and type(value.get('connected')) is bool:
         return {'kind': 'status', 'visible': value['visible'], 'connected': value['connected']}
     if kind == 'anchor':
@@ -170,8 +179,10 @@ class ExternalRenderer:
     def present(self, text='', state='IDLE', ttl_ms=4200, intent=None):
         if not isinstance(text, str) or state not in STATES or type(ttl_ms) is not int:
             return False
-        if intent is not None and intent not in INTENTS:
-            return False
+        if intent is not None:
+            if (not isinstance(intent, str) or not 0 < len(intent) <= 80 or
+                    any(ord(char) < 32 or ord(char) == 127 for char in intent)):
+                return False
         self._seq += 1
         return self.send({'kind': 'presentation', 'seq': self._seq, 'text': text[:2000],
                           'state': state, 'ttlMs': max(250, min(60000, ttl_ms)),

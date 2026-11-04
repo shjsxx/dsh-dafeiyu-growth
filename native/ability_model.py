@@ -81,6 +81,7 @@ def derive_abilities(state=None, behavior=None, training=None, emotion=None):
 
     agility, balance = _count(behavior.get("agility")), _count(behavior.get("balance"))
     runs, jumps = _count(behavior.get("runs")), _count(behavior.get("jumps"))
+    actions = _count(behavior.get("actions"))
     falls, recoveries = _count(behavior.get("falls")), _count(behavior.get("recoveries"))
     pets, chats = _count(behavior.get("pets")), _count(behavior.get("chats"))
     turns = _count(counters.get("turns"))
@@ -94,10 +95,10 @@ def derive_abilities(state=None, behavior=None, training=None, emotion=None):
     passes = _count(totals.get("emotion_adaptation_passes"))
     steps = _count(totals.get("weight_steps"))
 
-    action = .5 * agility + .3 * _log_count(runs + jumps, 32) + .2 * stamina
+    action = .4 * agility + .2 * _log_count(runs + jumps, 32) + .15 * stamina + .25 * _log_count(actions, 38)
     recovery_ratio = recoveries / max(1.0, falls)
     balance_score = .65 * balance + .2 * min(100.0, recovery_ratio * 100) + .15 * min(100.0, (runs + jumps) * 4)
-    expression = .45 * _log_count(turns + chats, 34) + .3 * _scaled(len(diary), 8) + .25 * _log_count(pets + chats, 26)
+    expression = .4 * _log_count(turns + chats, 34) + .25 * _scaled(len(diary), 8) + .2 * _log_count(pets + chats, 26) + .15 * _log_count(actions, 24)
     learning = .4 * _scaled(knowledge_count, 2) + .3 * _scaled(learned_count + fit_samples, 8) + .3 * min(100.0, steps * 3 + passes * 10)
     companionship = .5 * affinity + .3 * _scaled(streak, 12) + .2 * _scaled(pets + chats, 5)
     memory_score = .4 * _scaled(len(learned), 10) + .35 * _scaled(len(diary), 10) + .25 * _scaled(lexicon, 1.2)
@@ -105,7 +106,7 @@ def derive_abilities(state=None, behavior=None, training=None, emotion=None):
     values = {"action": action, "balance": balance_score, "expression": expression,
               "learning": learning, "companionship": companionship, "memory": memory_score}
     basis = {
-        "action": f"敏捷 {int(agility)} · 跑跳 {int(runs + jumps)} 次",
+        "action": f"敏捷 {int(agility)} · 跑跳 {int(runs + jumps)} 次 · 动作 {int(actions)} 次",
         "balance": f"平衡 {int(balance)} · 爬起 {int(recoveries)} 次",
         "expression": f"对话 {int(turns)} 轮 · 回顾 {len(diary)} 条",
         "learning": f"知识 {int(knowledge_count)} 条 · 适应 {int(passes)} 轮",

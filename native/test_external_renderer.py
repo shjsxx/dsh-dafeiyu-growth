@@ -30,6 +30,18 @@ class BridgeTests(unittest.TestCase):
         self.assertIsNone(sanitize_event({'kind':'status','visible':1,'connected':True}))
         self.assertIsNone(sanitize_event({'kind':'anchor','x':0,'y':0,'width':99999,'height':3}))
 
+    def test_action_events_are_bounded_and_typed(self):
+        good = sanitize_event({'kind':'action','name':'悠闲哼歌','actionKind':'action',
+                               'distance':0,'private':'drop'})
+        self.assertEqual(good, {'kind':'action','name':'悠闲哼歌','actionKind':'action','distance':0})
+        self.assertEqual(sanitize_event({'kind':'action','name':'原地左转奔跑','actionKind':'move','distance':180})['distance'], 180)
+        for bad in ({'kind':'action','name':'','actionKind':'action'},
+                    {'kind':'action','name':'x'*81,'actionKind':'action'},
+                    {'kind':'action','name':'x','actionKind':'execute'},
+                    {'kind':'action','name':'x','actionKind':'action','distance':True},
+                    {'kind':'action','name':'x','actionKind':'action','distance':10001}):
+            self.assertIsNone(sanitize_event(bad))
+
     def test_config_uses_only_explicit_temporary_marker(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
@@ -62,7 +74,10 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(value['ttlMs'],60000)
         self.assertFalse(bridge.present('x','OTHER',1000))
         self.assertFalse(bridge.present('x','IDLE',True))
-        self.assertFalse(bridge.present('x','IDLE',1000,'execute'))
+        self.assertTrue(bridge.present('x','IDLE',1000,'悠闲哼歌'))
+        self.assertFalse(bridge.present('x','IDLE',1000,'x'*81))
+        self.assertFalse(bridge.present('x','IDLE',1000,'bad\nname'))
+        self.assertFalse(bridge.present('x','IDLE',1000,['array']))
 
     def test_reader_whitelist_eof_and_oversize(self):
         bridge,_=self.bridge('{"kind":"ready"}\n{"kind":"command","command":"cloud"}\n')

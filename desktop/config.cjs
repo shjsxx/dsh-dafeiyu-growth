@@ -19,6 +19,7 @@ function buildConfig(runtimeRoot) {
   for(const name of ['animations','animationWeights','physics','font','confineToScreen','sleepRefuseTexts','sleepStartTexts','sleepEndTexts']) if(defaults[name]!==undefined) conf[name]=defaults[name];
   conf.pets = [{id:'yunlan',name:'云岚',size:360,display:'desktop',position:{corner:'bottom-right',marginX:35,marginY:20},fixedEnabled:false,balanceEnabled:false,whisperEnabled:false,workStatusEnabled:false}];
   conf.voiceEnabled=false; conf.clickSoundEnabled=false; conf.chatImageEnabled=false; conf.chatAnimationEnabled=false;
+  conf.animationWeights={idle:10,turn:5,move:20};
   conf.eventsRefreshSec={whisper:86400,sleepTalk:86400,balance:86400};
   const renderConfig={main:conf};
   const first = value => Array.isArray(value) ? first(value[0]) : value;

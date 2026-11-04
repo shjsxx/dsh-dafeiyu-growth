@@ -56,6 +56,18 @@ test('sleep state routes persist and pause presentations', () => {
   assert.equal(restored.route(new URL(base + '/sleep?pet=other'), 'POST').status, 400);
 });
 
+test('known animation names may be requested directly', () => {
+  const cfg = {
+    renderConfig: { main: { animations: { idle: ['待机呼吸休闲'], categories: [{ id: '小动作', weight: 20, actions: ['悠闲哼歌'] }] } } },
+    stateMap: {}, intentMap: {}, sleepFile: null,
+  };
+  const host = new PresentationHost(cfg);
+  assert.equal(host.apply({ kind: 'presentation', seq: 1, text: '', state: 'IDLE', ttlMs: 1800, intent: '悠闲哼歌' }), true);
+  assert.equal(host.state.pets.yunlan.anim.data.name, '悠闲哼歌');
+  assert.equal(host.apply({ kind: 'presentation', seq: 2, text: '', state: 'IDLE', ttlMs: 1800, intent: 'execute' }), true);
+  assert.equal(host.state.pets.yunlan.anim.data.name, '悠闲哼歌');
+});
+
 test('routes expose only the renderer essentials', () => {
   const cfg = { renderConfig: { main: {} }, stateMap: {}, intentMap: {} };
   const host = new PresentationHost(cfg);

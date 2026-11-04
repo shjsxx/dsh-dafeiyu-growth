@@ -14,11 +14,17 @@ app.setName('yunlan-dsh-pet'); app.setPath('userData',dataDir);
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features','HardwareMediaKeyHandling');
 protocol.registerSchemesAsPrivileged([{scheme:'yunlan-pet',privileges:{standard:true,secure:true,supportFetchAPI:true}},{scheme:'dsh-pet-bridge',privileges:{standard:true,secure:true,supportFetchAPI:true,corsEnabled:true}}]);
-let win=null,tray=null,ready=false,inputBusy=false,lastBounds=null,interactive=false;
+let win=null,tray=null,ready=false,inputBusy=false,lastBounds=null,interactive=false,lastAnchorAt=0,anchorTimer=null;
 function emit(value) {
   process.stdout.write(JSON.stringify(value)+'\n');
   const smoke=arg('--smoke-out');
   if(smoke){try{fs.mkdirSync(smoke,{recursive:true});fs.appendFileSync(path.join(smoke,'events.jsonl'),JSON.stringify(value)+'\n');}catch{}}
+}
+function emitAnchor(value) {
+  const now=Date.now();
+  if(now-lastAnchorAt>=100){lastAnchorAt=now;if(anchorTimer){clearTimeout(anchorTimer);anchorTimer=null;}emit(value);}
+  else if(!anchorTimer){anchorTimer=setTimeout(()=>{anchorTimer=null;lastAnchorAt=Date.now();if(lastBounds)emit(lastBounds.anchor);},100);}
+  if(lastBounds) lastBounds.anchor=value;
 }
 const controlPipe=process.env.DSH_YUNLAN_CONTROL_PIPE,controlKey=process.env.DSH_YUNLAN_CONTROL_KEY;
 const {createControlServer}=require('./control-channel.cjs');
@@ -119,12 +125,18 @@ app.whenReady().then(async()=>{
     if(b.width<40||b.height<40||b.width>2048||b.height>2048||b.x<left-2048||b.y<top-2048||b.x>right+2048||b.y>bottom+2048)return;
     const bounds={x:Math.round(b.x),y:Math.round(b.y),width:Math.round(b.width),height:Math.round(b.height)};
     win.setBounds(bounds,false); lastBounds={...bounds,boxX:b.boxX,boxY:b.boxY,size:b.size,marginL:b.marginL,marginT:b.marginT};
-    emit({kind:'anchor',x:Math.round(b.boxX+left),y:Math.round(b.boxY+top),width:Math.round(b.size),height:Math.round(b.size*9/16)});
+    emitAnchor({kind:'anchor',x:Math.round(b.boxX+left),y:Math.round(b.boxY+top),width:Math.round(b.size),height:Math.round(b.size*9/16)});
   });
   ipcMain.on('pet:set-interactive',(event,value)=>{if(permitted(event)){interactive=value===true;win.setIgnoreMouseEvents(!interactive,{forward:true});}});
   ipcMain.on('pet:input-busy',(event,value)=>{if(permitted(event)) inputBusy=value===true;});
   ipcMain.on('yunlan:focus',event=>{if(permitted(event))win.focus();});
   ipcMain.on('yunlan:command',(event,command)=>{if(permitted(event)&&COMMANDS.has(command))emit({kind:'command',command});});
+  ipcMain.on('yunlan:action',(event,payload)=>{
+    if(!permitted(event)||!payload||typeof payload.name!=='string'||!['move','jump','hop','action','click'].includes(payload.kind))return;
+    if(!host.animationNames().has(payload.name))return;
+    if(!Number.isFinite(payload.distance)||payload.distance<0||payload.distance>10000)return;
+    emit({kind:'action',name:payload.name,actionKind:payload.kind,distance:Math.round(payload.distance)});
+  });
   ipcMain.on('yunlan:ready',event=>{if(permitted(event)&&!ready){ready=true;win.showInactive();emit({kind:'ready'});emit({kind:'status',visible:true,connected:true});}});
   // Pointer-forward may be unreliable with transparent windows: keep the body hit area interactive as fallback.
   const pointerTimer=setInterval(()=>{
@@ -149,7 +161,7 @@ app.whenReady().then(async()=>{
     },10500);
     setTimeout(()=>{
       if(!win) return;
-      win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});return 'menu';})()").catch(()=>{});
+      win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';const t=performance.now();sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});return performance.now()-t;})()").then(value=>{const smoke=arg('--smoke-out');if(smoke)fs.writeFileSync(path.join(smoke,'menu-time.json'),JSON.stringify({buildMs:value}));}).catch(()=>{});
     },11200);
     setTimeout(()=>{
       if(!win) return;

@@ -4,8 +4,36 @@ let stoppedByCore = false;
 let reducedByCore = false;
 document.addEventListener('play', event => {if ((stoppedByCore || reducedByCore) && event.target instanceof HTMLMediaElement) event.target.pause();}, true);
 const originalSwitchTo = PetSprite.prototype.switchTo;
+const lastActionReport = new Map();
+function reportAction(name) {
+  if (!name || !window.yunlanBridge) return;
+  const animations = sprites[0] ? sprites[0].animations : null;
+  if (!animations) return;
+  if ((animations.idle || []).includes(name) || (animations.turn || []).includes(name)) return;
+  if (name.startsWith('工作状态-') || name.startsWith('余额-') || name.startsWith('碎碎念-') || name.startsWith('睡觉-')) return;
+  if ((animations.moves?.actions || []).some(action => action.name === name)) return; // tryMove reports distance
+  const now = Date.now();
+  if (now - (lastActionReport.get(name) || 0) < 800) return;
+  lastActionReport.set(name, now);
+  if (lastActionReport.size > 200) lastActionReport.clear();
+  const kind = (animations.clicks || []).includes(name) ? 'click' : (/跳|跃/.test(name) ? 'jump' : 'action');
+  window.yunlanBridge.action({ name, kind, distance: 0 });
+}
 PetSprite.prototype.switchTo = function(...args) {
-  if (!stoppedByCore) return originalSwitchTo.apply(this, args);
+  if (stoppedByCore) return;
+  const result = originalSwitchTo.apply(this, args);
+  if (typeof args[0] === 'string') reportAction(args[0]);
+  return result;
+};
+const originalTryMove = PetSprite.prototype.tryMove;
+PetSprite.prototype.tryMove = function(...args) {
+  const result = originalTryMove.apply(this, args);
+  if (typeof result === 'string') {
+    const move = this.pendingMove;
+    const distance = move ? Math.abs((move.targetRatio - move.startRatio) * VIEW.w) : 0;
+    window.yunlanBridge.action({ name: result, kind: 'move', distance: Math.round(distance) });
+  }
+  return result;
 };
 // Right click keeps the full pinned action tree locally (every configured
 // animation), plus one explicit entry to the native core menu. No host cloud,
@@ -93,6 +121,17 @@ document.addEventListener('pointerup', function(event) {
   const relative = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0;
   window.yunlanBridge.command(relative < 0.5 ? 'interact-head' : 'interact-poke');
 }, true);
+// Presentation-only roaming heartbeat: keeps the shell visibly alive even when
+// the core has no eligible motion decision. It never writes practice records by
+// itself; semantic action events are reported separately.
+setInterval(function() {
+  if (stoppedByCore || reducedByCore) return;
+  for (const sprite of sprites) {
+    if (sprite.sleeping || sprite.menuOpen || sprite.dragState.active || sprite.dragState.dragging ||
+        sprite.throwRef !== null || sprite.moveRef !== null || sprite.pendingMove) continue;
+    if (Math.random() < 0.55) sprite.tryMove();
+  }
+}, 28000);
 window.addEventListener('keydown', function(event) {
   if (event.altKey || event.ctrlKey || event.metaKey) {
     if (event.code === 'Escape') window.yunlanBridge.command('emergency-stop');
