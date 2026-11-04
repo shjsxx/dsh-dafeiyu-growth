@@ -4,6 +4,11 @@ let stoppedByCore = false;
 let reducedByCore = false;
 let motionEnabled = true;
 let reducedMotion = false;
+// Promote the two video layers explicitly; transparent always-on-top windows
+// otherwise repaint more than necessary during opacity crossfades.
+const videoLayerStyle = document.createElement('style');
+videoLayerStyle.textContent = 'video.pet-video{will-change:opacity,transform;transform:translateZ(0);backface-visibility:hidden}';
+document.head.appendChild(videoLayerStyle);
 document.addEventListener('play', event => {if ((stoppedByCore || reducedByCore) && event.target instanceof HTMLMediaElement) event.target.pause();}, true);
 const originalSwitchTo = PetSprite.prototype.switchTo;
 const lastActionReport = new Map();
