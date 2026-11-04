@@ -227,20 +227,20 @@ node tools/growth.mjs path
 
 ## Windows 原生集成补丁（本地版）
 
-本地基于 dsh-dafeiyu **0.1.23** 的 Helper 源码构建；成长数据只读，桌面动作偏好由本地神经网络写入 `neural.json`；云端通道只在逐次确认或明确的本次连续授权后发送。源代码、测试、构建与恢复脚本都在 `native/`，无需修改 DSH 安装目录。
+桌面形象使用固定提交 `3c99b1bb4d1bcb831880e8871718c50b64af0d9b` 的 dsh-pet 渲染器，Qt 核心继续提供成长、记忆、人格、反馈、权限与原生窗口。构建与安装脚本在 `native/`；素材/运行时安装到 `~/.dsh/yunlan-dsh-pet-runtime/`，激活文件为 `~/.dsh/yunlan-renderer/active.json`。仓库不包含已构建 exe，也不重新分发角色素材。
 
 ```powershell
 # 使用已装有 PySide6/PyInstaller 的 Python 构建（Python 路径可覆盖）
 .\native\build.ps1 -Python '你的Python路径'
-# 装入 desktop profile，只重启桌宠，不重启 DSH
+# 备份原 helper，写入显式激活文件，只重启桌宠，不重启 DSH
 .\native\install.ps1
-# 恢复安装前原生程序，同样只重启桌宠
+# 停用外部表现并恢复安装前 helper，同样只重启桌宠
 .\native\install.ps1 -Rollback
 ```
 
-首次安装时脚本会把当前上游 Helper 备份到 `native/backup/`（该目录不提交仓库，也不随 npm 包发布）；若当前已是补丁版本且没有备份，脚本会明确提示 `-Rollback` 不可用，需重装 dsh-dafeiyu 0.1.23 取得原版。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23，其他版本需先重新适配，不能直接覆盖。升级不删除成长数据。
+激活文件缺省不存在；存在但字段/路径无效时核心失败关闭，不会悄悄回退旧形象。安装前需准备固定运行时（`prepared-3c99b1b`，含 `verify.mjs` 回执）和独立的 Electron 运行时副本。首次安装会把当前上游 Helper 备份到 `native/backup/`（不提交、不随 npm 发布）；若当前已是补丁版本且没有备份，`-Rollback` 需先重装 dsh-dafeiyu 0.1.23。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23。升级不删除成长数据。
 
-测试：`npm test`（运行当前全部 Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（0.27.1 历史验证为 903 项，本次 Web 更新未重跑；需 PySide6；使用装好依赖的虚拟环境解释器即可，如 `.venv\Scripts\python.exe`）；`python native/realtime_probe.py`（本机回环WebSocket双轮PCM、打断/截断与鉴权头，不开麦/不播报/不访问外网）；`python native/run_smoke.py native/dist/dsh-dafeiyu-helper.exe`（隔离数据和窗口位置，验证小胶囊、点击展开/收起、神经网络训练/反馈/回滚、跑动/起跳/摔倒、七页成长卡、逐次学习审计与陪伴状态、统一聊天窗口、真实右键菜单、独立实时API设置页（保存前不联网不开麦）与回环实时语音，并保存截图）。
+测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（0.29.0 本次原生回归为 **915 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
 
 ## 自查结论与已知限制
 

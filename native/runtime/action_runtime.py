@@ -16,6 +16,14 @@ class ActionRuntime:
         if not text:
             self.next_talk_ms = now_ms + 60000
             return
+        if getattr(self, 'external_renderer', False):
+            self.last_proactive = text
+            self._present_external(text, 'IDLE', 8000, 'greet')
+            self.last_neural = (context, 'talk')
+            self.last_neural_ms = now_ms
+            self.learner.note_greeting()
+            self.next_talk_ms = now_ms + random.randint(120000, 240000)
+            return
         self._ensure_conversation()
         self.last_proactive = text
         was_visible = self.conversation.isVisible()

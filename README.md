@@ -2,7 +2,7 @@
 
 给 DSH 桌面伙伴一册本地成长手记：从会话事件积累经验，留下回顾与习惯线索，也让原生桌宠慢慢练出自己的动作偏好。
 
-<code>v0.28.0</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
+<code>v0.29.0</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
 
 [界面预览](#界面预览) · [快速开始](#快速开始) · [隐私与边界](#隐私与边界) · [安装与开发](docs/setup.md) · [更新记录](CHANGELOG.md)
 
@@ -34,7 +34,7 @@
 | :---: | :---: | :---: |
 | <img src="docs/screenshots/growth-overview.png" alt="原生成长概览，合成数据" width="240"> | <img src="docs/screenshots/growth-emotion.png" alt="原生情感工作台，合成数据" width="240"> | <img src="docs/screenshots/growth-training.png" alt="原生训练总览，合成数据" width="240"> |
 
-七页原生界面与 0.28.0 Web 设置页是不同入口，更新 Web 不会自动安装原生补丁。
+七页原生界面与 0.28.0 Web 设置页是不同入口，更新 Web 不会自动安装原生补丁。0.29.0 起桌面形象改由固定提交的 dsh-pet 渲染器显示；成长、记忆、人格、反馈与权限核心仍是原程序，回滚可恢复旧 Qt 形象。
 
 <details>
 <summary><strong>展开 Web 四景：深色、回顾、隐私与窄屏</strong></summary>
@@ -109,6 +109,18 @@ python -m pip install -r requirements-native.txt
 - **电脑操作受限**：仅固定白名单，每次执行仍须物理点击确认；模型回复、语音“确认”和网页内容不能代替按钮。
 
 云岚不是语言基础模型，没有主观意识，也不拥有 Live2D 素材授权。动作学习只是本地 10→12→4 小网络，情绪是线索与模拟，不是心理诊断。可选云端由你选择的第三方处理，其留存与费用政策仍适用；未完成真实云端端到端验证。本地保护也不是抵御同一 Windows 用户恶意进程的操作系统安全边界。详见 [安全说明](SECURITY.md)、[上下文与记忆授权](docs/companion-context.md) 和 [配置参考](docs/setup.md)。
+
+## 0.29.0 更新了什么
+
+**桌面形象迁移到固定 dsh-pet 渲染器，核心与存档不变。**
+
+- 固定上游 `3c99b1bb4d1bcb831880e8871718c50b64af0d9b`；npm 同版本包落后 13 个提交，未直接使用。运行时按 Git blob 校验重建 301 个文件，共享核心由固定源码重新生成。
+- 原 Qt 核心继续持有成长、记忆、人格、反馈、权限、原生对话/成长卡/语音窗口；新 Electron 窗口只负责形象、气泡、菜单与点击表现。
+- 核心与窗口用父子进程 + 随机命名管道的握手通信，没有无鉴权本地 HTTP；渲染器不提供云聊、余额、待办、截屏或麦克风接口。
+- 动作只发语义意图，不伪造训练结果；头部/戳一下点击仍交给原 `BehaviorLearner`。渲染器崩溃会触发核心退出并由 DSH 重启，`-Rollback` 实测恢复旧形象。
+- 本次原生回归 **915 项 Python 测试**、**93 项 Node 测试**通过；真实核心 + 真实 Electron 窗口、隐藏/显示、真实鼠标点击写入互动计数、崩溃恢复与回滚均已实机验证。角色素材仍为上游非商用/CC BY-NC-SA 4.0。
+
+[迁移与安全边界](docs/dsh-pet-pilot.md) · [完整版本记录](CHANGELOG.md)
 
 ## 0.28.0 更新了什么
 

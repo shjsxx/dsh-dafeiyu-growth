@@ -251,7 +251,7 @@ def run_headless(recorder: EventRecorder) -> int:
     return 0
 
 
-def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> int:
+def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, renderer_config=None) -> int:
     configure_qt_platform()
     try:
         from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QPoint, QPointF, QRectF, Qt, QTimer, QUrl, Signal
@@ -288,6 +288,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from action_runtime import ActionRuntime
         from public_learning_runtime import PublicLearningRuntime
         from presentation_runtime import PresentationRuntime
+        from external_renderer import ExternalRenderer, sanitize_event
     except ImportError as error:
         print(
             f"PySide6 is required for visual mode ({error}). Run with --headless for protocol tests.",
@@ -303,7 +304,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
     manifest_path = bundle_root() / "assets" / "pet-manifest.json"
     asset_root = manifest_path.parent / "pet"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = ({'maxFrameWidth': 250, 'maxFrameHeight': 300,
+                     'clips': {'idle': {'frames': ['external'], 'frameMs': 1000, 'loop': True}},
+                     'stateMap': {state: 'idle' for state in STATES}}
+                    if renderer_config is not None else json.loads(manifest_path.read_text(encoding="utf-8")))
     except (OSError, ValueError) as error:
         print(f"Unable to load BigFish asset manifest: {error}", file=sys.stderr)
         recorder.close()
@@ -364,6 +368,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         online_result = Signal(dict)
         voice_event = Signal(dict)
         crawl_result = Signal(dict)
+        renderer_event = Signal(dict)
 
         LABELS = {
             "IDLE": "休息中",
@@ -377,6 +382,12 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
         def __init__(self) -> None:
             super().__init__()
+            self.external_renderer = renderer_config is not None
+            self.renderer = None
+            self.renderer_connected = False
+            self.renderer_visible = False
+            self.renderer_anchor = None
+            self.renderer_event.connect(self._on_renderer_event)
             self.layout_path = default_layout_path()
             self.layout = load_layout(self.layout_path)
             configured_scale = os.environ.get("DSH_DAFEIYU_SCALE")
@@ -426,7 +437,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.applied_compact: bool | None = None
             self.model = AnimationModel(manifest)
             self.frame_sources: dict[str, bytes] = {}
-            for clip in self.model.clips.values():
+            for clip in (() if self.external_renderer else self.model.clips.values()):
                 for frame in clip.frames:
                     if frame in self.frame_sources:
                         continue
@@ -437,7 +448,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.decoded_frames: OrderedDict[str, QPixmap] = OrderedDict()
             # Fail here, not on the first paint, when the assets are unreadable or
             # the bundled Qt has no WebP image plugin.
-            for clip in self.model.clips.values():
+            for clip in (() if self.external_renderer else self.model.clips.values()):
                 if clip.frames:
                     self._pixmap(clip.frames[0])
             self.decoded_frames.clear()
@@ -589,6 +600,121 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.online_timer.timeout.connect(self._online_tick)
             self.online_timer.start(15000)
             QTimer.singleShot(12000, self._online_tick)
+
+        def _emergency_stop(self, controller_stopped=False):
+            if self.external_renderer and self.renderer is not None:
+                self.renderer.send({'kind': 'stop'})
+            return VoiceRuntime._emergency_stop(self, controller_stopped)
+
+        def _configure_external(self):
+            if self.external_renderer and self.renderer is not None:
+                self.renderer.send({'kind': 'configure', 'scale': self.scale,
+                                    'bubbleScale': self.bubble_scale,
+                                    'reducedMotion': self.reduced_motion,
+                                    'motionEnabled': self.motion_enabled})
+
+        def _presentation_visible(self):
+            return (self.renderer_connected and self.renderer_visible) if self.external_renderer else self.isVisible()
+
+        def _present_external(self, text='', state='IDLE', ttl_ms=4200, intent=None):
+            if self.external_renderer and self.renderer is not None:
+                return self.renderer.present(text, state, ttl_ms, intent)
+            return False
+
+        def _external_motion(self, intent, allow_during_chat=False):
+            if (not self._presentation_visible() or self.reduced_motion or self.dragging
+                    or self.menu_open or self.tasks or self.model.base_state != 'IDLE'
+                    or (self._conversation_engaged() and not allow_during_chat)):
+                return False
+            # Presentation requests are NOT simulated outcomes or training examples.
+            self._schedule_next_motion()
+            return self._present_external('', 'IDLE', 1800, intent)
+
+        def _start_run(self, *args, **kwargs):
+            if self.external_renderer:
+                return self._external_motion('run', kwargs.get('allow_during_chat', False))
+            return ActionRuntime._start_run(self, *args, **kwargs)
+
+        def _start_hop(self, *args, **kwargs):
+            if self.external_renderer:
+                return self._external_motion('hop', kwargs.get('allow_during_chat', False))
+            return ActionRuntime._start_hop(self, *args, **kwargs)
+
+        def _external_interaction(self, spot):
+            if not self.external_renderer or not self._presentation_visible() or self.menu_open:
+                return
+            if spot not in ('head', 'poke'):
+                return
+            now_ms = self._now_ms()
+            if spot == 'head':
+                self.blush_until_ms = now_ms + 1300
+                text = '摸摸头，舒服。'
+                self._present_external(text, 'IDLE', 4200)
+                self._external_motion('hop', allow_during_chat=True)
+            else:
+                self.blush_until_ms = now_ms + 900
+                self._present_external('戳我干嘛，任务还在跑呢', 'IDLE', 4200)
+                self._external_motion('hop', allow_during_chat=True)
+            self.learner.note_pet(spot)
+            self.learning.adapt('pet_head' if spot == 'head' else 'poke')
+            if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                self.growth_dialog.update_behavior(self.learner.snapshot())
+
+        def _schedule_renderer_exit(self):
+            """A dead presentation host cannot be reused; exit so the DSH owner restarts us."""
+            if getattr(self, '_renderer_exit_scheduled', False):
+                return
+            self._renderer_exit_scheduled = True
+            QTimer.singleShot(0, QApplication.quit)
+
+        def _on_renderer_event(self, event):
+            event = sanitize_event(event)
+            if event is None:
+                return
+            kind = event['kind']
+            if kind in ('ready', 'status'):
+                self.renderer_connected = True if kind == 'ready' else event['connected']
+                self.renderer_visible = True if kind == 'ready' else event['visible']
+                if not self.renderer_connected or not self.renderer_visible:
+                    self._voice_stop()
+                    self._stop_motion()
+                    if not self.renderer_connected:
+                        self._schedule_renderer_exit()
+                elif kind == 'ready':
+                    self._configure_external()
+                    card = self._current_card()
+                    if card:
+                        self._present_external(card[0], card[2], 4200)
+            elif kind == 'anchor':
+                self.renderer_anchor = event
+                self.pet_x, self.pet_y = event['x'], event['y']
+                self.setFixedSize(event['width'], event['height'])
+                self.move(event['x'], event['y'])
+            elif kind == 'command':
+                command = event['command']
+                if command == 'open-conversation':
+                    self._open_conversation()
+                elif command == 'open-growth':
+                    self._show_growth_card()
+                elif command == 'open-menu':
+                    from types import SimpleNamespace
+                    self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))
+                elif command == 'interact-head':
+                    self._external_interaction('head')
+                elif command == 'interact-poke':
+                    self._external_interaction('poke')
+                elif command == 'feedback-positive':
+                    self._neural_feedback(1.0)
+                elif command == 'feedback-negative':
+                    self._neural_feedback(-1.0)
+                elif command == 'emergency-stop':
+                    self._emergency_stop()
+                elif command in ('show', 'hide'):
+                    self.renderer_visible = command == 'show'
+                    self.renderer.send({'kind': 'visibility', 'visible': self.renderer_visible})
+                    if not self.renderer_visible:
+                        self._voice_stop()
+                        self._stop_motion()
 
         def apply_message(self, message: dict[str, Any]) -> None:
             recorder.record(message)
@@ -813,6 +939,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             *,
             allow_fade: bool = True,
         ) -> None:
+            if self.external_renderer:
+                return
             current_frame = self.model.frame
             if current_frame == previous_frame:
                 return
@@ -959,6 +1087,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             painter.restore()
 
         def _sync_bubble_size(self) -> None:
+            if self.external_renderer:
+                return
             old_size = (self.width(), self.height())
             self._apply_window_size()
             if (self.width(), self.height()) != old_size:
@@ -999,7 +1129,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 return False
             if self._conversation_engaged() or self.menu_open:
                 return False
-            if not self.isVisible() or self.tasks or not self._idle_only():
+            if not self._presentation_visible() or self.tasks or not self._idle_only():
                 return False
             if self._bubble_visible() and not self._compact_mode():
                 return False
@@ -1037,7 +1167,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     return False
             elif self.chat_open:
                 return False
-            if not self.isVisible() or self.model.base_state in ("WAITING", "ERROR"):
+            if not self._presentation_visible() or self.model.base_state in ("WAITING", "ERROR"):
                 return False
             # A task in another DSH window does not disable direct conversation;
             # its status bubble remains untouched. Never interrupt approval/error.
@@ -1139,7 +1269,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
 
         def _start_spin(self, turns: int = 1, allow_during_chat: bool = False) -> bool:
-            if self.motion or not self.isVisible() or self.reduced_motion or self.dragging or self.menu_open or (self._conversation_engaged() and not allow_during_chat):
+            if self.external_renderer:
+                return self._external_motion('spin', allow_during_chat)
+            if self.motion or not self._presentation_visible() or self.reduced_motion or self.dragging or self.menu_open or (self._conversation_engaged() and not allow_during_chat):
                 return False
             pet_width, _ = self._pet_size()
             geometry = self._screen_geometry_at(self.pet_x + pet_width // 2, self.pet_y)
@@ -1218,6 +1350,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.update()
 
         def _stop_motion(self) -> None:
+            if self.external_renderer and self.renderer is not None:
+                self.renderer.send({'kind': 'stop'})
             motion = self.motion
             if motion is None:
                 return
@@ -1424,6 +1558,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self._move_to_pet(pet_x, pet_y)
 
         def _save_layout(self) -> None:
+            self._configure_external()
+            previous_layout = self.layout
             self.layout = {
                 "version": 1,
                 "x": self.x(),
@@ -1439,6 +1575,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 "desktopRoaming": self.motion_enabled,
                 "autonomousChatter": self.chatter_enabled,
             }
+            if self.external_renderer:
+                # The shell owns its anchor; preserve legacy rollback coordinates.
+                for key in ('x', 'y', 'petX', 'petY'):
+                    if key in previous_layout:
+                        self.layout[key] = previous_layout[key]
             try:
                 save_layout(self.layout_path, self.layout)
             except OSError as error:
@@ -1460,18 +1601,23 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.status_detail = self._brand(detail)
             self.status_state = state
             self.status_deadline_ms = None if ttl_ms is None else self._now_ms() + ttl_ms
+            self._present_external(self.status_message, state, 60000 if ttl_ms is None else ttl_ms)
 
         def _show_overlay(self, message: str, detail: str, state: str, ttl_ms: int) -> None:
             self.overlay_message = self._brand(message)
             self.overlay_detail = self._brand(detail) or self.status_detail
             self.overlay_state = state
             self.overlay_deadline_ms = self._now_ms() + ttl_ms
+            self._present_external(self.overlay_message, state, ttl_ms)
 
         def _clear_overlay(self) -> None:
+            had_overlay = bool(self.overlay_message)
             self.overlay_message = ""
             self.overlay_detail = ""
             self.overlay_state = None
             self.overlay_deadline_ms = None
+            if self.external_renderer and self.renderer is not None and had_overlay:
+                self.renderer.send({'kind': 'clear'})
 
         @staticmethod
         def _now_ms() -> int:
@@ -1803,6 +1949,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                         pass
 
         def paintEvent(self, _event: Any) -> None:
+            if self.external_renderer:
+                return
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             # 平滑缩放：放大/缩小时插值，避免锯齿和模糊
@@ -2249,7 +2397,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             elif selected == open_webui_action:
                 self._open_client()
             elif selected == hide_action:
-                self.hide()
+                if self.external_renderer:
+                    self._on_renderer_event({'kind': 'command', 'command': 'hide'})
+                else:
+                    self.hide()
             elif selected == exit_action:
                 self._save_layout()
                 emit_reply("closed", reason="user")
@@ -2332,7 +2483,20 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
     reader = threading.Thread(target=read_stdin, name="dsh-bigfish-stdin", daemon=True)
     reader.start()
-    window.show()
+    if renderer_config is not None:
+        window.renderer = ExternalRenderer(renderer_config, window.renderer_event.emit)
+        application.aboutToQuit.connect(window.renderer.close)
+        try:
+            window.renderer.start()
+        except OSError:
+            print('Unable to start external renderer', file=sys.stderr)
+            window._shutdown_voice()
+            window.brain.close()
+            window.emotion.close()
+            recorder.close()
+            return 2
+    else:
+        window.show()
     emit_reply("ready")
     smoke_directory = os.environ.get("DSH_DAFEIYU_GROWTH_SMOKE_DIR")
     if smoke_directory and os.environ.get("DSH_DAFEIYU_GROWTH_SMOKE_PROBE") == "1":
@@ -2350,13 +2514,29 @@ def main() -> int:
     parser.add_argument("--event-log", type=Path, help="append received protocol messages to a JSONL file")
     parser.add_argument("--snapshot", type=Path, help="save one diagnostic visual frame after the first message")
     parser.add_argument("--smoke-probe", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument('--external-renderer', action='store_true', help='keep native core and dialogs with external presentation')
+    parser.add_argument('--renderer-config', type=Path, help='absolute local renderer activation config')
     args = parser.parse_args()
     if args.smoke_probe:
         # Explicit opt-in for maintainer smoke runs only; normal launches and a
         # leaked environment variable alone can never trigger the test probe.
         os.environ["DSH_DAFEIYU_GROWTH_SMOKE_PROBE"] = "1"
     recorder = EventRecorder(args.event_log)
-    return run_headless(recorder) if args.headless else run_visual(recorder, args.snapshot)
+    if args.headless:
+        return run_headless(recorder)
+    try:
+        try:
+            from .external_renderer import load_renderer_config
+        except ImportError:
+            from external_renderer import load_renderer_config
+        config = load_renderer_config(args.renderer_config)
+        if args.external_renderer and config is None:
+            raise ValueError('external renderer config required')
+    except (OSError, ValueError, TypeError):
+        print('Invalid external renderer configuration', file=sys.stderr)
+        recorder.close()
+        return 2
+    return run_visual(recorder, args.snapshot, config)
 
 
 if __name__ == "__main__":
