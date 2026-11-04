@@ -119,7 +119,7 @@ app.whenReady().then(async()=>{
   const left=Math.min(...areas.map(a=>a.x)),top=Math.min(...areas.map(a=>a.y));
   const right=Math.max(...areas.map(a=>a.x+a.width)),bottom=Math.max(...areas.map(a=>a.y+a.height));
   win=new BrowserWindow({width:720,height:640,x:primary.workArea.x+primary.workArea.width-720,y:primary.workArea.y+primary.workArea.height-640,transparent:true,frame:false,alwaysOnTop:true,skipTaskbar:true,resizable:false,show:false,hasShadow:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,webSecurity:true,backgroundThrottling:false}});
-  win.setIgnoreMouseEvents(true,{forward:true}); win.setAlwaysOnTop(true,'screen-saver');
+  win.setIgnoreMouseEvents(true,{forward:true}); win.setAlwaysOnTop(true,'floating');
   win.webContents.on('did-fail-load',(_event,code,description,url)=>{const smoke=arg('--smoke-out');if(smoke){fs.mkdirSync(smoke,{recursive:true});fs.writeFileSync(path.join(smoke,'load-failure.json'),JSON.stringify({code,description,url}));}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith('yunlan-pet://ui/index.html?'))event.preventDefault();});
