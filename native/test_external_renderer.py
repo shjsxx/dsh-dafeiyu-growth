@@ -14,7 +14,7 @@ class BridgeTests(unittest.TestCase):
     def test_command_allowlist(self):
         for command in ('open-conversation', 'open-growth', 'open-menu', 'feedback-positive',
                         'feedback-negative', 'emergency-stop', 'show', 'hide',
-                        'interact-head', 'interact-poke'):
+                        'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced'):
             self.assertEqual(sanitize_event({'kind':'command','command':command,'secret':'drop'}),
                              {'kind':'command','command':command})
         for command in ('eval', '_voice_start', 'cloud', 'confirm-operation', None, []):

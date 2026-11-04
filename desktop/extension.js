@@ -2,6 +2,8 @@
 'use strict';
 let stoppedByCore = false;
 let reducedByCore = false;
+let motionEnabled = true;
+let reducedMotion = false;
 document.addEventListener('play', event => {if ((stoppedByCore || reducedByCore) && event.target instanceof HTMLMediaElement) event.target.pause();}, true);
 const originalSwitchTo = PetSprite.prototype.switchTo;
 const lastActionReport = new Map();
@@ -35,21 +37,31 @@ PetSprite.prototype.tryMove = function(...args) {
   }
   return result;
 };
-// Right click keeps the full pinned action tree locally (every configured
-// animation), plus one explicit entry to the native core menu. No host cloud,
-// balance, todo or chat endpoint is exposed to the renderer.
+// One compact panel: common actions first, the full animation tree once, and
+// the native settings menu only behind "更多设置". No cloud/todo endpoints.
 PetSprite.prototype.onContextMenu = function(event) {
   if (this.dragState.active || this.dragState.dragging || this.justDragged || this.menuOpen) return;
   event.preventDefault();
   // showInactive windows may swallow the first click to activate; menus must be clickable.
   window.petBridge?.requestKeyboardFocus?.();
   this.stopThrow(); this.stopMove();
-  const coreItem = { label: '云岚菜单…（对话 / 成长 / 设置）', action: 'core-menu' };
-  const tree = [coreItem];
+  const command = (label, name) => ({ label, action: 'cmd:' + name });
+  const tree = [
+    command('和云岚聊天…', 'open-conversation'),
+    command('查看成长卡', 'open-growth'),
+    command('喜欢刚才的动作', 'feedback-positive'),
+    command('这个动作不太行', 'feedback-negative'),
+  ];
   if (Array.isArray(this.animations.sleep) && this.animations.sleep.length) {
     tree.push({ label: this.sleeping ? '起来' : '睡觉', action: this.sleeping ? 'wake' : 'sleep' });
   }
+  tree.push(
+    command(`桌面漫游  ${motionEnabled ? '✓' : '○'}`, 'toggle-roam'),
+    command(`减少动态  ${reducedMotion ? '✓' : '○'}`, 'toggle-reduced'),
+    command('隐藏到托盘', 'hide'),
+  );
   tree.push(...window.PetShared.buildMenuTree(this.animations));
+  tree.push(command('更多设置…（语音 / 云端 / 大小）', 'open-menu'));
   this.menuOpen = true;
   window.__dshPetDebug.menuOpen = true;
   this.setInteractive(true);
@@ -60,9 +72,9 @@ PetSprite.prototype.onContextMenu = function(event) {
     y: event.clientY,
     clamp: this.visibleClampRect(),
     onAction: (leaf) => {
-      if (leaf && leaf.action === 'core-menu') {
+      if (leaf && typeof leaf.action === 'string' && leaf.action.startsWith('cmd:')) {
         this.closeMenu();
-        window.yunlanBridge.command('open-menu');
+        window.yunlanBridge.command(leaf.action.slice(4));
         return;
       }
       this.onMenuAction(leaf, undefined, false);
@@ -91,6 +103,8 @@ window.yunlanBridge.onControl(function(message) {
     for (const sprite of sprites) sprite.playIdle();
   } else if (message.kind === 'configure') {
     reducedByCore = message.reducedMotion === true;
+    reducedMotion = message.reducedMotion === true;
+    motionEnabled = message.motionEnabled !== false;
     if (sprites.some(sprite => sprite.size !== Math.round(360*message.scale))) {
       void boot();
     }

@@ -13,8 +13,13 @@ const cfg=buildConfig(runtimeRoot); cfg.sleepFile=path.join(dataDir,'sleep.json'
 app.setName('yunlan-dsh-pet'); app.setPath('userData',dataDir);
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features','HardwareMediaKeyHandling');
+// The pet window is deliberately never focused; stop Chromium from throttling
+// its timers/video when it is unfocused or considered occluded.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 protocol.registerSchemesAsPrivileged([{scheme:'yunlan-pet',privileges:{standard:true,secure:true,supportFetchAPI:true}},{scheme:'dsh-pet-bridge',privileges:{standard:true,secure:true,supportFetchAPI:true,corsEnabled:true}}]);
-let win=null,tray=null,ready=false,inputBusy=false,lastBounds=null,interactive=false,lastAnchorAt=0,anchorTimer=null;
+let win=null,tray=null,ready=false,inputBusy=false,lastBounds=null,interactive=false,lastAnchorAt=0,anchorTimer=null,lastBoundsAt=0;
 function emit(value) {
   process.stdout.write(JSON.stringify(value)+'\n');
   const smoke=arg('--smoke-out');
@@ -113,7 +118,7 @@ app.whenReady().then(async()=>{
   const areas=displays.map(d=>d.workArea),panels=displays.map(d=>d.bounds);
   const left=Math.min(...areas.map(a=>a.x)),top=Math.min(...areas.map(a=>a.y));
   const right=Math.max(...areas.map(a=>a.x+a.width)),bottom=Math.max(...areas.map(a=>a.y+a.height));
-  win=new BrowserWindow({width:720,height:640,x:primary.workArea.x+primary.workArea.width-720,y:primary.workArea.y+primary.workArea.height-640,transparent:true,frame:false,alwaysOnTop:true,skipTaskbar:true,resizable:false,show:false,hasShadow:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,webSecurity:true}});
+  win=new BrowserWindow({width:720,height:640,x:primary.workArea.x+primary.workArea.width-720,y:primary.workArea.y+primary.workArea.height-640,transparent:true,frame:false,alwaysOnTop:true,skipTaskbar:true,resizable:false,show:false,hasShadow:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,webSecurity:true,backgroundThrottling:false}});
   win.setIgnoreMouseEvents(true,{forward:true}); win.setAlwaysOnTop(true,'screen-saver');
   win.webContents.on('did-fail-load',(_event,code,description,url)=>{const smoke=arg('--smoke-out');if(smoke){fs.mkdirSync(smoke,{recursive:true});fs.writeFileSync(path.join(smoke,'load-failure.json'),JSON.stringify({code,description,url}));}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
@@ -127,6 +132,7 @@ app.whenReady().then(async()=>{
     const sizeChanged=!lastBounds||lastBounds.width!==bounds.width||lastBounds.height!==bounds.height;
     if(sizeChanged) win.setBounds(bounds,false); else win.setPosition(bounds.x,bounds.y,false);
     lastBounds={...bounds,boxX:b.boxX,boxY:b.boxY,size:b.size,marginL:b.marginL,marginT:b.marginT};
+    lastBoundsAt=Date.now();
     emitAnchor({kind:'anchor',x:Math.round(b.boxX+left),y:Math.round(b.boxY+top),width:Math.round(b.size),height:Math.round(b.size*9/16)});
   });
   ipcMain.on('pet:set-interactive',(event,value)=>{if(permitted(event)){interactive=value===true;win.setIgnoreMouseEvents(!interactive,{forward:true});}});
@@ -143,6 +149,9 @@ app.whenReady().then(async()=>{
   // Pointer-forward may be unreliable with transparent windows: keep the body hit area interactive as fallback.
   const pointerTimer=setInterval(()=>{
     if(!win || !lastBounds || inputBusy) return;
+    // While the pet is moving, its own bounds churn is enough work; do not
+    // toggle hit-testing every 80ms on top of it.
+    if(Date.now()-lastBoundsAt<250) return;
     const point=screen.getCursorScreenPoint(),b=lastBounds;
     const x=point.x-b.x-(b.marginL||b.size*.5),y=point.y-b.y-(b.marginT||b.size*.5);
     const hit=x>b.size*.24&&x<b.size*.76&&y>b.size*.03&&y<b.size*.6;
@@ -165,10 +174,6 @@ app.whenReady().then(async()=>{
       if(!win) return;
       win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';const t=performance.now();sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});return performance.now()-t;})()").then(value=>{const smoke=arg('--smoke-out');if(smoke)fs.writeFileSync(path.join(smoke,'menu-time.json'),JSON.stringify({buildMs:value}));}).catch(()=>{});
     },11200);
-    setTimeout(()=>{
-      if(!win) return;
-      win.webContents.executeJavaScript("(()=>{const nodes=[...document.querySelectorAll('*')].filter(e=>e.children.length===0&&e.textContent.trim()==='睡觉');if(!nodes.length)return 'no-sleep-item';nodes[nodes.length-1].click();return 'sleep-click';})()").catch(()=>{});
-    },11800);
   }
   // Explicit smoke mode only: records renderer diagnostics without reading user data or starting core.
   const smoke=arg('--smoke-out');

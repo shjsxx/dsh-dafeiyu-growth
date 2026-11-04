@@ -1,6 +1,6 @@
 // Preload intentionally exposes no file access, HTTP, screen capture, microphone, shell or model APIs.
 const { contextBridge, ipcRenderer } = require('electron');
-const commands = new Set(['open-menu', 'open-conversation', 'open-growth', 'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings', 'emergency-stop', 'show', 'hide', 'feedback-positive', 'feedback-negative', 'interact-head', 'interact-poke']);
+const commands = new Set(['open-menu', 'open-conversation', 'open-growth', 'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings', 'emergency-stop', 'show', 'hide', 'feedback-positive', 'feedback-negative', 'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced']);
 contextBridge.exposeInMainWorld('yunlanBridge', {
   command(name) { if (commands.has(name)) ipcRenderer.send('yunlan:command', name); },
   action(payload) {

@@ -8,6 +8,13 @@
 
 以下保留原文中的技术细节和可复现命令；当前安装、开发和权限说明请优先阅读 [安装与开发](docs/setup.md) 与 [安全说明](SECURITY.md)。
 
+## 0.29.2 · 右键菜单合并与流畅度
+
+- 右键面板重做为单页常用操作：聊天、成长卡、喜欢/不喜欢刚才的动作、睡觉/起来、桌面漫游、减少动态、隐藏到托盘、动作、更多设置。动作树与原生设置不再各自占首层。
+- “更多设置…”保留原生语音/云端/大小菜单；常用操作直接由受限命令完成，不新开 HTTP 或权限入口。
+- 未聚焦透明窗口关闭 Chromium 后台节流：`backgroundThrottling:false`、`disable-background-timer-throttling`、`disable-renderer-backgrounding`、`disable-backgrounding-occluded-windows`；移动期间暂停 80ms 命中测试轮询，避免与窗口位移互相干扰。
+- 实机右键面板截图验证；菜单构建约 34ms；漫游、睡眠、动作计数、偏好模型保持正常。
+
 ## 0.29.1 · 卡顿、漫游与全动作学习修复
 
 - 表现端 `sendBounds` 到核心的 anchor 事件改为 10Hz 合并；核心只在窗口尺寸/位置实际变化时调用 `setFixedSize`/`move`；外部模式把 16ms 动作定时器降到 120ms、20ms 动画定时器降到 200ms，降低主线程争用与菜单卡顿。右键菜单构建实测约 34ms。

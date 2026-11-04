@@ -744,6 +744,14 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._neural_feedback(1.0)
                 elif command == 'feedback-negative':
                     self._neural_feedback(-1.0)
+                elif command == 'toggle-roam':
+                    self.motion_enabled = not self.motion_enabled
+                    self._save_layout()
+                    self._present_external('桌面漫游已开启' if self.motion_enabled else '桌面漫游已暂停', 'IDLE', 2600)
+                elif command == 'toggle-reduced':
+                    self._set_reduced_motion(not self.reduced_motion)
+                    self._save_layout()
+                    self._present_external('已减少动态' if self.reduced_motion else '已恢复完整动态', 'IDLE', 2600)
                 elif command == 'emergency-stop':
                     self._emergency_stop()
                 elif command in ('show', 'hide'):
