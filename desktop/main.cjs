@@ -103,7 +103,11 @@ app.whenReady().then(async()=>{
     // Asset paths are confined and cannot name user data, arbitrary files or executables.
     if(request.method==='GET') {
       const video=/^(?:webm\/|thumb\/main\/)(.+)$/.exec(relative);
-      if(video) return fileResponse(safeFile(path.join(runtimeRoot,'assets','webm'),video[1].endsWith('.webm')?video[1]:video[1]+'.webm'),request);
+      if(video) {
+        const fileName=video[1].endsWith('.webm')?video[1]:video[1]+'.webm';
+        const overlayRoot=path.join(path.dirname(dataDir),'interpolated');
+        return fileResponse(safeFile(overlayRoot,fileName)||safeFile(path.join(runtimeRoot,'assets','webm'),fileName),request);
+      }
       if(relative.startsWith('font/')) return fileResponse(safeFile(path.join(runtimeRoot,'assets','font'),relative.slice(5)),request);
       if(relative.startsWith('pic/')) return fileResponse(safeFile(path.join(runtimeRoot,'assets','pic'),relative.slice(4)),request);
     }

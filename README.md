@@ -2,7 +2,7 @@
 
 给 DSH 桌面伙伴一册本地成长手记：从会话事件积累经验，留下回顾与习惯线索，也让原生桌宠慢慢练出自己的动作偏好。
 
-<code>v0.29.2</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
+<code>v0.29.3</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
 
 [界面预览](#界面预览) · [快速开始](#快速开始) · [隐私与边界](#隐私与边界) · [安装与开发](docs/setup.md) · [更新记录](CHANGELOG.md)
 
@@ -109,6 +109,13 @@ python -m pip install -r requirements-native.txt
 - **电脑操作受限**：仅固定白名单，每次执行仍须物理点击确认；模型回复、语音“确认”和网页内容不能代替按钮。
 
 云岚不是语言基础模型，没有主观意识，也不拥有 Live2D 素材授权。动作学习只是本地 10→12→4 小网络，情绪是线索与模拟，不是心理诊断。可选云端由你选择的第三方处理，其留存与费用政策仍适用；未完成真实云端端到端验证。本地保护也不是抵御同一 Windows 用户恶意进程的操作系统安全边界。详见 [安全说明](SECURITY.md)、[上下文与记忆授权](docs/companion-context.md) 和 [配置参考](docs/setup.md)。
+
+## 0.29.3 常用动作 60fps 插帧试点
+
+- 上游动作源为 **24fps**，这是剩余“动作有点顿”的主要来源；本轮用本地 ffmpeg 对 7 段常用动作做 60fps 运动插值，不覆盖原素材。
+- 试点：待机呼吸休闲、原地左转奔跑、点击回应-开心跃动、点击回应-害羞惊讶、工作状态-思考冒泡、工作状态-雀跃庆祝、睡觉-循环。
+- 插帧文件放在 `~/.dsh/yunlan-renderer/interpolated/`，宿主优先读取；删除某个文件即回退到固定源。已确认透明通道和 ALPHA_MODE 保留，棋盘格对比无明显鬼影。
+- 复现脚本：[tools/interpolate-actions.ps1](tools/interpolate-actions.ps1)。先试这 7 段，确认手感后再决定是否扩展到全部动作。
 
 ## 0.29.2 右键菜单合并与流畅度
 
