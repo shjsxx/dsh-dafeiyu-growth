@@ -2,7 +2,7 @@
 
 给 DSH 桌面伙伴一册本地成长手记：从会话事件积累经验，留下回顾与习惯线索，也让原生桌宠慢慢练出自己的动作偏好。
 
-<code>v0.29.3</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
+<code>v0.29.4</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
 
 [界面预览](#界面预览) · [快速开始](#快速开始) · [隐私与边界](#隐私与边界) · [安装与开发](docs/setup.md) · [更新记录](CHANGELOG.md)
 
@@ -109,6 +109,12 @@ python -m pip install -r requirements-native.txt
 - **电脑操作受限**：仅固定白名单，每次执行仍须物理点击确认；模型回复、语音“确认”和网页内容不能代替按钮。
 
 云岚不是语言基础模型，没有主观意识，也不拥有 Live2D 素材授权。动作学习只是本地 10→12→4 小网络，情绪是线索与模拟，不是心理诊断。可选云端由你选择的第三方处理，其留存与费用政策仍适用；未完成真实云端端到端验证。本地保护也不是抵御同一 Windows 用户恶意进程的操作系统安全边界。详见 [安全说明](SECURITY.md)、[上下文与记忆授权](docs/companion-context.md) 和 [配置参考](docs/setup.md)。
+
+## 0.29.4 全部 109 段动作 60fps 化
+
+- 已把全部 **109 段**动作生成 60fps 本地副本，存放在 `~/.dsh/yunlan-renderer/interpolated/`（约 176MB），宿主优先读取，源素材保持原样。
+- 自检 109/109 通过：60fps、VP9 `ALPHA_MODE=1`、尺寸一致、可完整解码、时长差 <0.2s、透明边缘 alpha 与源一致；抽样 3 个快速动作在棋盘格上对比未见明显鬼影。
+- 删除 `interpolated` 中某个文件即回退该动作；删除整个目录即全部回退 24fps 源。可用 `tools/check-interpolated.py` 复检，`tools/interpolate-actions.ps1` 重新生成。
 
 ## 0.29.3 常用动作 60fps 插帧试点
 

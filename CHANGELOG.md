@@ -8,6 +8,12 @@
 
 以下保留原文中的技术细节和可复现命令；当前安装、开发和权限说明请优先阅读 [安装与开发](docs/setup.md) 与 [安全说明](SECURITY.md)。
 
+## 0.29.4 · 全部 109 段动作 60fps 化
+
+- 将剩余 102 段动作按同一参数插帧，全部 109 段均有 60fps 本地副本；总计约 176MB，不进入仓库。
+- 自检全部通过：60fps、alpha tag、尺寸、完整解码、时长差 <0.2s、覆盖率/边缘 alpha 与源一致；快速动作抽样对比无明显鬼影。
+- 新增 `tools/check-interpolated.py`；仍支持按文件/整目录回退 24fps 源。
+
 ## 0.29.3 · 常用动作 60fps 插帧试点
 
 - 确认上游 WebM 均为 24fps；用 ffmpeg `minterpolate` 对 7 段常用动作生成 60fps 本地副本，保留 VP9 alpha side data（`ALPHA_MODE=1`），不覆盖源文件。
