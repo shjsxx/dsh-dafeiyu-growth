@@ -147,6 +147,10 @@ app.whenReady().then(async()=>{
       if(!win) return;
       win.webContents.executeJavaScript("(()=>{const hit=document.querySelector('.pet-hit');if(!hit)return 'no-hit';const r=hit.getBoundingClientRect();hit.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));return 'clicked';})()").catch(()=>{});
     },10500);
+    setTimeout(()=>{
+      if(!win) return;
+      win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});return 'menu';})()").catch(()=>{});
+    },11200);
   }
   // Explicit smoke mode only: records renderer diagnostics without reading user data or starting core.
   const smoke=arg('--smoke-out');

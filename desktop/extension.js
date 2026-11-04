@@ -1,10 +1,5 @@
 // Loaded after pinned dsh-pet classes but before boot; retain animation/physics, replace unrelated services.
 'use strict';
-PetSprite.prototype.playIdle = function() {
-  this.pendingMove = null;
-  this.anim = this.animations.idle[0]; this.once = false;
-  this.switchTo(this.anim, false);
-};
 let stoppedByCore = false;
 let reducedByCore = false;
 document.addEventListener('play', event => {if ((stoppedByCore || reducedByCore) && event.target instanceof HTMLMediaElement) event.target.pause();}, true);
@@ -12,10 +7,41 @@ const originalSwitchTo = PetSprite.prototype.switchTo;
 PetSprite.prototype.switchTo = function(...args) {
   if (!stoppedByCore) return originalSwitchTo.apply(this, args);
 };
+// Right click keeps the full pinned action tree locally (every configured
+// animation), plus one explicit entry to the native core menu. No host cloud,
+// balance, todo or chat endpoint is exposed to the renderer.
 PetSprite.prototype.onContextMenu = function(event) {
+  if (this.dragState.active || this.dragState.dragging || this.justDragged || this.menuOpen) return;
   event.preventDefault();
   this.stopThrow(); this.stopMove();
-  window.yunlanBridge.command('open-menu');
+  const coreItem = { label: '云岚菜单…（对话 / 成长 / 设置）', action: 'core-menu' };
+  const tree = [coreItem].concat(window.PetShared.buildMenuTree(this.animations));
+  this.menuOpen = true;
+  window.__dshPetDebug.menuOpen = true;
+  this.setInteractive(true);
+  this.syncInputBusy();
+  const menu = window.PetShared.mountContextMenu({
+    tree,
+    x: event.clientX,
+    y: event.clientY,
+    clamp: this.visibleClampRect(),
+    onAction: (leaf) => {
+      if (leaf && leaf.action === 'core-menu') {
+        this.closeMenu();
+        window.yunlanBridge.command('open-menu');
+        return;
+      }
+      this.onMenuAction(leaf, undefined, true);
+    },
+    onClose: () => {
+      this.menuOpen = false;
+      window.__dshPetDebug.menuOpen = false;
+      this.syncInputBusy();
+      if (!this.inputBusy()) this.setInteractive(false);
+    },
+  });
+  this.menuClose = menu.close;
+  this.syncInputRegions();
 };
 window.yunlanBridge.onControl(function(message) {
   if (message.kind === 'stop') {
