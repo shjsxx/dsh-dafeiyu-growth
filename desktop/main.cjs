@@ -124,7 +124,9 @@ app.whenReady().then(async()=>{
     if(!permitted(event)||!b||!['x','y','width','height','boxX','boxY','size'].every(k=>Number.isFinite(b[k])))return;
     if(b.width<40||b.height<40||b.width>2048||b.height>2048||b.x<left-2048||b.y<top-2048||b.x>right+2048||b.y>bottom+2048)return;
     const bounds={x:Math.round(b.x),y:Math.round(b.y),width:Math.round(b.width),height:Math.round(b.height)};
-    win.setBounds(bounds,false); lastBounds={...bounds,boxX:b.boxX,boxY:b.boxY,size:b.size,marginL:b.marginL,marginT:b.marginT};
+    const sizeChanged=!lastBounds||lastBounds.width!==bounds.width||lastBounds.height!==bounds.height;
+    if(sizeChanged) win.setBounds(bounds,false); else win.setPosition(bounds.x,bounds.y,false);
+    lastBounds={...bounds,boxX:b.boxX,boxY:b.boxY,size:b.size,marginL:b.marginL,marginT:b.marginT};
     emitAnchor({kind:'anchor',x:Math.round(b.boxX+left),y:Math.round(b.boxY+top),width:Math.round(b.size),height:Math.round(b.size*9/16)});
   });
   ipcMain.on('pet:set-interactive',(event,value)=>{if(permitted(event)){interactive=value===true;win.setIgnoreMouseEvents(!interactive,{forward:true});}});
