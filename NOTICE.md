@@ -23,6 +23,11 @@ Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留
 运行本补丁前请自行确认已合法获得该上游包；本仓库的截图只包含我们自绘的矢量图标和
 合成测试数据，不含上述角色素材。
 
+**自包含发行版例外**：`tools/package-self-contained.ps1` 生成的发行包会把
+`runtime/prepared-3c99b1b` 中的 dsh-pet 角色动画一并分发。这些素材不是 MIT，
+按 [ASSET_LICENSE.md](ASSET_LICENSE.md) 的 **CC BY-NC-SA 4.0**（署名、非商业、
+相同方式共享）处理；发行包必须保留该文件、上游链接和固定提交。
+
 本项目是非官方粉丝作品，与 DeepSeek 无隶属或背书关系；相关名称、商标与角色权利归
 各自权利人。
 

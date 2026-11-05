@@ -6,6 +6,8 @@
 
 Windows 10/11、DSH 桌面版、Node.js ≥ 22.19。把仓库放到 `%USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth`，重启 DSH，在设置 → 插件中启用「云岚养成」。仓库用于 GitHub 分发，`package.json` 为 `private`，不发布 npm 包。
 
+**自包含发行版（0.32.0+）**：如果使用 `tools/package-self-contained.ps1` 生成的包，只需安装 DSH 和该插件，不需要另行安装 `dsh-dafeiyu` 或 Python；打包、体积和授权见 [自包含插件](self-contained.md)。
+
 **Web 与原生是两个入口。** 0.28.0 更新设置 → 内置插件 → 云岚养成；原生七页成长卡、跑跳、语音和电脑操作依赖可选的原生 helper 补丁，最近补丁版本为 0.27.1。原生仅适配 `dsh-dafeiyu@0.1.23` desktop profile；其他上游版本不能直接覆盖。
 
 ## Web 开发与离线预览

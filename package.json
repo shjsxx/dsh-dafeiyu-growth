@@ -1,6 +1,6 @@
 {
     "name": "dsh-dafeiyu-growth",
-    "version": "0.31.0",
+    "version": "0.32.0",
     "private": true,
     "license": "MIT",
     "description": "Growth, habit learning and self-directed desktop behaviour for the DSH companion 云岚",
@@ -21,6 +21,8 @@
         "docs/gallery.md",
         "docs/growth-redesign.md",
         "docs/growth-engines.md",
+        "docs/self-contained.md",
+        "ASSET_LICENSE.md",
         "CHANGELOG.md",
         "tools/",
         "desktop/",
@@ -58,7 +60,8 @@
         "README.md",
         "NOTICE.md",
         "SECURITY.md",
-        "CONTRIBUTING.md"
+        "CONTRIBUTING.md",
+        "runtime/"
     ],
     "keywords": [
         "dsh",

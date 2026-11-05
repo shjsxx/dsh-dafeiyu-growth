@@ -2,9 +2,9 @@
 
 给 DSH 桌面伙伴一册本地成长手记：从会话事件积累经验，留下回顾与习惯线索，也让原生桌宠慢慢练出自己的动作偏好。
 
-<code>v0.31.0</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
+<code>v0.32.0</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT code / CC BY-NC-SA assets</code>
 
-[界面预览](#界面预览) · [快速开始](#快速开始) · [隐私与边界](#隐私与边界) · [安装与开发](docs/setup.md) · [更新记录](CHANGELOG.md)
+[界面预览](#界面预览) · [快速开始](#快速开始) · [隐私与边界](#隐私与边界) · [自包含插件](docs/self-contained.md) · [安装与开发](docs/setup.md) · [更新记录](CHANGELOG.md)
 
 <img src="docs/screenshots/web-overview.png" alt="云岚 Web 成长概览，离线合成档案预览" width="720">
 
@@ -109,6 +109,17 @@ python -m pip install -r requirements-native.txt
 - **电脑操作受限**：仅固定白名单，每次执行仍须物理点击确认；模型回复、语音“确认”和网页内容不能代替按钮。
 
 云岚不是语言基础模型，没有主观意识，也不拥有 Live2D 素材授权。动作学习只是本地 10→12→4 小网络，情绪是线索与模拟，不是心理诊断。可选云端由你选择的第三方处理，其留存与费用政策仍适用；未完成真实云端端到端验证。本地保护也不是抵御同一 Windows 用户恶意进程的操作系统安全边界。详见 [安全说明](SECURITY.md)、[上下文与记忆授权](docs/companion-context.md) 和 [配置参考](docs/setup.md)。
+
+## 0.32.0 自包含插件与 DSH-only 安装
+
+- 新增 `src/native-supervisor.js`：DSH 插件自己启动、守护和停止原生 helper；有内置 `runtime/` 时不再依赖 `dsh-dafeiyu`。
+- 没有 `runtime/` 的开发目录完全回退现有流程，不影响当前实例。
+- 新增 onedir helper 构建 `native/build-onedir.ps1`，避免 onefile 每次解压 `MSVCP140.dll` 被杀毒/文件锁拦截。
+- 新增 `tools/package-self-contained.ps1`：把 Electron、pinned renderer、onedir helper、插件代码和授权文件打成约 650MB 的自包含目录/压缩包。
+- 自包含包安装后只需 DSH 桌面版；本地成长、桌宠、动作、记忆、训练、菜单、SAPI 语音可用。云端聊天/语音仍需用户自己的 Key。
+- 授权分层：代码 MIT；角色素材 CC BY-NC-SA 4.0；发布包 `license` 改为 `SEE LICENSE IN ASSET_LICENSE.md`，保留 `NOTICE.md` 与上游许可。
+- 文档：[自包含打包与安装](docs/self-contained.md)
+- 回归：102 项 Node 测试、930 项 Python 测试通过。
 
 ## 0.31.0 运动模型与偏好可视化
 

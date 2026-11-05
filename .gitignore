@@ -1,6 +1,8 @@
 # Local build outputs (never commit a built helper)
 native/.build/
+native/.build-onedir/
 native/dist/
+native/dist-onedir/
 *.spec
 build/
 dist/
