@@ -5,10 +5,11 @@ let reducedByCore = false;
 let motionEnabled = true;
 let reducedMotion = false;
 let chatterEnabled = true;
-// Promote the two video layers explicitly; transparent always-on-top windows
-// otherwise repaint more than necessary during opacity crossfades.
+// Promote the video layer without a crossfade. The upstream 0.18s opacity
+// transition can show both poses at partial alpha (a ghost/blank frame) while
+// the next WebM is starting. A same-task class swap is visually cleaner.
 const videoLayerStyle = document.createElement('style');
-videoLayerStyle.textContent = 'video.pet-video{will-change:opacity,transform;transform:translateZ(0);backface-visibility:hidden}';
+videoLayerStyle.textContent = 'video.pet-video{will-change:transform;transform:translateZ(0);backface-visibility:hidden;transition:none!important;visibility:hidden}video.pet-video.is-front{visibility:visible}';
 document.head.appendChild(videoLayerStyle);
 document.addEventListener('play', event => {if ((stoppedByCore || reducedByCore) && event.target instanceof HTMLMediaElement) event.target.pause();}, true);
 const originalSwitchTo = PetSprite.prototype.switchTo;
