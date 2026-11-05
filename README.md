@@ -116,6 +116,7 @@ python -m pip install -r requirements-native.txt
 - 没有 `runtime/` 的开发目录完全回退现有流程，不影响当前实例。
 - 新增 onedir helper 构建 `native/build-onedir.ps1`，避免 onefile 每次解压 `MSVCP140.dll` 被杀毒/文件锁拦截。
 - 新增 `tools/package-self-contained.ps1`：把 Electron、pinned renderer、onedir helper、插件代码和授权文件打成约 650MB 的自包含目录/压缩包。
+- 可选轻量流程：`tools/fetch-runtime.ps1` 从固定 release 资产校验并安装 runtime；`-IncludeModels` 可把 24MB BGE 模型放进包内，supervisor 自动设置 `DSH_DAFEIYU_EMBEDDING_DIR`。
 - 自包含包安装后只需 DSH 桌面版；本地成长、桌宠、动作、记忆、训练、菜单、SAPI 语音可用。云端聊天/语音仍需用户自己的 Key。
 - 授权分层：代码 MIT；角色素材 CC BY-NC-SA 4.0；发布包 `license` 改为 `SEE LICENSE IN ASSET_LICENSE.md`，保留 `NOTICE.md` 与上游许可。
 - 文档：[自包含打包与安装](docs/self-contained.md)

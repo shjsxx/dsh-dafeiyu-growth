@@ -49,6 +49,25 @@ dsh-dafeiyu-growth/
 
 `-DryRun` 只打印体积和路径，不复制文件。
 
+如果只需要轻量插件包（不含 368MB Electron），可把 runtime/Electron/helper 打成固定 release 资产，首次安装后运行：
+
+```powershell
+.\tools\fetch-runtime.ps1 `
+  -Url "https://example.invalid/yunlan-runtime-3c99b1b.zip" `
+  -Sha256 "<release 中公布的 SHA256>" `
+  -Force
+```
+
+脚本会校验 SHA-256、拒绝路径逃逸，并检查 `electron`、`prepared-3c99b1b`、`helper` 三项后才安装；下载失败不会留下半包。插件 supervisor 检测到完整 `runtime/` 后自动启动。
+
+可选本地语义模型：
+
+```powershell
+.\tools\package-self-contained.ps1 -IncludeModels ...
+```
+
+这会把约 24MB 的 BGE 模型放进 `runtime/models/bge-small-zh-v1.5`；supervisor 启动 helper 时自动设置 `DSH_DAFEIYU_EMBEDDING_DIR`，不再从旧的 dsh-dafeiyu 目录读取。未包含模型时仍可运行，记忆检索回退到本地哈希。
+
 输出目录可以直接作为 DSH 插件目录安装，也可以压缩后在 DSH 插件管理页选择本地包。安装后重启 DSH。
 
 > 如果机器上仍装有 `dsh-dafeiyu`，请先停用/卸载它，或至少关闭其原生桌宠，避免两个 helper 同时出现。自包含包使用 `nativeBundle: true`；开发仓库默认 `auto`，没有 `runtime/` 时不会抢现有 helper。

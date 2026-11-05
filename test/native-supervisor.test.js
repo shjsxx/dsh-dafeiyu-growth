@@ -24,6 +24,7 @@ function completeBundle(root) {
     'runtime/electron/DeepSeek Harness.exe': 'electron',
     'runtime/helper/dsh-dafeiyu-helper.exe': 'helper',
     'runtime/prepared-3c99b1b/runtime/electron-helper/index.html': 'html',
+    'runtime/models/bge-small-zh-v1.5/model.onnx': 'model',
   }
   for (const [name, value] of Object.entries(files)) {
     const file = path.join(root, name)
@@ -72,6 +73,7 @@ test('complete bundle starts helper with the external renderer marker', () => {
   assert.deepEqual(spawned.args, ['--external-renderer', '--renderer-config', supervisor.paths.marker])
   assert.equal(spawned.options.windowsHide, true)
   assert.equal(spawned.options.stdio[0], 'ignore')
+  assert.equal(spawned.options.env.DSH_DAFEIYU_EMBEDDING_DIR, supervisor.paths.models)
   const marker = JSON.parse(fs.readFileSync(supervisor.paths.marker, 'utf8'))
   assert.deepEqual(marker, rendererConfig(supervisor.paths))
   assert.equal(supervisor.status().running, true)

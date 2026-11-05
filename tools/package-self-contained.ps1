@@ -2,6 +2,8 @@ param(
   [string]$RuntimeSource = (Join-Path $env:USERPROFILE '.dsh\yunlan-dsh-pet-runtime'),
   [string]$HelperSource = (Join-Path $PSScriptRoot '..\native\dist-onedir\dsh-dafeiyu-helper'),
   [string]$Out = (Join-Path $PSScriptRoot '..\dist\self-contained'),
+  [string]$ModelSource = (Join-Path $env:LOCALAPPDATA 'dsh-dafeiyu\models\bge-small-zh-v1.5'),
+  [switch]$IncludeModels,
   [switch]$Zip,
   [switch]$DryRun
 )
@@ -72,6 +74,10 @@ foreach ($name in 'upstream-LICENSE','third_party','requirements-native.txt','up
 CopyTree (Join-Path $RuntimeSource 'electron') (Join-Path $outPath 'runtime\electron')
 CopyTree $prepared (Join-Path $outPath 'runtime\prepared-3c99b1b')
 CopyTree $helperDir (Join-Path $outPath 'runtime\helper')
+if ($IncludeModels) {
+  if (-not (Test-Path -LiteralPath $ModelSource)) { throw "Missing optional model directory: $ModelSource" }
+  CopyTree $ModelSource (Join-Path $outPath 'runtime\models\bge-small-zh-v1.5')
+}
 $helperHash = (Get-FileHash -LiteralPath (Join-Path $outPath 'runtime\helper\dsh-dafeiyu-helper.exe') -Algorithm SHA256).Hash
 $manifest = [ordered]@{
   format = 1
@@ -79,6 +85,7 @@ $manifest = [ordered]@{
   helper = [ordered]@{ path = 'runtime/helper/dsh-dafeiyu-helper.exe'; sha256 = $helperHash; bytes = (Get-Item (Join-Path $outPath 'runtime\helper\dsh-dafeiyu-helper.exe')).Length }
   electron = 'runtime/electron/DeepSeek Harness.exe'
   prepared = 'runtime/prepared-3c99b1b'
+  models = if ($IncludeModels) { 'runtime/models/bge-small-zh-v1.5' } else { $null }
   licenses = @('LICENSE','ASSET_LICENSE.md','NOTICE.md','native/upstream-LICENSE')
   builtAt = (Get-Date).ToUniversalTime().ToString('o')
 }

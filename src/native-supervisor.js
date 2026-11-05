@@ -23,10 +23,11 @@ export function resolveBundle(root, env = process.env) {
   const electron = env.DSH_YUNLAN_ELECTRON || path.join(base, 'electron', win ? 'DeepSeek Harness.exe' : 'electron')
   const helper = env.DSH_YUNLAN_HELPER || path.join(base, 'helper', win ? 'dsh-dafeiyu-helper.exe' : 'dsh-dafeiyu-helper')
   const prepared = env.DSH_YUNLAN_PREPARED || path.join(base, 'prepared-3c99b1b')
+  const models = env.DSH_YUNLAN_MODEL_DIR || path.join(base, 'models', 'bge-small-zh-v1.5')
   const host = env.DSH_YUNLAN_HOST || path.join(root, 'desktop', 'main.cjs')
   const rendererDir = env.DSH_YUNLAN_RENDERER_DIR || path.join(os.homedir(), '.dsh', 'yunlan-renderer')
   return {
-    base, electron, helper, prepared, host, rendererDir,
+    base, electron, helper, prepared, models, host, rendererDir,
     marker: path.join(rendererDir, 'active.json'),
     userData: path.join(rendererDir, 'user-data'),
     lock: path.join(rendererDir, 'supervisor.lock'),
@@ -154,10 +155,16 @@ export class NativeSupervisor {
   spawnHelper() {
     if (this.stopping) return
     let child
+    const env = { ...this.env }
+    // Keep the optional local BGE model inside the plugin bundle instead of
+    // reaching into the old dsh-dafeiyu model directory.
+    try {
+      if (fs.statSync(this.paths.models).isDirectory()) env.DSH_DAFEIYU_EMBEDDING_DIR = this.paths.models
+    } catch {}
     try {
       child = this.spawnImpl(this.paths.helper, ['--external-renderer', '--renderer-config', this.paths.marker], {
         cwd: path.dirname(this.paths.helper),
-        env: { ...this.env },
+        env,
         windowsHide: true,
         detached: false,
         stdio: ['ignore', 'ignore', 'pipe'],

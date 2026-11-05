@@ -12,6 +12,7 @@
 
 - 新增 `src/native-supervisor.js`：随插件启动/停止 bundled helper，带 PID+token 单实例锁、退出重启和 marker 管理；无 runtime 时回退 dsh-dafeiyu。
 - 新增 `native/build-onedir.ps1` 与 `tools/package-self-contained.ps1`：生成约 650MB 的自包含 Windows 插件目录，包含 Electron、pinned renderer、onedir helper、授权文件。
+- 新增 `tools/fetch-runtime.ps1`：可选从 release 资产下载 runtime，校验 SHA-256 并检查三项必需路径；`-IncludeModels` 可内置 BGE 模型并由 supervisor 设置包内模型路径。
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 仍需用户自备 DSH 和云端/语音 Key；本地功能可离线使用。
