@@ -1148,9 +1148,12 @@ class GrowthDialog(QDialog):
             (self.persona_button, self.persona_requested),
         )):
             button.setAutoDefault(False)
-            button.clicked.connect(signal.emit)
+            button.clicked.connect(
+                lambda _checked=False, s=signal: self._request_evolution(s))
             evolution_buttons.addWidget(button, index // 2, index % 2)
         evolution_box.addLayout(evolution_buttons)
+        self.evolution_feedback = _label("", "memoryStatus")
+        evolution_box.addWidget(self.evolution_feedback)
         data_page.addWidget(self.evolution_card)
         data_page.addStretch()
         self._emotion_snapshot, self._companion_snapshot, self._training_snapshot = {}, {}, {}
@@ -1225,6 +1228,28 @@ class GrowthDialog(QDialog):
         self.tabs.addTab(scroll, title)
         self.page_scrolls.append(scroll)
         return box
+
+    def _request_evolution(self, signal):
+        """Prefer the owning window's method; emit only when used standalone."""
+        mapping = {
+            self.evolution_status_requested: "_show_evolution_status",
+            self.research_requested: "_open_research_dialog",
+            self.memory_curation_requested: "_open_memory_curation_dialog",
+            self.persona_requested: "_open_persona_dialog",
+        }
+        method_name = mapping.get(signal)
+        self.evolution_feedback.setText("正在打开…")
+        parent = self.parent()
+        method = getattr(parent, method_name, None) if method_name else None
+        try:
+            if callable(method):
+                method()
+            else:
+                signal.emit()
+            self.evolution_feedback.setText("已关闭；可再次打开。")
+        except Exception as error:
+            self.evolution_feedback.setText(f"打开失败：{error}")
+            signal.emit()
 
     def _confirm_memory_clear(self):
         answer = QMessageBox.question(
