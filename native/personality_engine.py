@@ -27,6 +27,12 @@ UPDATE_SECONDS = 300
 UPDATE_TURNS = 3
 MAX_BYTES = 64 * 1024
 DIMENSIONS = ("warmth", "curiosity", "playfulness", "steadiness", "expressiveness")
+FEEDBACK_DELTAS = {
+    "liked": {"warmth": .45, "curiosity": .2, "playfulness": .55,
+               "steadiness": .0, "expressiveness": .35},
+    "disliked": {"warmth": .1, "curiosity": .05, "playfulness": -.25,
+                  "steadiness": .3, "expressiveness": -.1},
+}
 LABELS = {"warmth": "温暖", "curiosity": "好奇", "playfulness": "俏皮",
           "steadiness": "稳定", "expressiveness": "表达"}
 TONES = ("gentle", "warm", "playful", "curious", "steady")
@@ -245,6 +251,35 @@ class PersonalityEngine:
         relation = self._relationship()
         stamp = self._clock() if now is None else now
         return relation["state"] != "steady" and stamp < relation["until"]
+
+    def feedback(self, liked, now=None):
+        """Apply one explicit action feedback nudge to stable traits.
+
+        This is deliberately small and bounded: a single click must not rewrite
+        the personality. Repeated feedback accumulates slowly; a dislike is not
+        allowed to collapse warmth. No action name or chat text is stored here.
+        """
+        if self.status == "protected" or not isinstance(liked, bool):
+            return self.snapshot()
+        before = copy.deepcopy(self.data)
+        current = dict(self.data["traits"])
+        delta = FEEDBACK_DELTAS["liked" if liked else "disliked"]
+        changed = False
+        for key in DIMENSIONS:
+            next_value = round(_clamp(current[key] + delta.get(key, 0.0)), 1)
+            if abs(next_value - current[key]) >= .1:
+                current[key] = next_value
+                changed = True
+        if not changed:
+            return self.snapshot()
+        stamp = max(0, int(self._clock() if now is None else now))
+        self.data["traits"] = current
+        self.data["revision"] += 1
+        self.data["interactions"] += 1
+        self.data["updatedAt"] = stamp
+        if not self._save(before):
+            return self.snapshot()
+        return self.snapshot()
 
     def observe(self, text="", intent=None, now=None):
         """Observe an actual user turn and return a repair acknowledgment or ''.

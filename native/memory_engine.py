@@ -72,6 +72,11 @@ def _slot(kind, text):
     canonical = text
     if kind == "preference" and re.match(r"^称呼\s*[:：]", text):
         canonical = "name"
+    elif kind == "preference" and text.startswith("动作偏好："):
+        # One action has one factual slot whether it was liked or disliked;
+        # changing the verdict updates the record instead of accumulating
+        # contradictory duplicates.
+        canonical = re.sub(r"^动作偏好：(?:喜欢|不喜欢)", "动作偏好：", text)
     elif kind == "habit":
         patterns = (("tool", r"^最常用的工具[是为]"),
                     ("hour", r"^你最常在\s*\d+\s*点活跃"),
@@ -276,6 +281,23 @@ class MemoryEngine:
         keep = rows[-MAX_RECORDS:]
         keep.sort(key=lambda row: row["lastSeen"], reverse=True)
         return keep
+
+    @_locked
+    def remember_feedback(self, action, liked, now=None):
+        """Persist one bounded action preference; no chat text is stored."""
+        if self.status == "protected" or not isinstance(action, str):
+            return 0
+        action = _plain(action, 80)
+        if not action or not isinstance(liked, bool):
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = copy.deepcopy(self.data)
+        text = f"动作偏好：{'喜欢' if liked else '不喜欢'}「{action}」"
+        if not self._remember("preference", text, "local_feedback", stamp):
+            return 0
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        return 1 if self._save(before) else 0
 
     @_locked
     def ingest_behavior(self, behavior, now=None):

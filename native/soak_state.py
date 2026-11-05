@@ -47,6 +47,8 @@ def run(cycles=90, root=None):
         memory.ingest_behavior({"userName": "小云", "likes": [f"合成喜好{day % 5}"]}, now=clock["now"])
         memory.ingest_state({"learned": [{"text": f"合成知识{day % 11}"}],
                              "diary": [{"text": f"合成日记{day % 13}"}]}, now=clock["now"])
+        memory.remember_feedback(f"合成动作{day % 5}", day % 2 == 0, now=clock["now"])
+        personality.feedback(day % 2 == 0, now=clock["now"])
         personality.update(
             companion={"trust": .35 + min(.5, day / 500), "curiosity": .45 + min(.4, day / 800),
                        "energy": .7, "valence": .2 + min(.5, day / 1000)},

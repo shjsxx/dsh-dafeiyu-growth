@@ -1325,11 +1325,31 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             if self.growth_dialog is not None and self.growth_dialog.isVisible():
                 self.growth_dialog.update_neural(self.brain.info())
 
+        def _feedback_loop(self, action_name: str, liked: bool) -> None:
+            """Close the loop: explicit feedback nudges traits and memory."""
+            if not action_name:
+                return
+            try:
+                self.personality.feedback(liked)
+                self.memory.remember_feedback(action_name, liked)
+            except Exception:
+                # A feedback click must never break the pet; the bounded
+                # action-preference write remains the primary record.
+                return
+            if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                self.growth_dialog.update_personality(self.personality.snapshot())
+                self.growth_dialog.update_memory(self.memory.snapshot())
+
         def _neural_feedback(self, reward: float) -> None:
             self.last_interaction_ms = self._now_ms()
             action_name = self.last_action_name
             has_pref = bool(action_name and self.last_action_ms and
                             self._now_ms() - self.last_action_ms <= 120000)
+            feedback_name = action_name
+            if not feedback_name and self.last_neural:
+                feedback_name = self.last_neural[1]
+            if feedback_name:
+                self._feedback_loop(feedback_name, reward > 0)
             if has_pref:
                 self.action_preferences.observe(
                     action_name, 'liked' if reward > 0 else 'disliked')
