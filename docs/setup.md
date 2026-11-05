@@ -218,6 +218,24 @@ node tools/growth.mjs path
 
 `DSH_DAFEIYU_GROWTH_FILE` 可覆盖路径；`DSH_DAFEIYU_BEHAVIOR_FILE`、`DSH_DAFEIYU_NEURAL_FILE`、`DSH_DAFEIYU_EMOTION_FILE`、`DSH_DAFEIYU_CLOUD_FILE` 分别覆盖对应文件；`DSH_DAFEIYU_LEARNING_FILE` 覆盖自动学习计划文件，`DSH_DAFEIYU_ONLINE_FILE` 覆盖动态公开资料计划；`DSH_DAFEIYU_TRAINING_FILE`、`DSH_DAFEIYU_KNOWLEDGE_FILE`、`DSH_DAFEIYU_COMPANION_FILE` 分别覆盖新存档路径。`DSH_DAFEIYU_CLOUD_KEY` 可提供不落盘的密钥。
 
+## 备份与恢复
+
+备份是**显式操作**，不会在后台偷偷保留已删除的记忆。只复制白名单内的本地状态文件（`profile.json`、`growth.json`、`memory.json`、`personality.json`、`continuity.json`、`behavior.json`、`training.json`、`knowledge.json` 等），不包含 `cloud.json`/`realtime.json` 的 Key、日志、模型或截图；单个文件超过 4MB 或不可读时备份会明确失败，不会假装完整。备份里可能含明文的称呼/喜好，请自己保管。
+
+```powershell
+# 创建快照（默认 ~/.dsh/dsh-dafeiyu-growth/backups）
+python native/state_backup.py backup --label manual
+
+# 查看、校验
+python native/state_backup.py list
+python native/state_backup.py verify <快照目录>
+
+# 恢复；会先自动创建 before-restore 安全快照，必须显式 --yes
+python native/state_backup.py restore <快照目录> --yes
+```
+
+`native/soak_state.py --cycles 90` 是可重复的合成数据验收：模拟成长、记忆、人格与连续性跨天写入、重启重载、备份校验；只使用临时目录，不读真实档案。
+
 ## 界面
 
 - 没有对话时，气泡收成一行小胶囊：`Lv.等级 · 阶段`、`当前/下一级` 经验和进度条；点一下就展开完整卡片，再点一下（或点右上角箭头）收起。收起状态会记住，下次启动保持。
