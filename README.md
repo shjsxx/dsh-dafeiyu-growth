@@ -117,6 +117,7 @@ python -m pip install -r requirements-native.txt
 - 新增 onedir helper 构建 `native/build-onedir.ps1`，避免 onefile 每次解压 `MSVCP140.dll` 被杀毒/文件锁拦截。
 - 新增 `tools/package-self-contained.ps1`：把 Electron、pinned renderer、onedir helper、插件代码和授权文件打成约 650MB 的自包含目录/压缩包。
 - 可选轻量流程：`tools/fetch-runtime.ps1` 从固定 release 资产校验并安装 runtime；`-IncludeModels` 可把 24MB BGE 模型放进包内，supervisor 自动设置 `DSH_DAFEIYU_EMBEDDING_DIR`。
+- 修复拖动时左右闪现：拖拽期间只允许拖拽动画，锁定朝向不被 turn/click 抢翻。
 - 修复动作切换闪现：去除视频层透明交叉淡入淡出，非前台视频隐藏，换动作只保留一帧可见。
 - 隔离端到端已验证：staged 包的真实 onedir helper + Electron 启动后保持运行，stop 后 helper/Electron 退出、marker 清理；临时 `DSH_HOME` + 独立 profile 的 DSH-only 安装也已拉起桌宠。
 - 自包含包安装后只需 DSH 桌面版；本地成长、桌宠、动作、记忆、训练、菜单、SAPI 语音可用。云端聊天/语音仍需用户自己的 Key。

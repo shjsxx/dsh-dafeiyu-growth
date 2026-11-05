@@ -15,6 +15,7 @@
 - 新增 `tools/fetch-runtime.ps1`：可选从 release 资产下载 runtime，校验 SHA-256 并检查三项必需路径；`-IncludeModels` 可内置 BGE 模型并由 supervisor 设置包内模型路径。
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
+- 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
 - 修复动作切换闪现：移除视频层 0.18s 透明交叉淡入淡出，改为同帧切换；非前台视频 `visibility:hidden`，避免两帧半透明叠加产生鬼影/空白帧。
 - 隔离端到端：staged bundle 的真实 onedir helper + Electron 启动并保持，stop 后无残留进程；supervisor 保持 helper stdin 管道打开，避免被当成生命周期关闭。
 - 隔离 DSH-only 安装：临时 `DSH_HOME` 创建 `yunlan-selftest` profile，`dsh plugin add` 安装 staged 0.32.0，再用 `dsh --profile` 启动；插件自动拉起 helper/Electron，窗口标题 `dsh-pet 桌宠（桌面模式）`，全程无 dsh-dafeiyu。

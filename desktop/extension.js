@@ -28,8 +28,29 @@ function reportAction(name) {
   const kind = (animations.clicks || []).includes(name) ? 'click' : (/跳|跃/.test(name) ? 'jump' : 'action');
   window.yunlanBridge.action({ name, kind, distance: 0 });
 }
+const facingProperty = Object.getOwnPropertyDescriptor(PetSprite.prototype, 'facing');
+if (facingProperty?.set) {
+  Object.defineProperty(PetSprite.prototype, 'facing', {
+    configurable: facingProperty.configurable,
+    enumerable: facingProperty.enumerable,
+    get: facingProperty.get,
+    set(value) {
+      // Never mirror-flip the body while it is held. A queued turn/action must
+      // not make the drag animation jump from left-facing to right-facing.
+      if (this.dragState?.active || this.dragState?.dragging) return;
+      facingProperty.set.call(this, value);
+    },
+  });
+}
 PetSprite.prototype.switchTo = function(...args) {
   if (stoppedByCore) return;
+  // While the user is holding the pet, a turn/click/event animation must not
+  // steal the front layer: those clips can be mirrored differently and show as
+  // a left/right flash. The drag animation itself is still allowed.
+  if (this.dragState?.active && typeof args[0] === 'string') {
+    const drags = this.animations?.drag || [];
+    if (drags.length && !drags.includes(args[0])) return;
+  }
   const result = originalSwitchTo.apply(this, args);
   if (typeof args[0] === 'string') reportAction(args[0]);
   return result;
