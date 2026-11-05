@@ -15,6 +15,7 @@
 - 新增 `tools/fetch-runtime.ps1`：可选从 release 资产下载 runtime，校验 SHA-256 并检查三项必需路径；`-IncludeModels` 可内置 BGE 模型并由 supervisor 设置包内模型路径。
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
+- 隔离端到端：staged bundle 的真实 onedir helper + Electron 启动并保持，stop 后无残留进程；supervisor 保持 helper stdin 管道打开，避免被当成生命周期关闭。
 - 仍需用户自备 DSH 和云端/语音 Key；本地功能可离线使用。
 
 ## 0.31.0 · 运动模型与偏好可视化

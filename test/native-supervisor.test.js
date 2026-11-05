@@ -72,7 +72,7 @@ test('complete bundle starts helper with the external renderer marker', () => {
   assert.match(spawned.command, /dsh-dafeiyu-helper\.exe$/)
   assert.deepEqual(spawned.args, ['--external-renderer', '--renderer-config', supervisor.paths.marker])
   assert.equal(spawned.options.windowsHide, true)
-  assert.equal(spawned.options.stdio[0], 'ignore')
+  assert.equal(spawned.options.stdio[0], 'pipe')
   assert.equal(spawned.options.env.DSH_DAFEIYU_EMBEDDING_DIR, supervisor.paths.models)
   const marker = JSON.parse(fs.readFileSync(supervisor.paths.marker, 'utf8'))
   assert.deepEqual(marker, rendererConfig(supervisor.paths))

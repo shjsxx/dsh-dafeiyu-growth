@@ -167,7 +167,7 @@ export class NativeSupervisor {
         env,
         windowsHide: true,
         detached: false,
-        stdio: ['ignore', 'ignore', 'pipe'],
+        stdio: ['pipe', 'ignore', 'pipe'],
       })
     } catch (error) {
       this.log('warn', `helper spawn failed: ${error?.message ?? error}`)

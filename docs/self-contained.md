@@ -109,10 +109,11 @@ dsh-dafeiyu-growth/
 
 ## 验证清单
 
-- [ ] `node --test test/native-supervisor.test.js`
-- [ ] `native\build-onedir.ps1` 成功，onedir 目录含 `_internal`
-- [ ] `package-self-contained.ps1 -DryRun` 体积与路径正确
+- [x] `node --test test/native-supervisor.test.js`（7 项）
+- [x] `native\build-onedir.ps1` 成功，onedir 目录含 `_internal`
+- [x] `package-self-contained.ps1` 成功生成 866 文件、652.8MB staged 包
+- [x] staged 包隔离端到端：真实 onedir helper + staged Electron 启动，9 秒后 helper 仍 running，marker 正确；stop 后 helper/Electron 退出、marker 清理
+- [x] supervisor 保留 stdin 管道（helper 以关闭 stdin 为退出信号；不能用 `ignore`）
 - [ ] 干净 Windows 用户：只装 DSH + 插件，确认桌宠、成长卡、托盘、记忆
-- [ ] 卸载插件后 helper 和 Electron 退出
 - [ ] 云端/语音不填 Key 时明确报未配置，不伪装成功
 - [ ] 发布包含全部授权文件，不含用户数据或 Key
