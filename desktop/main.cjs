@@ -20,6 +20,9 @@ const motionOverlayNames=new Set([
 ].filter(name=>typeof name==='string'&&name));
 const overlayPolicy=String(process.env.DSH_YUNLAN_OVERLAY||'motion').toLowerCase();
 app.setName('yunlan-dsh-pet'); app.setPath('userData',dataDir);
+// A second helper or a stale manual launch must not create a second visible pet.
+// Electron's per-userData lock is the last line of defense against double images.
+if (!app.requestSingleInstanceLock()) { app.exit(0); process.exit(0); }
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features','HardwareMediaKeyHandling');
 // The pet window is deliberately never focused; stop Chromium from throttling
