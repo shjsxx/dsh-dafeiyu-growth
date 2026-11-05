@@ -131,10 +131,20 @@ proposed → approved → running → done
 
 ### v0.35 · 记忆净化
 
-- `MemoryCurator`：去重、冲突检测、隔离、衰减
-- 删除前自动创建快照
-- 用户可查看“为什么这条记忆被标记为低价值”
-- 清除动作写审计账本
+- `MemoryCurator`：去重、冲突检测、过期归档、低价值标记
+- 只输出可审阅计划，不直接改 `memory.json`
+- 冲突记录不能由系统自行判定“谁是真的”，先 quarantine
+- 过期低价值记录只进入 archive 候选
+- `commit()` 仍需明确批准 + `backup_id`
+- 真正删除走独立 `delete()` 门禁，并写审计账本
+
+`native/memory_curator.py` 已实现首批：
+
+- 输入是调用方提供的记录列表，不读取真实档案
+- 输出每个 ID 的 `keep` / `quarantine` / `archive` 及原因
+- 计划带指纹，便于用户核对
+- 处理函数由调用方提供；curator 自己从不删除文件
+- 删除/归档均写 `EvolutionLedger`
 
 ### v0.36 · 人格反思
 
