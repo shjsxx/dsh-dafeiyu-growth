@@ -5,6 +5,7 @@ from pathlib import Path
 
 from evolution_kernel import EvolutionKernel, EvolutionLedger, INVARIANTS, PolicyGate
 from persona_reflection import PersonaReflection
+from personality_engine import PersonalityEngine
 
 
 class PersonaReflectionTests(unittest.TestCase):
@@ -73,6 +74,17 @@ class PersonaReflectionTests(unittest.TestCase):
         self.assertEqual(called[0]["revision"], 1)
         self.assertTrue(self.kernel.ledger.verify()["ok"])
         self.assertEqual([row["decision"] for row in self.kernel.ledger.recent(2)], ["denied", "allowed"])
+
+    def test_personality_restore_requires_approval_and_is_persistent(self):
+        engine = PersonalityEngine(self.root / "personality.json", clock=lambda: 1_800_000_000)
+        target = engine.snapshot()["traits"]
+        self.assertFalse(engine.restore_traits(target, approved=False, backup_id="snap"))
+        self.assertFalse(engine.restore_traits(target, approved=True, backup_id=""))
+        target["warmth"] = 42
+        self.assertTrue(engine.restore_traits(target, approved=True, backup_id="snap"))
+        self.assertEqual(self.reflection._traits(engine.snapshot())["warmth"], 42)
+        reloaded = PersonalityEngine(self.root / "personality.json", clock=lambda: 1_800_000_000)
+        self.assertEqual(self.reflection._traits(reloaded.snapshot())["warmth"], 42)
 
 
 if __name__ == "__main__":

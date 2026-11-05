@@ -758,6 +758,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._show_evolution_status()
                 elif command == 'open-research':
                     self._open_research_dialog()
+                elif command == 'open-memory-curation':
+                    self._open_memory_curation_dialog()
+                elif command == 'open-persona':
+                    self._open_persona_dialog()
                 elif command == 'open-menu':
                     from types import SimpleNamespace
                     self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))

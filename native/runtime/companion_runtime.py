@@ -235,3 +235,23 @@ class CompanionRuntime:
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "云岚 · 研究任务", f"研究界面暂时不可用：{error}")
 
+    def _open_memory_curation_dialog(self) -> None:
+        """Open the proposal-only memory curation review; never auto-delete."""
+        self._stop_motion()
+        try:
+            from memory_curation_ui import MemoryCurationDialog
+            MemoryCurationDialog(self).exec()
+        except Exception as error:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "云岚 · 记忆整理", f"整理界面暂时不可用：{error}")
+
+    def _open_persona_dialog(self) -> None:
+        """Open the reflection/rollback review; never auto-change personality."""
+        self._stop_motion()
+        try:
+            from persona_ui import PersonaReflectionDialog
+            PersonaReflectionDialog(self).exec()
+        except Exception as error:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "云岚 · 人格反思", f"反思界面暂时不可用：{error}")
+

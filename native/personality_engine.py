@@ -281,6 +281,30 @@ class PersonalityEngine:
             return self.snapshot()
         return self.snapshot()
 
+    def restore_traits(self, traits, approved=False, backup_id=""):
+        """Restore only the five learned traits from an approved snapshot.
+
+        Core values/boundaries are not accepted from the caller. A rollback must
+        have explicit approval and a restorable backup id.
+        """
+        if self.status == "protected" or not approved:
+            return False
+        if not isinstance(backup_id, str) or not backup_id.strip():
+            return False
+        if not isinstance(traits, dict):
+            return False
+        restored = {}
+        for key in DIMENSIONS:
+            value = traits.get(key)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                return False
+            restored[key] = round(_clamp(value), 1)
+        before = copy.deepcopy(self.data)
+        self.data["traits"] = restored
+        self.data["revision"] += 1
+        self.data["updatedAt"] = max(0, int(self._clock()))
+        return self._save(before)
+
     def observe(self, text="", intent=None, now=None):
         """Observe an actual user turn and return a repair acknowledgment or ''.
 

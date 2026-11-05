@@ -586,6 +586,71 @@ class MemoryEngine:
                     for row in newest]}
 
     @_locked
+    def export_records(self):
+        """Read-only copy for explicit curation review; never exposes vectors."""
+        return copy.deepcopy(self.data["records"])
+
+    @_locked
+    def remember_research(self, summary, now=None):
+        """Persist a cited research summary as a bounded public-memory row."""
+        text = _plain("研究摘要：" + str(summary or ""), MAX_TEXT)
+        if self.status == "protected" or len(text) <= len("研究摘要："):
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = copy.deepcopy(self.data)
+        if not self._remember("public", text, "local_research", stamp):
+            return 0
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        return 1 if self._save(before) else 0
+
+    @_locked
+    def archive_records(self, ids, mode="archive", reason="", now=None):
+        """Move selected records to a local archive before removing them.
+
+        The archive is written first; memory is changed only after that write
+        succeeds. The caller is responsible for the user confirmation and a
+        separate state backup (see MemoryCurator / the curation dialog).
+        """
+        if self.status == "protected" or not isinstance(ids, (list, tuple)):
+            return 0
+        wanted = {str(value) for value in ids}
+        selected = [row for row in self.data["records"] if row.get("id") in wanted]
+        if not selected:
+            return 0
+        archive_path = self.path.with_name("memory-archive.json")
+        try:
+            existing = []
+            if archive_path.exists():
+                raw = json.loads(archive_path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict) and isinstance(raw.get("records"), list):
+                    existing = raw["records"][-2000:]
+            stamp = int(self._clock() if now is None else now)
+            rows = existing + [{
+                "id": row["id"], "kind": row["kind"], "text": row["text"],
+                "source": row.get("source", ""), "archivedAt": stamp,
+                "mode": str(mode)[:16], "reason": str(reason)[:120],
+            } for row in selected]
+            payload = json.dumps({"version": 1, "records": rows[-2000:]},
+                                 ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            if len(payload.encode("utf-8")) > 1024 * 1024:
+                return 0
+            temporary = archive_path.with_name(archive_path.name + f".{os.getpid()}.tmp")
+            temporary.write_text(payload, encoding="utf-8")
+            os.replace(temporary, archive_path)
+        except (OSError, ValueError, TypeError):
+            return 0
+        before = copy.deepcopy(self.data)
+        self.data["records"] = [row for row in self.data["records"] if row.get("id") not in wanted]
+        self.data["revision"] += 1
+        if not self._save(before):
+            return 0
+        valid = {row["id"] for row in self.data["records"]}
+        self._vectors = {key: value for key, value in self._vectors.items() if key in valid}
+        self._vectors_ready = bool(valid) and valid.issubset(self._vectors)
+        return len(selected)
+
+    @_locked
     def clear(self):
         if self.status == "protected":
             return False

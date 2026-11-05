@@ -81,6 +81,8 @@ test('routes expose only the renderer essentials', () => {
   assert.equal(COMMANDS.has('open-menu'), true);
   assert.equal(COMMANDS.has('open-evolution'), true);
   assert.equal(COMMANDS.has('open-research'), true);
+  assert.equal(COMMANDS.has('open-memory-curation'), true);
+  assert.equal(COMMANDS.has('open-persona'), true);
   assert.equal(COMMANDS.has('eval'), false);
   assert.equal(STATES.has('SUCCESS'), true);
 });

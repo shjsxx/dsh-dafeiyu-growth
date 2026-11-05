@@ -24,6 +24,7 @@ STATE_FILES = (
     "profile.json",
     "growth.json",
     "memory.json",
+    "memory-archive.json",
     "personality.json",
     "continuity.json",
     "companion_state.json",

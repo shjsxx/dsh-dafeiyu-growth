@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 )
 
 from evolution_service import EvolutionService
+from memory_engine import MemoryEngine
+from state_backup import StateBackup
 
 
 class ResearchWorker(QThread):
@@ -34,6 +36,7 @@ class ResearchDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.service = EvolutionService()
+        self.memory = MemoryEngine()
         self.worker = None
         self.setWindowTitle("云岚 · 研究任务")
         self.setMinimumSize(620, 560)
@@ -101,8 +104,10 @@ class ResearchDialog(QDialog):
         self.run_button.clicked.connect(self.run_selected)
         self.summary_button = QPushButton("查看来源摘要")
         self.summary_button.clicked.connect(self.show_summary)
+        self.commit_button = QPushButton("写入记忆…")
+        self.commit_button.clicked.connect(self.commit_summary)
         for button in (self.approve_button, self.pause_button, self.cancel_button,
-                       self.run_button, self.summary_button):
+                       self.run_button, self.summary_button, self.commit_button):
             actions.addWidget(button)
         actions.addStretch(1)
         close = QPushButton("关闭")
@@ -152,6 +157,7 @@ class ResearchDialog(QDialog):
         self.cancel_button.setEnabled(not busy and status not in ("done", "failed", "cancelled", ""))
         self.run_button.setEnabled(not busy and status == "approved")
         self.summary_button.setEnabled(not busy and status == "done")
+        self.commit_button.setEnabled(not busy and status == "done" and not task.get("committed"))
 
     def propose(self):
         urls = [line.strip() for line in self.urls.toPlainText().splitlines() if line.strip()]
@@ -235,6 +241,41 @@ class ResearchDialog(QDialog):
         row = next((row for row in self.service.research.tasks if row.get("id") == task["id"]), {})
         self.output.setPlainText(str(row.get("summary") or "没有摘要"))
         self.status.setText("这是未受信网页摘要；写入记忆需要后续单独确认。")
+
+    def commit_summary(self):
+        task = self.selected_task()
+        if not task or task.get("status") != "done" or task.get("committed"):
+            return
+        answer = QMessageBox.question(
+            self, "写入长期记忆",
+            "把这份带来源的研究摘要写入本地长期记忆？\n"
+            "会先创建状态备份；摘要标记为公开研究资料，不包含原始网页全文。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            snapshot = StateBackup().create("before-research-memory")
+            if snapshot is None:
+                raise RuntimeError("没有可备份的状态文件")
+            row = next((item for item in self.service.research.tasks
+                        if item.get("id") == task["id"]), None)
+            if row is None:
+                raise RuntimeError("研究任务不存在")
+            text = str(row.get("summary") or "")
+            citations = row.get("citations") or []
+            if citations:
+                text += "\n来源：" + " ".join(
+                    str(c.get("url") or "") for c in citations[:5] if c.get("url"))
+            if not self.memory.remember_research(text):
+                raise RuntimeError("长期记忆没有写入成功")
+            self.service.research.mark_committed(task["id"])
+            self.status.setText(f"已写入长期记忆；恢复点：{snapshot.name}")
+            self.output.setPlainText(text)
+        except Exception as error:
+            QMessageBox.warning(self, "写入记忆", str(error))
+        self.refresh()
+
 
     def closeEvent(self, event):
         if self.worker is not None and self.worker.isRunning():
