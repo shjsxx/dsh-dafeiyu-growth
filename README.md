@@ -158,8 +158,14 @@ npm test
 
 ## 许可与致谢
 
-代码以 [MIT](LICENSE) 发布，派生自 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)；保留上游许可。Unicode CLDR、Stack Overflow 等来源分别遵循各自许可，见 [NOTICE](NOTICE.md)。
+**代码与角色素材分开授权。**
 
-**角色素材不随仓库分发。** 请遵守上游 [素材许可](https://github.com/QCYTSN/dsh-dafeiyu/blob/main/ASSET_LICENSE.md)，不要单独再分发不在 MIT 范围内的旧 BigFish 帧。公开预览只含自绘界面与合成数据。
+- **本插件源代码**：[MIT](LICENSE)，派生自 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)，保留 `native/upstream-LICENSE`。
+- **桌面渲染器代码**：来自 [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)，MIT；固定提交 `3c99b1bb4d1bcb831880e8871718c50b64af0d9b`。
+- **角色形象与 109 段动画**：适用 **CC BY-NC-SA 4.0**（署名、非商业、相同方式共享），不是 MIT；原作者与固定提交见 [ASSET_LICENSE.md](ASSET_LICENSE.md)。
+- **自包含发行包**：包含 dsh-pet 角色动画，必须保留 `ASSET_LICENSE.md`、`NOTICE.md`、上游链接与署名，不能把整包标成单一 MIT。商业使用需向上游权利人另行取得许可。
+- **本仓库公开截图**：只含自绘 UI 与合成数据，不包含角色帧；新增的本领/运动模型截图同样不改变上述授权分层。
+
+Unicode CLDR、Stack Overflow 等第三方来源分别遵循各自许可，完整清单见 [NOTICE.md](NOTICE.md)。
 
 本项目是非官方粉丝作品，与 DeepSeek 无隶属或背书关系；名称、商标与角色权利归各自权利人。
