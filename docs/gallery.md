@@ -61,6 +61,12 @@
 | <img src="screenshots/growth-overview.png" alt="原生成长概览，合成数据" width="330"> | <img src="screenshots/growth-skills.png" alt="原生六维本领，合成数据" width="330"> |
 | 等级、属性与陪伴节奏；时间和计数均为夹具。 | 六维练习指数与动作模型状态，不是能力认证。 |
 
+### 运动模型特写
+
+<img src="screenshots/growth-motion.png" alt="原生运动模型：跑速、稳定、爬起，合成数据" width="380">
+
+跑速、稳定率、爬起率与公式；偏好记忆只改动作选择，不直接改速度。
+
 | 成长回顾 | 权限边界 |
 | :---: | :---: |
 | <img src="screenshots/growth-diary.png" alt="原生成长回顾，合成数据" width="330"> | <img src="screenshots/growth-permissions.png" alt="原生权限边界，合成数据" width="330"> |
