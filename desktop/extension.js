@@ -42,51 +42,109 @@ PetSprite.prototype.tryMove = function(...args) {
   }
   return result;
 };
-// One compact panel: common actions first, the full animation tree once, and
-// the native settings menu only behind "更多设置". No cloud/todo endpoints.
+function actionCategories(animations) {
+  const groups = [];
+  const add = (label, names) => {
+    const unique = [...new Set((names || []).filter(name => typeof name === 'string' && name))];
+    if (unique.length) groups.push({ label, children: unique.map(name => ({ label: name, anim: name })) });
+  };
+  add('待机', animations.idle);
+  add('转向', animations.turn);
+  add('拖拽', animations.drag);
+  add('点击回应', animations.clicks);
+  add('移动', (animations.moves?.actions || []).map(action => action.name));
+  for (const category of animations.categories || []) add(category.id, category.actions);
+  const eventLabels = { workStatus: '工作状态', balance: '余额', whisper: '碎碎念' };
+  for (const [key, slots] of Object.entries(animations.events || {})) {
+    const names = [];
+    for (const slot of slots || []) {
+      if (typeof slot === 'string') names.push(slot);
+      else if (Array.isArray(slot)) names.push(...slot);
+    }
+    add(eventLabels[key] || key, names);
+  }
+  return groups;
+}
+
+function menuSections(sprite) {
+  const categories = actionCategories(sprite.animations);
+  const actionCount = categories.reduce((sum, group) => sum + group.children.length, 0);
+  return [
+    { label: '常用', items: [
+      { label: '和云岚聊天', icon: 'chat', command: 'open-conversation' },
+      { label: '查看成长卡', icon: 'growth', command: 'open-growth' },
+      { label: '喜欢刚才的动作', icon: 'like', command: 'feedback-positive' },
+      { label: '这个动作不太行', icon: 'dislike', command: 'feedback-negative' },
+    ] },
+    { label: '陪伴', items: [
+      { label: sprite.sleeping ? '起来' : '睡觉', icon: sprite.sleeping ? 'wake' : 'sleep',
+        sleepAction: sprite.sleeping ? 'wake' : 'sleep' },
+      { label: '桌面漫游', icon: 'roam', checked: motionEnabled, command: 'toggle-roam' },
+      { label: '减少动态', icon: 'motion', checked: reducedMotion, command: 'toggle-reduced' },
+      { label: '隐藏到托盘', icon: 'hide', command: 'hide' },
+    ] },
+    { label: '动作', items: [
+      { label: `全部动作 · ${actionCount}`, icon: 'actions', title: '动作分类', children: categories },
+    ] },
+    { label: '设置', items: [
+      { label: '更多设置（语音 / 云端 / 大小）', icon: 'settings', command: 'open-menu' },
+    ] },
+  ];
+}
+let menuWarmed = false;
+function warmMenu() {
+  if (menuWarmed || !sprites.length || !window.YunlanMenu) return;
+  menuWarmed = true;
+  try {
+    const menu = window.YunlanMenu.mount({
+      sections: menuSections(sprites[0]), x: -10000, y: -10000,
+      clamp: { x: -10000, y: -10000, w: 20, h: 20 },
+      onAction() {}, onClose() {},
+    });
+    menu.close();
+  } catch { /* warm-up is best effort */ }
+}
+
+// One grouped panel. Only the root items exist up front; action categories and
+// their 100+ leaves are built on hover, keeping right-click opening cheap.
 PetSprite.prototype.onContextMenu = function(event) {
   if (this.dragState.active || this.dragState.dragging || this.justDragged || this.menuOpen) return;
   event.preventDefault();
   // showInactive windows may swallow the first click to activate; menus must be clickable.
   window.petBridge?.requestKeyboardFocus?.();
   this.stopThrow(); this.stopMove();
-  const command = (label, name) => ({ label, action: 'cmd:' + name });
-  const tree = [
-    command('和云岚聊天…', 'open-conversation'),
-    command('查看成长卡', 'open-growth'),
-    command('喜欢刚才的动作', 'feedback-positive'),
-    command('这个动作不太行', 'feedback-negative'),
-  ];
-  if (Array.isArray(this.animations.sleep) && this.animations.sleep.length) {
-    tree.push({ label: this.sleeping ? '起来' : '睡觉', action: this.sleeping ? 'wake' : 'sleep' });
+  if (!window.YunlanMenu) {
+    window.yunlanBridge.command('open-menu');
+    return;
   }
-  tree.push(
-    command(`桌面漫游  ${motionEnabled ? '✓' : '○'}`, 'toggle-roam'),
-    command(`减少动态  ${reducedMotion ? '✓' : '○'}`, 'toggle-reduced'),
-    command('隐藏到托盘', 'hide'),
-  );
-  tree.push(...window.PetShared.buildMenuTree(this.animations));
-  tree.push(command('更多设置…（语音 / 云端 / 大小）', 'open-menu'));
+  const sections = menuSections(this);
   this.menuOpen = true;
   window.__dshPetDebug.menuOpen = true;
+  window.yunlanBridge.setMenuOpen(true);
   this.setInteractive(true);
   this.syncInputBusy();
-  const menu = window.PetShared.mountContextMenu({
-    tree,
+  const menu = window.YunlanMenu.mount({
+    sections,
     x: event.clientX,
     y: event.clientY,
     clamp: this.visibleClampRect(),
-    onAction: (leaf) => {
-      if (leaf && typeof leaf.action === 'string' && leaf.action.startsWith('cmd:')) {
-        this.closeMenu();
-        window.yunlanBridge.command(leaf.action.slice(4));
+    onAction: (entry) => {
+      if (entry.command) {
+        window.yunlanBridge.command(entry.command);
         return;
       }
-      this.onMenuAction(leaf, undefined, false);
+      if (entry.sleepAction) {
+        this.onMenuAction({ label: entry.label, action: entry.sleepAction }, undefined, false);
+        return;
+      }
+      if (entry.anim) {
+        this.onMenuAction({ label: entry.anim, anim: entry.anim }, undefined, false);
+      }
     },
     onClose: () => {
       this.menuOpen = false;
       window.__dshPetDebug.menuOpen = false;
+      window.yunlanBridge.setMenuOpen(false);
       this.syncInputBusy();
       if (!this.inputBusy()) this.setInteractive(false);
     },
@@ -159,5 +217,6 @@ window.addEventListener('keydown', function(event) {
 const readyCheck = setInterval(function() {
   if (window.__dshPetDebug?.configOk && sprites.length) {
     clearInterval(readyCheck); window.yunlanBridge.ready();
+    setTimeout(warmMenu, 1200);
   }
 }, 100);

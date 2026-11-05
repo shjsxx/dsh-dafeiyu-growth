@@ -35,7 +35,7 @@ if (-not $Rollback) {
     if (-not (Test-Path -LiteralPath $required)) { throw "Missing pinned runtime asset: $required" }
   }
   New-Item -ItemType Directory -Force -Path $hostDir, $markerDir, $userDataDir | Out-Null
-  foreach ($name in 'main.cjs', 'preload.cjs', 'extension.js', 'config.cjs', 'presentation-host.cjs', 'control-channel.cjs') {
+  foreach ($name in 'main.cjs', 'preload.cjs', 'extension.js', 'menu-ui.js', 'config.cjs', 'presentation-host.cjs', 'control-channel.cjs') {
     Copy-Item -LiteralPath (Join-Path $pluginRoot "desktop\$name") -Destination (Join-Path $hostDir $name) -Force
   }
   $config = [ordered]@{
@@ -101,17 +101,10 @@ if (-not $copied) { throw 'Unable to replace the running helper binary' }
 if ((Get-FileHash $source).Hash -ne (Get-FileHash $target).Hash) { throw 'Native binary verification failed' }
 Write-Output "Installed verified native binary ($((Get-Item $target).Length) bytes); rollback=$Rollback"
 # Restart only this pet's launcher + UI, not the DSH host or chat session. The
-# upstream helper owner restarts an exited helper with the new binary. If it
-# already respawned the previous image during the copy, stop it once more so the
-# next restart takes the verified file.
-for ($attempt = 0; $attempt -lt 10; $attempt++) {
-  $running = @(Get-CimInstance Win32_Process | Where-Object {
-      $_.Name -like 'dsh-dafeiyu-helper-*.exe' -and $_.ExecutablePath -like "$cacheRoot*" })
-  if ($running.Count -eq 0) { break }
-  foreach ($process in $running) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
-  Start-Sleep -Milliseconds 400
-}
+# upstream helper owner restarts an exited helper with the new binary. Do not
+# kill a respawned helper here: doing so caused extra start-failure churn.
 if ($toRestart.Count -gt 0) {
+  Start-Sleep -Milliseconds 1500
   Write-Output "Requested pet-only restart: $($toRestart.ProcessId -join ',')"
 } else {
   Write-Output 'No running pet under the desktop host; change applies on next pet start.'

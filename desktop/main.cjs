@@ -19,7 +19,7 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 protocol.registerSchemesAsPrivileged([{scheme:'yunlan-pet',privileges:{standard:true,secure:true,supportFetchAPI:true}},{scheme:'dsh-pet-bridge',privileges:{standard:true,secure:true,supportFetchAPI:true,corsEnabled:true}}]);
-let win=null,tray=null,ready=false,inputBusy=false,lastBounds=null,interactive=false,lastAnchorAt=0,anchorTimer=null,lastBoundsAt=0;
+let win=null,tray=null,ready=false,inputBusy=false,lastBounds=null,interactive=false,lastAnchorAt=0,anchorTimer=null,lastBoundsAt=0,menuOpen=false;
 function emit(value) {
   process.stdout.write(JSON.stringify(value)+'\n');
   const smoke=arg('--smoke-out');
@@ -86,13 +86,13 @@ app.whenReady().then(async()=>{
     const smoke=arg('--smoke-out');if(smoke){fs.mkdirSync(smoke,{recursive:true});fs.appendFileSync(path.join(smoke,'requests.log'),request.url+'\n');}
     const url=new URL(request.url);if(url.hostname!=='ui' || request.method!=='GET') return new Response(null,{status:403});
     let name;try{name=decodeURIComponent(url.pathname.slice(1));}catch{return new Response(null,{status:400});}
-    if(name==='extension.js') return fileResponse(safeFile(__dirname,'extension.js'),request);
+    if(name==='extension.js'||name==='menu-ui.js') return fileResponse(safeFile(__dirname,name),request);
     const file=safeFile(rendererRoot,name);
     {const smoke=arg('--smoke-out');if(smoke)fs.appendFileSync(path.join(smoke,'resolve.log'),JSON.stringify({name,file,version:process.versions})+'\n');}
     if(name==='index.html' && file) {
       let html=await fs.promises.readFile(file,'utf8');
       html=html.replace(/content="default-src[^\"]*"/,`content="default-src 'self' dsh-pet-bridge: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' dsh-pet-bridge: data:; media-src 'self' dsh-pet-bridge: blob:; font-src 'self' dsh-pet-bridge: data:; connect-src dsh-pet-bridge:; object-src 'none'; frame-src 'none'"`);
-      html=html.replace('<script src="./events.js"></script>','<script src="./extension.js"></script><script src="./events.js"></script>');
+      html=html.replace('<script src="./events.js"></script>','<script src="./menu-ui.js"></script><script src="./extension.js"></script><script src="./events.js"></script>');
       return new Response(html,{headers:{'content-type':'text/html'}});
     }
     return fileResponse(file,request);
@@ -142,6 +142,18 @@ app.whenReady().then(async()=>{
     emitAnchor({kind:'anchor',x:Math.round(b.boxX+left),y:Math.round(b.boxY+top),width:Math.round(b.size),height:Math.round(b.size*9/16)});
   });
   ipcMain.on('pet:set-interactive',(event,value)=>{if(permitted(event)){interactive=value===true;win.setIgnoreMouseEvents(!interactive,{forward:true});}});
+  ipcMain.on('yunlan:menu-open',(event,open)=>{
+    if(!permitted(event))return;
+    menuOpen=open===true;
+    if(menuOpen){
+      // A transparent, never-focused window can be click-through even while a
+      // DOM menu is drawn. Lock the window interactive for the menu's lifetime.
+      interactive=true;
+      win.setIgnoreMouseEvents(false);
+      win.focus();
+      win.webContents.focus();
+    }
+  });
   ipcMain.on('pet:input-busy',(event,value)=>{if(permitted(event)) inputBusy=value===true;});
   ipcMain.on('yunlan:focus',event=>{if(permitted(event))win.focus();});
   ipcMain.on('yunlan:command',(event,command)=>{if(permitted(event)&&COMMANDS.has(command))emit({kind:'command',command});});
@@ -154,7 +166,7 @@ app.whenReady().then(async()=>{
   ipcMain.on('yunlan:ready',event=>{if(permitted(event)&&!ready){ready=true;win.showInactive();emit({kind:'ready'});emit({kind:'status',visible:true,connected:true});}});
   // Pointer-forward may be unreliable with transparent windows: keep the body hit area interactive as fallback.
   const pointerTimer=setInterval(()=>{
-    if(!win || !lastBounds || inputBusy) return;
+    if(!win || !lastBounds || inputBusy || menuOpen) return;
     // While the pet is moving, its own bounds churn is enough work; do not
     // toggle hit-testing every 80ms on top of it.
     if(Date.now()-lastBoundsAt<250) return;
@@ -178,7 +190,7 @@ app.whenReady().then(async()=>{
     },10500);
     setTimeout(()=>{
       if(!win) return;
-      win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';const t=performance.now();sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});return performance.now()-t;})()").then(value=>{const smoke=arg('--smoke-out');if(smoke)fs.writeFileSync(path.join(smoke,'menu-time.json'),JSON.stringify({buildMs:value}));}).catch(()=>{});
+      win.webContents.executeJavaScript("(()=>{if(!sprites.length)return 'no-sprite';const a=performance.now();sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});const first=performance.now()-a;sprites[0].closeMenu();const b=performance.now();sprites[0].onContextMenu({preventDefault(){},clientX:360,clientY:320});const second=performance.now()-b;return {first,second};})()").then(value=>{const smoke=arg('--smoke-out');if(smoke)fs.writeFileSync(path.join(smoke,'menu-time.json'),JSON.stringify(value));}).catch(()=>{});
     },11200);
   }
   // Explicit smoke mode only: records renderer diagnostics without reading user data or starting core.

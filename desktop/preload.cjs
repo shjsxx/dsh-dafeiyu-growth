@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('yunlanBridge', {
     ipcRenderer.send('yunlan:action', { name: payload.name, kind: payload.kind, distance });
   },
   ready() { ipcRenderer.send('yunlan:ready'); },
+  setMenuOpen(open) { ipcRenderer.send('yunlan:menu-open', open === true); },
   onControl(callback) { ipcRenderer.on('yunlan:control', (_, value) => callback(value)); },
 });
 contextBridge.exposeInMainWorld('petBridge', {
