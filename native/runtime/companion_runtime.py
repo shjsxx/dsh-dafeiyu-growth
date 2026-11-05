@@ -189,6 +189,10 @@ class CompanionRuntime:
             self.growth_dialog.online_enabled_changed.connect(self._set_online_enabled)
             self.growth_dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
             self.growth_dialog.memory_clear_requested.connect(self._clear_memory_engine)
+            self.growth_dialog.evolution_status_requested.connect(self._show_evolution_status)
+            self.growth_dialog.research_requested.connect(self._open_research_dialog)
+            self.growth_dialog.memory_curation_requested.connect(self._open_memory_curation_dialog)
+            self.growth_dialog.persona_requested.connect(self._open_persona_dialog)
         self._sync_personality()
         self._sync_continuity()
         self.growth_dialog.update_state(self.growth_state)
@@ -221,37 +225,55 @@ class CompanionRuntime:
                 "人格：核心不变项锁定，单次漂移有上限\n\n"
                 "研究、整理执行和人格回滚都需要你明确批准。"
             )
-            QMessageBox.information(self, "云岚 · 进化状态", text)
+            QMessageBox.information(None, "云岚 · 进化状态", text)
         except Exception as error:
-            QMessageBox.warning(self, "云岚 · 进化状态", f"暂时无法读取进化状态：{error}")
+            QMessageBox.warning(None, "云岚 · 进化状态", f"暂时无法读取进化状态：{error}")
 
     def _open_research_dialog(self) -> None:
         """Open the explicit research plan dialog; never auto-start a task."""
         self._stop_motion()
         try:
+            from PySide6.QtCore import Qt
             from research_ui import ResearchDialog
-            ResearchDialog(self).exec()
+            dialog = ResearchDialog(None)
+            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            dialog.exec()
         except Exception as error:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "云岚 · 研究任务", f"研究界面暂时不可用：{error}")
+            QMessageBox.warning(None, "云岚 · 研究任务", f"研究界面暂时不可用：{error}")
 
     def _open_memory_curation_dialog(self) -> None:
         """Open the proposal-only memory curation review; never auto-delete."""
         self._stop_motion()
         try:
+            from PySide6.QtCore import Qt
             from memory_curation_ui import MemoryCurationDialog
-            MemoryCurationDialog(self).exec()
+            dialog = MemoryCurationDialog(None)
+            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            dialog.exec()
         except Exception as error:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "云岚 · 记忆整理", f"整理界面暂时不可用：{error}")
+            QMessageBox.warning(None, "云岚 · 记忆整理", f"整理界面暂时不可用：{error}")
 
     def _open_persona_dialog(self) -> None:
         """Open the reflection/rollback review; never auto-change personality."""
         self._stop_motion()
         try:
+            from PySide6.QtCore import Qt
             from persona_ui import PersonaReflectionDialog
-            PersonaReflectionDialog(self).exec()
+            dialog = PersonaReflectionDialog(None)
+            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            dialog.exec()
         except Exception as error:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "云岚 · 人格反思", f"反思界面暂时不可用：{error}")
+            QMessageBox.warning(None, "云岚 · 人格反思", f"反思界面暂时不可用：{error}")
 

@@ -530,6 +530,10 @@ class GrowthDialog(QDialog):
     online_enabled_changed = Signal(bool)
     online_refresh_requested = Signal()
     memory_clear_requested = Signal()
+    evolution_status_requested = Signal()
+    research_requested = Signal()
+    memory_curation_requested = Signal()
+    persona_requested = Signal()
 
     """A passive nonmodal growth journal: only open_near explicitly shows it."""
 
@@ -1126,6 +1130,28 @@ class GrowthDialog(QDialog):
         data_page.addWidget(self.data_panel)
         self.voice_data_panel = VoiceDataPanel(self)
         data_page.addWidget(self.voice_data_panel)
+        self._heading(data_page, "受控进化", "研究 · 记忆 · 人格")
+        self.evolution_card, evolution_box = self._card("evolutionCard")
+        evolution_box.addWidget(_label(
+            "研究、记忆整理、人格反思和回滚都需要明确批准；这里不会自动联网或自动改数据。",
+            "memoryStatus"))
+        evolution_buttons = QGridLayout()
+        evolution_buttons.setSpacing(7)
+        self.evolution_status_button = QPushButton("进化状态")
+        self.research_button = QPushButton("研究任务…")
+        self.memory_curation_button = QPushButton("记忆整理…")
+        self.persona_button = QPushButton("人格反思…")
+        for index, (button, signal) in enumerate((
+            (self.evolution_status_button, self.evolution_status_requested),
+            (self.research_button, self.research_requested),
+            (self.memory_curation_button, self.memory_curation_requested),
+            (self.persona_button, self.persona_requested),
+        )):
+            button.setAutoDefault(False)
+            button.clicked.connect(signal.emit)
+            evolution_buttons.addWidget(button, index // 2, index % 2)
+        evolution_box.addLayout(evolution_buttons)
+        data_page.addWidget(self.evolution_card)
         data_page.addStretch()
         self._emotion_snapshot, self._companion_snapshot, self._training_snapshot = {}, {}, {}
         self._state_snapshot, self._behavior_snapshot = {}, {}
