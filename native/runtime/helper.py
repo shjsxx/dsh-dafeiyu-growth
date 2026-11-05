@@ -618,7 +618,27 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                 self.renderer.send({'kind': 'configure', 'scale': self.scale,
                                     'bubbleScale': self.bubble_scale,
                                     'reducedMotion': self.reduced_motion,
-                                    'motionEnabled': self.motion_enabled})
+                                    'motionEnabled': self.motion_enabled,
+                                    'chatterEnabled': self.chatter_enabled})
+
+        def _adjust_scale(self, delta: float) -> None:
+            target = round(min(1.4, max(0.55, self.scale + delta)), 2)
+            if abs(target - self.scale) < 0.01:
+                self._present_external('已经是最大了' if delta > 0 else '已经是最小了', 'IDLE', 2000)
+                return
+            self.scale = target
+            self._apply_window_size()
+            self._move_to_pet(self.pet_x, self.pet_y)
+            self._save_layout()
+            self._configure_external()
+            self._present_external(f'界面大小 {round(target * 100)}%', 'IDLE', 2200)
+
+        def _toggle_chatter(self) -> None:
+            self.chatter_enabled = not self.chatter_enabled
+            self.next_talk_ms = self._now_ms() + 90000
+            self._save_layout()
+            self._configure_external()
+            self._present_external('主动搭话已开启' if self.chatter_enabled else '主动搭话已暂停', 'IDLE', 2400)
 
         def _presentation_visible(self):
             return (self.renderer_connected and self.renderer_visible) if self.external_renderer else self.isVisible()
@@ -752,6 +772,20 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._set_reduced_motion(not self.reduced_motion)
                     self._save_layout()
                     self._present_external('已减少动态' if self.reduced_motion else '已恢复完整动态', 'IDLE', 2600)
+                elif command == 'toggle-chatter':
+                    self._toggle_chatter()
+                elif command == 'open-voice-tools':
+                    self._open_voice_tools()
+                elif command == 'open-cloud-settings':
+                    self._open_cloud_settings()
+                elif command == 'open-realtime-settings':
+                    self._open_realtime_settings()
+                elif command == 'spin':
+                    self._start_spin(1, allow_during_chat=True)
+                elif command == 'scale-up':
+                    self._adjust_scale(0.15)
+                elif command == 'scale-down':
+                    self._adjust_scale(-0.15)
                 elif command == 'emergency-stop':
                     self._emergency_stop()
                 elif command in ('show', 'hide'):

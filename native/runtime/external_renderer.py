@@ -11,7 +11,9 @@ import time
 
 COMMANDS = frozenset(('open-conversation', 'open-growth', 'feedback-positive',
                       'feedback-negative', 'emergency-stop', 'show', 'hide', 'open-menu',
-                      'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced'))
+                      'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced',
+                      'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings',
+                      'toggle-chatter', 'spin', 'scale-up', 'scale-down'))
 STATES = frozenset(('IDLE', 'THINKING', 'WORKING', 'WAITING', 'SUCCESS', 'ERROR', 'DISCONNECTED'))
 INTENTS = frozenset(('run', 'hop', 'spin', 'greet', 'celebrate', 'head_pat', 'poke', 'tail',
                      'sad', 'sleep', 'think', 'idle'))

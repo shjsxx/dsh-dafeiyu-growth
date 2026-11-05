@@ -4,6 +4,7 @@ let stoppedByCore = false;
 let reducedByCore = false;
 let motionEnabled = true;
 let reducedMotion = false;
+let chatterEnabled = true;
 // Promote the two video layers explicitly; transparent always-on-top windows
 // otherwise repaint more than necessary during opacity crossfades.
 const videoLayerStyle = document.createElement('style');
@@ -81,13 +82,16 @@ function menuSections(sprite) {
         sleepAction: sprite.sleeping ? 'wake' : 'sleep' },
       { label: '桌面漫游', icon: 'roam', checked: motionEnabled, command: 'toggle-roam' },
       { label: '减少动态', icon: 'motion', checked: reducedMotion, command: 'toggle-reduced' },
+      { label: '主动搭话', icon: 'talk', checked: chatterEnabled, command: 'toggle-chatter' },
       { label: '隐藏到托盘', icon: 'hide', command: 'hide' },
     ] },
-    { label: '动作', items: [
-      { label: `全部动作 · ${actionCount}`, icon: 'actions', title: '动作分类', children: categories },
-    ] },
-    { label: '设置', items: [
-      { label: '更多设置（语音 / 云端 / 大小）', icon: 'settings', command: 'open-menu' },
+    { label: `动作 · ${actionCount}`, grid: true,
+      items: categories.map(category => ({ label: category.label, children: category.children })) },
+    { label: '设置', grid: 2, items: [
+      { label: '语音与实时语音', icon: 'mic', command: 'open-voice-tools' },
+      { label: '云端接口', icon: 'cloud', command: 'open-cloud-settings' },
+      { label: '界面放大', icon: 'plus', command: 'scale-up' },
+      { label: '界面缩小', icon: 'minus', command: 'scale-down' },
     ] },
   ];
 }
@@ -168,6 +172,7 @@ window.yunlanBridge.onControl(function(message) {
     reducedByCore = message.reducedMotion === true;
     reducedMotion = message.reducedMotion === true;
     motionEnabled = message.motionEnabled !== false;
+    chatterEnabled = message.chatterEnabled !== false;
     if (sprites.some(sprite => sprite.size !== Math.round(360*message.scale))) {
       void boot();
     }

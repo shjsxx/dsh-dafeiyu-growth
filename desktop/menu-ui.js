@@ -19,18 +19,27 @@
     hide: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/><path d="M3 3l18 18"/></svg>',
     actions: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z"/></svg>',
     settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-4v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2-3.4.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4v-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V4h4v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2 3.4-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v4h-.2a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    mic: '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg>',
+    cloud: '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.5 3.5 0 0 0 7 18z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    minus: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+    talk: '<svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4V5z"/><path d="M8 9h8M8 12h5"/></svg>',
+    spin: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg>',
   };
   const CSS = `
   .yl-menu-root{position:fixed;inset:0;z-index:2147483000;pointer-events:none}
-  .yl-menu-panel{position:absolute;pointer-events:auto;min-width:228px;max-width:300px;max-height:calc(100vh - 16px);
+  .yl-menu-panel{position:absolute;pointer-events:auto;min-width:300px;max-width:340px;max-height:calc(100vh - 16px);
     overflow:auto;background:rgba(251,253,253,.985);border:1px solid rgba(35,78,88,.16);border-radius:13px;
     box-shadow:0 14px 36px rgba(10,35,45,.22),0 2px 8px rgba(10,35,45,.10);padding:6px;
-    font:13px/1.35 "Microsoft YaHei UI","Segoe UI",sans-serif;color:#22363d;user-select:none;
+    font:13px/1.3 "Microsoft YaHei UI","Segoe UI",sans-serif;color:#22363d;user-select:none;
     scrollbar-width:thin;scrollbar-color:rgba(70,110,120,.28) transparent}
   .yl-menu-panel::-webkit-scrollbar{width:8px}
   .yl-menu-panel::-webkit-scrollbar-thumb{background:rgba(70,110,120,.25);border-radius:8px}
-  .yl-menu-section{padding:8px 10px 4px;font-size:10.5px;font-weight:700;color:#7b9298;letter-spacing:.10em}
-  .yl-menu-item{display:flex;align-items:center;gap:10px;min-height:33px;padding:5px 9px;border-radius:8px;
+  .yl-menu-section{padding:6px 9px 2px;font-size:10.5px;font-weight:700;color:#7b9298;letter-spacing:.10em}
+  .yl-menu-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;padding:0 2px}
+  .yl-menu-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .yl-menu-grid .yl-menu-item{min-width:0;padding:4px 6px;gap:5px}
+  .yl-menu-item{display:flex;align-items:center;gap:9px;min-height:29px;padding:4px 9px;border-radius:8px;
     cursor:default;white-space:nowrap;outline:none}
   .yl-menu-item:hover,.yl-menu-item:focus{background:#e6f2f3}
   .yl-menu-icon{width:18px;height:18px;flex:0 0 18px;display:flex;align-items:center;justify-content:center;color:#527e85}
@@ -66,11 +75,16 @@
     const root = node('div', 'yl-menu-root');
     const panels = new Set();
     let closed = false;
+    let pointerMoved = false;
+    const trackPointer = (event) => {
+      if (Math.hypot(event.clientX - x, event.clientY - y) > 6) pointerMoved = true;
+    };
     const close = () => {
       if (closed) return;
       closed = true;
       document.removeEventListener('mousedown', outside, true);
       document.removeEventListener('keydown', escape, true);
+      document.removeEventListener('mousemove', trackPointer, true);
       root.remove();
       if (onClose) onClose();
     };
@@ -95,8 +109,8 @@
         if (child.checked) item.appendChild(node('span', 'yl-menu-check', '✓'));
         if (Array.isArray(child.children) && child.children.length) {
           item.appendChild(node('span', 'yl-menu-arrow', '›'));
-          item.addEventListener('mouseenter', () => openChild(item, panel, child.children, child.title));
-          item.addEventListener('mousemove', () => openChild(item, panel, child.children, child.title));
+          item.addEventListener('mouseenter', () => { if (pointerMoved) openChild(item, panel, child.children, child.title); });
+          item.addEventListener('mousemove', () => { if (pointerMoved) openChild(item, panel, child.children, child.title); });
           item.addEventListener('focus', () => openChild(item, panel, child.children, child.title));
         } else {
           item.addEventListener('click', (event) => {
@@ -144,6 +158,8 @@
         if (!section.items || !section.items.length) continue;
         if (panel.childElementCount) panel.appendChild(node('div', 'yl-menu-sep'));
         panel.appendChild(node('div', 'yl-menu-section', section.label));
+        const container = section.grid ? node('div', 'yl-menu-grid' + (section.grid === 2 ? ' cols-2' : '')) : panel;
+        if (section.grid) panel.appendChild(container);
         for (const entry of section.items) {
           const item = node('div', 'yl-menu-item');
           item.tabIndex = 0;
@@ -152,8 +168,8 @@
           if (entry.checked) item.appendChild(node('span', 'yl-menu-check', '✓'));
           if (Array.isArray(entry.children) && entry.children.length) {
             item.appendChild(node('span', 'yl-menu-arrow', '›'));
-            item.addEventListener('mouseenter', () => openChild(item, panel, entry.children, entry.title));
-            item.addEventListener('mousemove', () => openChild(item, panel, entry.children, entry.title));
+            item.addEventListener('mouseenter', () => { if (pointerMoved) openChild(item, panel, entry.children, entry.title); });
+            item.addEventListener('mousemove', () => { if (pointerMoved) openChild(item, panel, entry.children, entry.title); });
             item.addEventListener('focus', () => openChild(item, panel, entry.children, entry.title));
             item.addEventListener('click', (event) => {
               event.preventDefault(); event.stopPropagation();
@@ -166,7 +182,7 @@
               if (onAction) onAction(entry);
             });
           }
-          panel.appendChild(item);
+          container.appendChild(item);
         }
       }
       root.appendChild(panel); panels.add(panel);
@@ -179,6 +195,7 @@
     root.addEventListener('mousedown', (event) => event.stopPropagation());
     document.addEventListener('mousedown', outside, true);
     document.addEventListener('keydown', escape, true);
+    document.addEventListener('mousemove', trackPointer, true);
     rootPanel();
     return { close, element: root };
   }

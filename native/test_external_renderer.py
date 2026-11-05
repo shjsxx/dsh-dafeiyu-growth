@@ -14,7 +14,9 @@ class BridgeTests(unittest.TestCase):
     def test_command_allowlist(self):
         for command in ('open-conversation', 'open-growth', 'open-menu', 'feedback-positive',
                         'feedback-negative', 'emergency-stop', 'show', 'hide',
-                        'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced'):
+                        'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced',
+                        'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings',
+                        'toggle-chatter', 'spin', 'scale-up', 'scale-down'):
             self.assertEqual(sanitize_event({'kind':'command','command':command,'secret':'drop'}),
                              {'kind':'command','command':command})
         for command in ('eval', '_voice_start', 'cloud', 'confirm-operation', None, []):
@@ -178,6 +180,21 @@ class BridgeTests(unittest.TestCase):
         dispatch(host,{'kind':'command','command':'open-growth'})
         dispatch(host,{'kind':'command','command':'confirm-operation'})
         host._open_conversation.assert_called_once(); host._show_growth_card.assert_called_once()
+
+    def test_menu_commands_reach_the_intended_core_action(self):
+        host=SimpleNamespace(_open_voice_tools=Mock(),_open_cloud_settings=Mock(),
+                             _open_realtime_settings=Mock(),_toggle_chatter=Mock(),
+                             _start_spin=Mock(),_adjust_scale=Mock())
+        dispatch=self.helper_method('_on_renderer_event')
+        for command in ('open-voice-tools','open-cloud-settings','open-realtime-settings',
+                        'toggle-chatter','spin','scale-up','scale-down'):
+            dispatch(host,{'kind':'command','command':command})
+        host._open_voice_tools.assert_called_once()
+        host._open_cloud_settings.assert_called_once()
+        host._open_realtime_settings.assert_called_once()
+        host._toggle_chatter.assert_called_once()
+        host._start_spin.assert_called_once_with(1, allow_during_chat=True)
+        self.assertEqual([call.args[0] for call in host._adjust_scale.call_args_list],[0.15,-0.15])
 
     def test_helper_external_motion_never_creates_training(self):
         source=(Path(__file__).parent/'runtime'/'helper.py').read_text(encoding='utf-8')

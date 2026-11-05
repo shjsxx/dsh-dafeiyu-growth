@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const PIN = '3c99b1bb4d1bcb831880e8871718c50b64af0d9b';
-const COMMANDS = new Set(['open-menu', 'open-conversation', 'open-growth', 'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings', 'emergency-stop', 'show', 'hide', 'feedback-positive', 'feedback-negative', 'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced']);
+const COMMANDS = new Set(['open-menu', 'open-conversation', 'open-growth', 'open-voice-tools', 'open-cloud-settings', 'open-realtime-settings', 'emergency-stop', 'show', 'hide', 'feedback-positive', 'feedback-negative', 'interact-head', 'interact-poke', 'toggle-roam', 'toggle-reduced', 'toggle-chatter', 'spin', 'scale-up', 'scale-down']);
 const STATES = new Set(['IDLE', 'THINKING', 'WORKING', 'WAITING', 'SUCCESS', 'ERROR', 'DISCONNECTED']);
 function within(root, target) { const relative = path.relative(root, target); return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative); }
 function safeFile(root, relative) {

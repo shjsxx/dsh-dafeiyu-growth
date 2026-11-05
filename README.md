@@ -2,7 +2,7 @@
 
 给 DSH 桌面伙伴一册本地成长手记：从会话事件积累经验，留下回顾与习惯线索，也让原生桌宠慢慢练出自己的动作偏好。
 
-<code>v0.29.5</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
+<code>v0.29.6</code> <code>Windows 10/11</code> <code>Node.js ≥ 22.19</code> <code>MIT</code>
 
 [界面预览](#界面预览) · [快速开始](#快速开始) · [隐私与边界](#隐私与边界) · [安装与开发](docs/setup.md) · [更新记录](CHANGELOG.md)
 
@@ -109,6 +109,14 @@ python -m pip install -r requirements-native.txt
 - **电脑操作受限**：仅固定白名单，每次执行仍须物理点击确认；模型回复、语音“确认”和网页内容不能代替按钮。
 
 云岚不是语言基础模型，没有主观意识，也不拥有 Live2D 素材授权。动作学习只是本地 10→12→4 小网络，情绪是线索与模拟，不是心理诊断。可选云端由你选择的第三方处理，其留存与费用政策仍适用；未完成真实云端端到端验证。本地保护也不是抵御同一 Windows 用户恶意进程的操作系统安全边界。详见 [安全说明](SECURITY.md)、[上下文与记忆授权](docs/companion-context.md) 和 [配置参考](docs/setup.md)。
+
+## 0.29.6 设置合并与菜单命令修复
+
+- 移除“更多设置 → 原生菜单”的二级入口，语音与实时语音、云端接口、界面放大/缩小直接放在“设置”区。
+- 动作分类从“全部动作 → 分类 → 动作”降为“分类 → 动作”：13 个分类在根面板按 3 列网格展示，菜单不再需要中间层。
+- 补齐此前点击无反应的核心命令：`open-voice-tools`、`open-cloud-settings`、`open-realtime-settings`、`toggle-chatter`、`spin`、`scale-up`、`scale-down`；新增路由测试确保每个菜单命令都到达对应核心动作。
+- 右键打开后，光标移动不足 6px 不会误开分类子菜单；分类改为点击或真正移动后展开。
+- 回归：922 项 Python、95 项 Node 测试通过；helper 重新构建并在实机确认。
 
 ## 0.29.5 右键菜单架构重构
 
