@@ -1253,7 +1253,8 @@ class GrowthDialog(QDialog):
             self.forget_requested.emit()
 
     def report_memory_status(self, ok):
-        self.memory_status.setText("互动记忆已从本地清除。练习和等级仍然保留。" if ok else "暂时无法写入本地文件；未确认磁盘删除成功，请稍后重试。")
+        self.memory_status.setText(("互动记忆已从本地清除；已学动作偏好与人格倾向保留。" if ok
+                                    else "暂时无法写入本地文件；未确认磁盘删除成功，请稍后重试。"))
 
     def update_neural(self, info):
         """Show training health without exposing weights or user content."""

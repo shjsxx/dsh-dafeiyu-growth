@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from action_preferences import ActionPreferences
+from continuity import ContinuityStore
 from memory_engine import MemoryEngine
 from personality_engine import PersonalityEngine
 
@@ -94,6 +96,50 @@ class FeedbackLoopTests(unittest.TestCase):
         self.assertEqual(data["version"], 1)
         self.assertNotIn("userName", raw)
         self.assertNotIn("聊天", raw)
+
+    def test_feedback_loop_survives_restart_and_continuity(self):
+        personality_path = self.root / "personality.json"
+        memory_path = self.root / "memory.json"
+        preferences_path = self.root / "action_preferences.json"
+        continuity_path = self.root / "continuity.json"
+        personality = PersonalityEngine(personality_path, clock=lambda: self.now)
+        memory = MemoryEngine(memory_path, clock=lambda: self.now)
+        preferences = ActionPreferences(preferences_path)
+        continuity = ContinuityStore(continuity_path, clock=lambda: self.now)
+        continuity.record_startup()
+        preferences.observe("螃蟹走路", "liked")
+        personality.feedback(True, now=self.now)
+        memory.remember_feedback("螃蟹走路", True, now=self.now)
+        traits = personality.snapshot()["traits"]
+        self.assertTrue(continuity.checkpoint(personality.snapshot(), memory.snapshot(), now=self.now))
+
+        reloaded_personality = PersonalityEngine(personality_path, clock=lambda: self.now)
+        reloaded_memory = MemoryEngine(memory_path, clock=lambda: self.now)
+        reloaded_preferences = ActionPreferences(preferences_path)
+        reloaded_continuity = ContinuityStore(continuity_path, clock=lambda: self.now)
+        self.assertEqual(reloaded_personality.snapshot()["traits"], traits)
+        self.assertGreater(reloaded_preferences.preference("螃蟹走路"), 0)
+        self.assertTrue(any("动作偏好" in row["text"] for row in reloaded_memory.snapshot()["recent"]))
+        self.assertTrue(reloaded_continuity.verify(reloaded_personality.snapshot(),
+                                                   reloaded_memory.snapshot())["stable"])
+
+    def test_clear_preferences_removes_feedback_memory_but_keeps_traits(self):
+        memory = self.memory()
+        personality = self.personality()
+        self.assertTrue(memory.remember_feedback("螃蟹走路", True))
+        before = personality.snapshot()["traits"]
+        personality.feedback(True)
+        after = personality.snapshot()["traits"]
+        self.assertTrue(memory.clear_preferences())
+        self.assertEqual(memory.snapshot()["total"], 0)
+        self.assertEqual(personality.snapshot()["traits"], after)
+        self.assertNotEqual(before["warmth"], after["warmth"])
+        # A new explicit feedback is new consent: it may create a fresh record,
+        # while the old forgotten row must not silently return.
+        self.assertEqual(memory.remember_feedback("螃蟹走路", True), 1)
+        self.assertEqual(memory.snapshot()["total"], 1)
+        reloaded = self.memory()
+        self.assertEqual(reloaded.snapshot()["total"], 1)
 
 
 if __name__ == "__main__":

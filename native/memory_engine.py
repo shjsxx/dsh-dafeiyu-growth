@@ -293,7 +293,17 @@ class MemoryEngine:
         stamp = int(self._clock() if now is None else now)
         before = copy.deepcopy(self.data)
         text = f"动作偏好：{'喜欢' if liked else '不喜欢'}「{action}」"
+        # A new explicit feedback is new consent, not re-ingestion of the
+        # forgotten row. Clear only this action's tombstones so the same old
+        # memory cannot silently return, while the user's new verdict can.
+        for verdict in ("喜欢", "不喜欢"):
+            old = f"动作偏好：{verdict}「{action}」"
+            self.data["blocked"] = [value for value in self.data.get("blocked", [])
+                                    if value != _identity("preference", old)]
+        self.data["blockedSlots"] = [value for value in self.data.get("blockedSlots", [])
+                                     if value != _slot("preference", text)]
         if not self._remember("preference", text, "local_feedback", stamp):
+            self.data = before
             return 0
         self.data["records"] = self._prune(self.data["records"])
         self.data["revision"] += 1
