@@ -1,6 +1,6 @@
 {
     "name": "dsh-dafeiyu-growth",
-    "version": "0.28.0",
+    "version": "0.32.0",
     "private": true,
     "license": "MIT",
     "description": "Growth, habit learning and self-directed desktop behaviour for the DSH companion 云岚",
@@ -16,12 +16,16 @@
         "lib/",
         "web/",
         "docs/web-dashboard.md",
+        "docs/dsh-pet-pilot.md",
         "docs/setup.md",
         "docs/gallery.md",
         "docs/growth-redesign.md",
         "docs/growth-engines.md",
+        "docs/self-contained.md",
+        "ASSET_LICENSE.md",
         "CHANGELOG.md",
         "tools/",
+        "desktop/",
         "native/*.py",
         "!native/test_*.py",
         "!native/live_chat.py",
@@ -56,7 +60,8 @@
         "README.md",
         "NOTICE.md",
         "SECURITY.md",
-        "CONTRIBUTING.md"
+        "CONTRIBUTING.md",
+        "runtime/"
     ],
     "keywords": [
         "dsh",
@@ -72,6 +77,7 @@
         "build:client": "node tools/build-client.mjs",
         "check:client": "node tools/build-client.mjs --check",
         "preview:client": "node tools/preview-client.mjs",
+        "pilot:pet": "node tools/pet-pilot.mjs --mock",
         "test": "node --test test/*.test.js"
     },
     "engines": {

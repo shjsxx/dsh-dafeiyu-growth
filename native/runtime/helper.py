@@ -251,7 +251,7 @@ def run_headless(recorder: EventRecorder) -> int:
     return 0
 
 
-def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> int:
+def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, renderer_config=None) -> int:
     configure_qt_platform()
     try:
         from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QPoint, QPointF, QRectF, Qt, QTimer, QUrl, Signal
@@ -270,6 +270,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from presentation import ambient_pose
         from reactions import detect_reaction, plan as plan_reaction
         from behavior import BehaviorLearner
+        from action_preferences import ActionPreferences
         from chat import reply_to, DEFAULT_REPLIES
         from motion_model import plan_run, run_pose
         from neural_brain import NeuralBrain
@@ -288,6 +289,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         from action_runtime import ActionRuntime
         from public_learning_runtime import PublicLearningRuntime
         from presentation_runtime import PresentationRuntime
+        from external_renderer import ExternalRenderer, sanitize_event
     except ImportError as error:
         print(
             f"PySide6 is required for visual mode ({error}). Run with --headless for protocol tests.",
@@ -303,7 +305,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
     manifest_path = bundle_root() / "assets" / "pet-manifest.json"
     asset_root = manifest_path.parent / "pet"
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = ({'maxFrameWidth': 250, 'maxFrameHeight': 300,
+                     'clips': {'idle': {'frames': ['external'], 'frameMs': 1000, 'loop': True}},
+                     'stateMap': {state: 'idle' for state in STATES}}
+                    if renderer_config is not None else json.loads(manifest_path.read_text(encoding="utf-8")))
     except (OSError, ValueError) as error:
         print(f"Unable to load BigFish asset manifest: {error}", file=sys.stderr)
         recorder.close()
@@ -364,6 +369,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         online_result = Signal(dict)
         voice_event = Signal(dict)
         crawl_result = Signal(dict)
+        renderer_event = Signal(dict)
 
         LABELS = {
             "IDLE": "休息中",
@@ -377,6 +383,12 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
         def __init__(self) -> None:
             super().__init__()
+            self.external_renderer = renderer_config is not None
+            self.renderer = None
+            self.renderer_connected = False
+            self.renderer_visible = False
+            self.renderer_anchor = None
+            self.renderer_event.connect(self._on_renderer_event)
             self.layout_path = default_layout_path()
             self.layout = load_layout(self.layout_path)
             configured_scale = os.environ.get("DSH_DAFEIYU_SCALE")
@@ -426,7 +438,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.applied_compact: bool | None = None
             self.model = AnimationModel(manifest)
             self.frame_sources: dict[str, bytes] = {}
-            for clip in self.model.clips.values():
+            for clip in (() if self.external_renderer else self.model.clips.values()):
                 for frame in clip.frames:
                     if frame in self.frame_sources:
                         continue
@@ -437,7 +449,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.decoded_frames: OrderedDict[str, QPixmap] = OrderedDict()
             # Fail here, not on the first paint, when the assets are unreadable or
             # the bundled Qt has no WebP image plugin.
-            for clip in self.model.clips.values():
+            for clip in (() if self.external_renderer else self.model.clips.values()):
                 if clip.frames:
                     self._pixmap(clip.frames[0])
             self.decoded_frames.clear()
@@ -473,6 +485,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             # Self-directed desktop behaviour: practice running/jumping, learn
             # from tumbles, and gradually become steadier. Local rules only.
             self.learner = BehaviorLearner()
+            self.action_preferences = ActionPreferences()
+            self.last_action_name = ""
+            self.last_action_ms = 0
             self.motion = None
             self.motion_enabled = self.layout.get("desktopRoaming", True) and os.environ.get("DSH_DAFEIYU_MOTION", "1") != "0"
             self.pet_tilt = 0.0
@@ -551,7 +566,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.motion_timer = QTimer(self)
             self.motion_timer.setTimerType(Qt.TimerType.PreciseTimer)
             self.motion_timer.timeout.connect(self._motion_tick)
-            self.motion_timer.start(16)
+            self.motion_timer.start(120 if self.external_renderer else 16)
             self.drag_origin: QPoint | None = None
             self.pet_origin: QPoint | None = None
             self.pet_x = 0
@@ -565,7 +580,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.animation_timer = QTimer(self)
             self.animation_timer.setTimerType(Qt.TimerType.PreciseTimer)
             self.animation_timer.timeout.connect(self._tick)
-            self.animation_timer.start(self._animation_interval_ms())
+            self.animation_timer.start(200 if self.external_renderer else self._animation_interval_ms())
+            self.preference_timer = QTimer(self)
+            self.preference_timer.timeout.connect(self._offer_preferred_action)
+            self.preference_timer.start(75000)
             self.micro_timer = QTimer(self)
             self.micro_timer.setSingleShot(True)
             self.micro_timer.timeout.connect(self._play_idle_micro)
@@ -589,6 +607,203 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.online_timer.timeout.connect(self._online_tick)
             self.online_timer.start(15000)
             QTimer.singleShot(12000, self._online_tick)
+
+        def _emergency_stop(self, controller_stopped=False):
+            if self.external_renderer and self.renderer is not None:
+                self.renderer.send({'kind': 'stop'})
+            return VoiceRuntime._emergency_stop(self, controller_stopped)
+
+        def _configure_external(self):
+            if self.external_renderer and self.renderer is not None:
+                self.renderer.send({'kind': 'configure', 'scale': self.scale,
+                                    'bubbleScale': self.bubble_scale,
+                                    'reducedMotion': self.reduced_motion,
+                                    'motionEnabled': self.motion_enabled,
+                                    'chatterEnabled': self.chatter_enabled})
+
+        def _adjust_scale(self, delta: float) -> None:
+            target = round(min(1.4, max(0.55, self.scale + delta)), 2)
+            if abs(target - self.scale) < 0.01:
+                self._present_external('已经是最大了' if delta > 0 else '已经是最小了', 'IDLE', 2000)
+                return
+            self.scale = target
+            self._apply_window_size()
+            self._move_to_pet(self.pet_x, self.pet_y)
+            self._save_layout()
+            self._configure_external()
+            self._present_external(f'界面大小 {round(target * 100)}%', 'IDLE', 2200)
+
+        def _toggle_chatter(self) -> None:
+            self.chatter_enabled = not self.chatter_enabled
+            self.next_talk_ms = self._now_ms() + 90000
+            self._save_layout()
+            self._configure_external()
+            self._present_external('主动搭话已开启' if self.chatter_enabled else '主动搭话已暂停', 'IDLE', 2400)
+
+        def _presentation_visible(self):
+            return (self.renderer_connected and self.renderer_visible) if self.external_renderer else self.isVisible()
+
+        def _present_external(self, text='', state='IDLE', ttl_ms=4200, intent=None):
+            if self.external_renderer and self.renderer is not None:
+                return self.renderer.present(text, state, ttl_ms, intent)
+            return False
+
+        def _external_motion(self, intent, allow_during_chat=False):
+            if (not self._presentation_visible() or self.reduced_motion or self.dragging
+                    or self.menu_open or self.tasks or self.model.base_state != 'IDLE'
+                    or (self._conversation_engaged() and not allow_during_chat)):
+                return False
+            # Presentation requests are NOT simulated outcomes or training examples.
+            self._schedule_next_motion()
+            return self._present_external('', 'IDLE', 1800, intent)
+
+        def _start_run(self, *args, **kwargs):
+            if self.external_renderer:
+                return self._external_motion('run', kwargs.get('allow_during_chat', False))
+            return ActionRuntime._start_run(self, *args, **kwargs)
+
+        def _start_hop(self, *args, **kwargs):
+            if self.external_renderer:
+                return self._external_motion('hop', kwargs.get('allow_during_chat', False))
+            return ActionRuntime._start_hop(self, *args, **kwargs)
+
+        def _record_external_action(self, name, action_kind, distance):
+            if not isinstance(name, str) or not name:
+                return
+            now_ms = self._now_ms()
+            self.last_action_name = name
+            self.last_action_ms = now_ms
+            self.action_preferences.observe(name, 'shown')
+            if action_kind == 'move':
+                self.learner.note_run(max(40.0, min(10000.0, float(distance or 0))))
+                self.learning.adapt('run_ok', source='local_motion')
+                context = self._neural_context()
+                self.last_neural = (context, 'run')
+                self.last_neural_ms = now_ms
+            elif action_kind in ('jump', 'hop'):
+                self.learner.note_jump()
+                self.learning.adapt('run_ok', source='local_motion')
+                context = self._neural_context()
+                self.last_neural = (context, 'hop')
+                self.last_neural_ms = now_ms
+            else:
+                self.learner.note_action(name)
+                self.last_neural = None
+                self.last_neural_ms = 0
+            if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                self.growth_dialog.update_behavior(self.learner.snapshot())
+                self.growth_dialog.update_action_preferences(self.action_preferences.snapshot(limit=5))
+
+        def _external_interaction(self, spot):
+            if not self.external_renderer or not self._presentation_visible() or self.menu_open:
+                return
+            if spot not in ('head', 'poke'):
+                return
+            now_ms = self._now_ms()
+            if spot == 'head':
+                self.blush_until_ms = now_ms + 1300
+                text = '摸摸头，舒服。'
+                self._present_external(text, 'IDLE', 4200)
+                self._external_motion('hop', allow_during_chat=True)
+            else:
+                self.blush_until_ms = now_ms + 900
+                self._present_external('戳我干嘛，任务还在跑呢', 'IDLE', 4200)
+                self._external_motion('hop', allow_during_chat=True)
+            self.learner.note_pet(spot)
+            self.learning.adapt('pet_head' if spot == 'head' else 'poke')
+            if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                self.growth_dialog.update_behavior(self.learner.snapshot())
+
+        def _schedule_renderer_exit(self):
+            """A dead presentation host cannot be reused; exit so the DSH owner restarts us."""
+            if getattr(self, '_renderer_exit_scheduled', False):
+                return
+            self._renderer_exit_scheduled = True
+            QTimer.singleShot(0, QApplication.quit)
+
+        def _on_renderer_event(self, event):
+            event = sanitize_event(event)
+            if event is None:
+                return
+            kind = event['kind']
+            if kind in ('ready', 'status'):
+                self.renderer_connected = True if kind == 'ready' else event['connected']
+                self.renderer_visible = True if kind == 'ready' else event['visible']
+                if not self.renderer_connected or not self.renderer_visible:
+                    self._voice_stop()
+                    self._stop_motion()
+                    if not self.renderer_connected:
+                        self._schedule_renderer_exit()
+                elif kind == 'ready':
+                    self._configure_external()
+                    card = self._current_card()
+                    if card:
+                        self._present_external(card[0], card[2], 4200)
+            elif kind == 'action':
+                self._record_external_action(event['name'], event['actionKind'], event['distance'])
+            elif kind == 'anchor':
+                self.renderer_anchor = event
+                self.pet_x, self.pet_y = event['x'], event['y']
+                if self.width() != event['width'] or self.height() != event['height']:
+                    self.setFixedSize(event['width'], event['height'])
+                if abs(self.x() - event['x']) > 1 or abs(self.y() - event['y']) > 1:
+                    self.move(event['x'], event['y'])
+            elif kind == 'command':
+                command = event['command']
+                if command == 'open-conversation':
+                    self._open_conversation()
+                elif command == 'open-growth':
+                    self._show_growth_card()
+                elif command == 'open-menu':
+                    from types import SimpleNamespace
+                    self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))
+                elif command == 'interact-head':
+                    self._external_interaction('head')
+                elif command == 'interact-poke':
+                    self._external_interaction('poke')
+                elif command == 'feedback-positive':
+                    self._neural_feedback(1.0)
+                elif command == 'feedback-negative':
+                    self._neural_feedback(-1.0)
+                elif command == 'toggle-roam':
+                    self.motion_enabled = not self.motion_enabled
+                    self._save_layout()
+                    self._present_external('桌面漫游已开启' if self.motion_enabled else '桌面漫游已暂停', 'IDLE', 2600)
+                elif command == 'toggle-reduced':
+                    self._set_reduced_motion(not self.reduced_motion)
+                    self._save_layout()
+                    self._present_external('已减少动态' if self.reduced_motion else '已恢复完整动态', 'IDLE', 2600)
+                elif command == 'toggle-chatter':
+                    self._toggle_chatter()
+                elif command == 'open-voice-tools':
+                    self._open_voice_tools()
+                elif command == 'open-cloud-settings':
+                    self._open_cloud_settings()
+                elif command == 'open-realtime-settings':
+                    self._open_realtime_settings()
+                elif command == 'spin':
+                    self._start_spin(1, allow_during_chat=True)
+                elif command == 'scale-up':
+                    self._adjust_scale(0.15)
+                elif command == 'scale-down':
+                    self._adjust_scale(-0.15)
+                elif command == 'emergency-stop':
+                    self._emergency_stop()
+                elif command in ('show', 'hide'):
+                    self.renderer_visible = command == 'show'
+                    self.renderer.send({'kind': 'visibility', 'visible': self.renderer_visible})
+                    if not self.renderer_visible:
+                        self._voice_stop()
+                        self._stop_motion()
+
+        def _offer_preferred_action(self):
+            if (not self.external_renderer or not self._presentation_visible()
+                    or self.reduced_motion or self.menu_open or self.tasks or self.dragging):
+                return
+            name = self.action_preferences.choose()
+            if not name:
+                return
+            self._present_external('', 'IDLE', 1800, name)
 
         def apply_message(self, message: dict[str, Any]) -> None:
             recorder.record(message)
@@ -813,6 +1028,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             *,
             allow_fade: bool = True,
         ) -> None:
+            if self.external_renderer:
+                return
             current_frame = self.model.frame
             if current_frame == previous_frame:
                 return
@@ -959,6 +1176,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             painter.restore()
 
         def _sync_bubble_size(self) -> None:
+            if self.external_renderer:
+                return
             old_size = (self.width(), self.height())
             self._apply_window_size()
             if (self.width(), self.height()) != old_size:
@@ -999,7 +1218,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 return False
             if self._conversation_engaged() or self.menu_open:
                 return False
-            if not self.isVisible() or self.tasks or not self._idle_only():
+            if not self._presentation_visible() or self.tasks or not self._idle_only():
                 return False
             if self._bubble_visible() and not self._compact_mode():
                 return False
@@ -1037,7 +1256,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     return False
             elif self.chat_open:
                 return False
-            if not self.isVisible() or self.model.base_state in ("WAITING", "ERROR"):
+            if not self._presentation_visible() or self.model.base_state in ("WAITING", "ERROR"):
                 return False
             # A task in another DSH window does not disable direct conversation;
             # its status bubble remains untouched. Never interrupt approval/error.
@@ -1108,6 +1327,28 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
         def _neural_feedback(self, reward: float) -> None:
             self.last_interaction_ms = self._now_ms()
+            action_name = self.last_action_name
+            has_pref = bool(action_name and self.last_action_ms and
+                            self._now_ms() - self.last_action_ms <= 120000)
+            if has_pref:
+                self.action_preferences.observe(
+                    action_name, 'liked' if reward > 0 else 'disliked')
+                if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                    self.growth_dialog.update_action_preferences(self.action_preferences.snapshot(limit=5))
+            if has_pref and action_name not in ('rest', 'run', 'hop', 'talk'):
+                if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                    self.growth_dialog.update_neural(self.brain.info())
+                self._show_overlay(
+                    "记下啦，我会多表演这个动作。" if reward > 0 else "明白，这个动作我会少做一点。",
+                    "已更新全动作偏好 · 可在成长卡查看",
+                    "SUCCESS", 4200)
+                self.last_action_name = ""
+                self.last_action_ms = 0
+                self.last_neural = None
+                self.last_neural_ms = 0
+                self._sync_bubble_size()
+                self.update()
+                return
             last = self.last_neural
             if last and self.last_neural_ms and self._now_ms() - self.last_neural_ms > 120000:
                 last = None
@@ -1139,7 +1380,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
 
         def _start_spin(self, turns: int = 1, allow_during_chat: bool = False) -> bool:
-            if self.motion or not self.isVisible() or self.reduced_motion or self.dragging or self.menu_open or (self._conversation_engaged() and not allow_during_chat):
+            if self.external_renderer:
+                return self._external_motion('spin', allow_during_chat)
+            if self.motion or not self._presentation_visible() or self.reduced_motion or self.dragging or self.menu_open or (self._conversation_engaged() and not allow_during_chat):
                 return False
             pet_width, _ = self._pet_size()
             geometry = self._screen_geometry_at(self.pet_x + pet_width // 2, self.pet_y)
@@ -1424,6 +1667,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self._move_to_pet(pet_x, pet_y)
 
         def _save_layout(self) -> None:
+            self._configure_external()
+            previous_layout = self.layout
             self.layout = {
                 "version": 1,
                 "x": self.x(),
@@ -1439,6 +1684,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 "desktopRoaming": self.motion_enabled,
                 "autonomousChatter": self.chatter_enabled,
             }
+            if self.external_renderer:
+                # The shell owns its anchor; preserve legacy rollback coordinates.
+                for key in ('x', 'y', 'petX', 'petY'):
+                    if key in previous_layout:
+                        self.layout[key] = previous_layout[key]
             try:
                 save_layout(self.layout_path, self.layout)
             except OSError as error:
@@ -1460,18 +1710,23 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.status_detail = self._brand(detail)
             self.status_state = state
             self.status_deadline_ms = None if ttl_ms is None else self._now_ms() + ttl_ms
+            self._present_external(self.status_message, state, 60000 if ttl_ms is None else ttl_ms)
 
         def _show_overlay(self, message: str, detail: str, state: str, ttl_ms: int) -> None:
             self.overlay_message = self._brand(message)
             self.overlay_detail = self._brand(detail) or self.status_detail
             self.overlay_state = state
             self.overlay_deadline_ms = self._now_ms() + ttl_ms
+            self._present_external(self.overlay_message, state, ttl_ms)
 
         def _clear_overlay(self) -> None:
+            had_overlay = bool(self.overlay_message)
             self.overlay_message = ""
             self.overlay_detail = ""
             self.overlay_state = None
             self.overlay_deadline_ms = None
+            if self.external_renderer and self.renderer is not None and had_overlay:
+                self.renderer.send({'kind': 'clear'})
 
         @staticmethod
         def _now_ms() -> int:
@@ -1803,6 +2058,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                         pass
 
         def paintEvent(self, _event: Any) -> None:
+            if self.external_renderer:
+                return
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             # 平滑缩放：放大/缩小时插值，避免锯齿和模糊
@@ -2159,8 +2416,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             spin_action.setObjectName("yunlan-spin")
             feedback_yes = menu.addAction(theme_icon("heart", size=18), "喜欢刚才的动作")
             feedback_no = menu.addAction(theme_icon("heart", "#9AAFB5", 18), "这个动作不太行")
-            feedback_yes.setEnabled(self.last_neural is not None)
-            feedback_no.setEnabled(self.last_neural is not None)
+            feedback_yes.setEnabled(self.last_neural is not None or bool(getattr(self, 'last_action_name', '')))
+            feedback_no.setEnabled(self.last_neural is not None or bool(getattr(self, 'last_action_name', '')))
             menu.addSeparator()
             menu_header("外观")
             size_menu = menu.addMenu("大小")
@@ -2249,7 +2506,10 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             elif selected == open_webui_action:
                 self._open_client()
             elif selected == hide_action:
-                self.hide()
+                if self.external_renderer:
+                    self._on_renderer_event({'kind': 'command', 'command': 'hide'})
+                else:
+                    self.hide()
             elif selected == exit_action:
                 self._save_layout()
                 emit_reply("closed", reason="user")
@@ -2332,7 +2592,20 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
     reader = threading.Thread(target=read_stdin, name="dsh-bigfish-stdin", daemon=True)
     reader.start()
-    window.show()
+    if renderer_config is not None:
+        window.renderer = ExternalRenderer(renderer_config, window.renderer_event.emit)
+        application.aboutToQuit.connect(window.renderer.close)
+        try:
+            window.renderer.start()
+        except OSError:
+            print('Unable to start external renderer', file=sys.stderr)
+            window._shutdown_voice()
+            window.brain.close()
+            window.emotion.close()
+            recorder.close()
+            return 2
+    else:
+        window.show()
     emit_reply("ready")
     smoke_directory = os.environ.get("DSH_DAFEIYU_GROWTH_SMOKE_DIR")
     if smoke_directory and os.environ.get("DSH_DAFEIYU_GROWTH_SMOKE_PROBE") == "1":
@@ -2350,13 +2623,29 @@ def main() -> int:
     parser.add_argument("--event-log", type=Path, help="append received protocol messages to a JSONL file")
     parser.add_argument("--snapshot", type=Path, help="save one diagnostic visual frame after the first message")
     parser.add_argument("--smoke-probe", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument('--external-renderer', action='store_true', help='keep native core and dialogs with external presentation')
+    parser.add_argument('--renderer-config', type=Path, help='absolute local renderer activation config')
     args = parser.parse_args()
     if args.smoke_probe:
         # Explicit opt-in for maintainer smoke runs only; normal launches and a
         # leaked environment variable alone can never trigger the test probe.
         os.environ["DSH_DAFEIYU_GROWTH_SMOKE_PROBE"] = "1"
     recorder = EventRecorder(args.event_log)
-    return run_headless(recorder) if args.headless else run_visual(recorder, args.snapshot)
+    if args.headless:
+        return run_headless(recorder)
+    try:
+        try:
+            from .external_renderer import load_renderer_config
+        except ImportError:
+            from external_renderer import load_renderer_config
+        config = load_renderer_config(args.renderer_config)
+        if args.external_renderer and config is None:
+            raise ValueError('external renderer config required')
+    except (OSError, ValueError, TypeError):
+        print('Invalid external renderer configuration', file=sys.stderr)
+        recorder.close()
+        return 2
+    return run_visual(recorder, args.snapshot, config)
 
 
 if __name__ == "__main__":

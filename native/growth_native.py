@@ -23,8 +23,10 @@ from PySide6.QtWidgets import (
 )
 
 from training_ui import TrainingPanel
-from growth_charts import BarChart, RadarChart, DonutChart, recent_days, activity_days
+from growth_charts import BarChart, RadarChart, DonutChart, GaugeChart, PreferenceMapChart, recent_days, activity_days
 from ability_model import DIMENSIONS as ABILITY_DIMENSIONS, derive_abilities
+from learning_archive import build_learning_archive
+from movement_model import derive_movement
 from data_panel import DataPanel
 from online_ui import OnlinePanel
 from voice_ui import VoiceDataPanel
@@ -687,6 +689,49 @@ class GrowthDialog(QDialog):
         overview.insertWidget(1, self.continuity_status)
         overview.addStretch()
 
+        self._heading(memory, "学习总览", "练习 · 偏好 · 记忆 · 训练")
+        frame, box = self._card("learningOverview")
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        self.learning_total = _label("0 条学习证据", "learningTotal", False)
+        self.learning_total.setStyleSheet("font-size:19px;font-weight:700;color:#17343D;")
+        self.learning_updated = _label("等待同步", "learningUpdated", False)
+        self.learning_updated.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.learning_updated.setStyleSheet("font-size:11px;color:#627B84;")
+        head.addWidget(self.learning_total, 1)
+        head.addWidget(self.learning_updated)
+        box.addLayout(head)
+        source_grid = QGridLayout()
+        source_grid.setSpacing(6)
+        self.learning_source_values, self.learning_source_details = {}, {}
+        for index, (key, caption) in enumerate((("practice", "练习记录"), ("preferences", "动作偏好"),
+                                                ("memory", "日常记忆"), ("training", "训练与知识"))):
+            tile = QFrame()
+            tile.setProperty("traitTile", True)
+            tile_box = QVBoxLayout(tile)
+            tile_box.setContentsMargins(10, 6, 10, 7)
+            tile_box.setSpacing(2)
+            value = _label("0", f"learningSource-{key}", False)
+            value.setStyleSheet("font-size:18px;font-weight:700;color:#17343D;")
+            tile_box.addWidget(value)
+            tile_box.addWidget(_label(caption, "pageCaption"))
+            detail = _label("等待同步", "memoryStatus")
+            detail.setStyleSheet("font-size:11px;color:#627B84;")
+            tile_box.addWidget(detail)
+            source_grid.addWidget(tile, index // 2, index % 2)
+            self.learning_source_values[key] = value
+            self.learning_source_details[key] = detail
+        box.addLayout(source_grid)
+        box.addWidget(_label("所有本地记录都参与学习：练习次数、偏好反馈、日常记忆与训练事件都算在内。", "memoryStatus"))
+        memory.addWidget(frame)
+
+        self._heading(memory, "最近学习", "跨来源记录")
+        frame, box = self._card("learningTimelineCard")
+        self.learning_timeline = _label("还没有学习记录；陪云岚动一动就会出现。", "growthLearned")
+        self.learning_timeline.setWordWrap(True)
+        box.addWidget(self.learning_timeline)
+        memory.addWidget(frame)
+
         self._heading(memory, "能力雷达", "本地练习指数")
         radar_card, radar_box = self._card("abilityRadarCard")
         self.ability_radar = RadarChart()
@@ -723,13 +768,26 @@ class GrowthDialog(QDialog):
         box.addLayout(grid)
         memory.addWidget(frame)
 
+        self._heading(memory, "运动模型", "跑速与稳定")
+        frame, box = self._card("motionModelCard")
+        self.motion_gauge = GaugeChart()
+        box.addWidget(self.motion_gauge)
+        self.motion_notes = _label("等待运动记录；跑动与摔倒是速度/稳定的训练来源。", "memoryStatus")
+        self.motion_notes.setWordWrap(True)
+        box.addWidget(self.motion_notes)
+        self.motion_layers = _label("", "memoryStatus")
+        self.motion_layers.setWordWrap(True)
+        box.addWidget(self.motion_layers)
+        memory.addWidget(frame)
+
         self._heading(memory, "练习记录", "动作与陪伴")
         frame, box = self._card("practiceCard")
         practice = QGridLayout()
         practice.setSpacing(8)
         self.practice_values = {}
         for index, (key, caption) in enumerate((("runs", "桌面小跑"), ("jumps", "起跳"),
-                                                ("falls", "摔倒"), ("recoveries", "自己爬起"))):
+                                                ("falls", "摔倒"), ("recoveries", "自己爬起"),
+                                                ("actions", "桌面动作"))):
             value = _label("0", f"practice-{key}", False)
             value.setStyleSheet("font-size:20px;font-weight:700;color:#17343D;")
             value.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -739,6 +797,8 @@ class GrowthDialog(QDialog):
             practice.addWidget(caption_label, index // 2 * 2 + 1, index % 2)
             self.practice_values[key] = value
         box.addLayout(practice)
+        self.practice_total = _label("", "memoryStatus")
+        box.addWidget(self.practice_total)
         self.skill_bars, self.skill_values = {}, {}
         # Compatibility only: aggregate gauges are replaced by the six-dimension
         # radar; existing callers still read these bounded practice values.
@@ -760,8 +820,17 @@ class GrowthDialog(QDialog):
 
         self._heading(memory, "动作偏好模型", "本机运行")
         frame, box = self._card("card")
+        box.addWidget(_label("四动作决策网络 · 跑 / 跳 / 休息 / 说话", "memoryStatus"))
         self.neural_label = _label("等待本地模型初始化。", "neuralInfo")
         box.addWidget(self.neural_label)
+        self.preference_label = _label("等待动作偏好样本。", "memoryStatus")
+        self.preference_label.setWordWrap(True)
+        box.addWidget(self.preference_label)
+        self.preference_map = PreferenceMapChart()
+        box.addWidget(self.preference_map)
+        self.preference_caption = _label("横轴为出现次数，纵轴为偏好权重。", "memoryStatus")
+        self.preference_caption.setWordWrap(True)
+        box.addWidget(self.preference_caption)
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         self.neural_rollback = QPushButton("回滚上一版")
@@ -779,6 +848,9 @@ class GrowthDialog(QDialog):
         memory.addWidget(_label("只学习数字化的动作偏好；不读取文字、屏幕或文件，不是语言模型。", "memoryStatus"))
         self._heading(memory, "记住的日常", "使用习惯")
         frame, box = self._card("card")
+        self.daily_scope = _label("", "memoryStatus")
+        self.daily_scope.setWordWrap(True)
+        box.addWidget(self.daily_scope)
         self.learned_label = _label(name="growthLearned")
         box.addWidget(self.learned_label)
         memory.addWidget(frame)
@@ -1057,6 +1129,7 @@ class GrowthDialog(QDialog):
         data_page.addStretch()
         self._emotion_snapshot, self._companion_snapshot, self._training_snapshot = {}, {}, {}
         self._state_snapshot, self._behavior_snapshot = {}, {}
+        self._memory_snapshot, self._preferences_snapshot = {}, {}
         footer = QHBoxLayout()
         hint = _label("本地记录 · 上传需确认", "footerHint", False)
         hint.setToolTip("成长卡只展示本地快照；切换页面不会联网或授权。")
@@ -1077,6 +1150,8 @@ class GrowthDialog(QDialog):
         self.update_emotion({})
         self.update_companion({})
         self.update_training({})
+        self.update_memory({})
+        self.update_action_preferences({})
         self.tabs.currentChanged.connect(self._set_page_layout)
 
     def _set_page_layout(self, index):
@@ -1137,6 +1212,7 @@ class GrowthDialog(QDialog):
     def update_memory(self, snapshot):
         """Passive memory-engine summary; no file or network access here."""
         snapshot = snapshot if isinstance(snapshot, dict) else {}
+        self._memory_snapshot = dict(snapshot)
         status = snapshot.get("status") if isinstance(snapshot.get("status"), str) else "new"
         counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
         local = (_count(counts.get("preference")) + _count(counts.get("habit"))
@@ -1146,6 +1222,7 @@ class GrowthDialog(QDialog):
             self.memory_counts.setText("记忆引擎存档受保护；未覆盖原文件，也不会自动学习。")
             self.memory_recent.setText("可在备份后手动检查 memory.json。")
             self.memory_clear.setEnabled(False)
+            self._refresh_learning_archive()
             return
         self.memory_clear.setEnabled(bool(local + public))
         self.memory_counts.setText(f"本地记忆 {local} 条 · 公开记忆 {public} 条 · 版本 r{_fmt(_count(snapshot.get('revision')))}")
@@ -1162,6 +1239,13 @@ class GrowthDialog(QDialog):
             label = row.get("kindLabel") if isinstance(row.get("kindLabel"), str) else "记忆"
             lines.append(f"• {label}：{row['text'][:48]}")
         self.memory_recent.setText("\n".join(lines) or "还没有记忆；回顾、习惯和公开知识会自动汇总。")
+        self._refresh_learning_archive()
+
+    def update_action_preferences(self, snapshot):
+        """Show the all-action statistics model alongside the four-action brain."""
+        snapshot = snapshot if isinstance(snapshot, dict) else {}
+        self._preferences_snapshot = dict(snapshot)
+        self._refresh_abilities()
 
     def _confirm_forget(self):
         answer = QMessageBox.question(self, "清除互动记忆", "清除名字、喜好和互动记录？\n等级、经验与跑跳练习会保留。", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
@@ -1340,7 +1424,9 @@ class GrowthDialog(QDialog):
         result = derive_abilities(getattr(self, "_state_snapshot", {}),
                                   getattr(self, "_behavior_snapshot", {}),
                                   getattr(self, "_training_snapshot", {}),
-                                  getattr(self, "_emotion_snapshot", {}))
+                                  getattr(self, "_emotion_snapshot", {}),
+                                  getattr(self, "_preferences_snapshot", {}),
+                                  getattr(self, "_memory_snapshot", {}))
         self.ability_radar.set_data([row["label"] for row in result["dimensions"]],
                                     [row["value"] for row in result["dimensions"]])
         for row in result["dimensions"]:
@@ -1351,6 +1437,73 @@ class GrowthDialog(QDialog):
         self.ability_summary.setText(
             f"综合 {result['overall']} · 最强 {result['strongest']['label']} {result['strongest']['value']}"
             f" · 可练 {result['focus']['label']} {result['focus']['value']}")
+        self._refresh_learning_archive()
+
+    def _refresh_learning_archive(self):
+        if not hasattr(self, "learning_total"):
+            return
+        archive = build_learning_archive(
+            getattr(self, "_state_snapshot", {}), getattr(self, "_behavior_snapshot", {}),
+            getattr(self, "_training_snapshot", {}), getattr(self, "_emotion_snapshot", {}),
+            getattr(self, "_memory_snapshot", {}), getattr(self, "_preferences_snapshot", {}),
+            getattr(self, "_companion_snapshot", {}))
+        self.learning_total.setText(f"{archive['evidence_total']:,} 条学习证据")
+        self.learning_updated.setText(f"更新 {archive['updated']}" if archive["updated"] else "等待同步")
+        for source in archive["sources"]:
+            value = self.learning_source_values.get(source["key"])
+            detail = self.learning_source_details.get(source["key"])
+            if value is not None:
+                value.setText(f"{source['value']:,}")
+            if detail is not None:
+                detail.setText(source["detail"])
+        practice = archive["practice"]
+        preferences = archive["preferences"]
+        memory = archive["memory"]
+        self.practice_total.setText(
+            f"合计 {practice['total']:,} 次桌面练习；另有 {preferences['observations']:,} 次动作偏好观察，"
+            "两套记录都会计入学习总览。")
+        if preferences["tracked"]:
+            self.preference_label.setText(
+                f"全动作偏好：已建模 {preferences['tracked']} 个动作 · 观察 {preferences['observations']:,} 次 · "
+                f"喜欢 {preferences['liked']} / 不喜欢 {preferences['disliked']} · "
+                f"最近更新 {preferences['updated'] or '未知'}")
+        else:
+            self.preference_label.setText("全动作偏好：还没有观察样本；云岚每表演一个动作就会记录一次。")
+        self.daily_scope.setText(
+            f"记忆引擎共 {memory['total']:,} 条（本地与公开）；下方是 {memory['learned']} 条长期画像，"
+            "只是日常记忆的一个子集，不是全部记录。")
+        movement = derive_movement(getattr(self, "_behavior_snapshot", {}), preferences)
+        self.motion_gauge.set_data([
+            {"label": "跑速", "value": movement["speed"], "min": movement["speed_min"],
+             "max": movement["speed_max"], "suffix": "", "caption": f"敏捷 {movement['agility']:.0f}",
+             "color": "#187E83"},
+            {"label": "稳定", "value": movement["stability"], "min": 0, "max": 100,
+             "suffix": "%", "caption": f"平衡 {movement['balance']:.0f}", "color": "#5B9A8F"},
+            {"label": "爬起", "value": movement["recovery"], "min": 0, "max": 100,
+             "suffix": "%", "caption": ("暂无摔倒" if movement["falls"] == 0
+                                         else f"{movement['falls']} 摔 / {movement['recoveries']} 起"),
+             "color": "#A98A5F"},
+        ])
+        self.motion_notes.setText("\n".join(movement["notes"]))
+        self.motion_layers.setText(
+            f"运动执行：跑 {movement['runs']:,} · 跳 {movement['jumps']:,} · 摔倒 {movement['falls']:,}"
+            f" · 爬起 {movement['recoveries']:,} → 敏捷 {movement['agility']:.0f} / 平衡 {movement['balance']:.0f}\n"
+            f"动作选择：{movement['preference_tracked']} 个动作 · {movement['preference_observations']:,} 次观察"
+            f" → 选哪个动作、出现频率\n"
+            f"日常记忆：{memory['total']:,} 条 → 回应内容与选择语境")
+        self.preference_map.set_data(getattr(self, "_preferences_snapshot", {}).get("rows", []))
+        feedback = preferences["liked"] + preferences["disliked"]
+        caption = (f"横轴为出现次数，纵轴为偏好权重；{preferences['tracked']} 个动作、"
+                   f"{preferences['observations']:,} 次观察、{feedback} 次明确反馈。")
+        if feedback < 5:
+            caption += " 反馈还少，权重亮点只代表少量明确偏好，不等于运动能力。"
+        self.preference_caption.setText(caption)
+        lines = []
+        for row in archive["timeline"][:8]:
+            when = row["at"] or "最近"
+            detail = row["detail"][:60]
+            lines.append(f"• {when} · {row['source']}｜{row['label']}" + (f"：{detail}" if detail else ""))
+        self.learning_timeline.setText("\n".join(lines) or "还没有学习记录；陪云岚动一动就会出现。")
 
     def _update_data_panel(self):
         if not hasattr(self, "data_panel"):
@@ -1501,7 +1654,8 @@ class GrowthDialog(QDialog):
         """Show skills learned from the companion's own practice."""
         snapshot = snapshot if isinstance(snapshot, dict) else {}
         self._behavior_snapshot = dict(snapshot)
-        for key, caption in (("runs", "桌面小跑"), ("jumps", "起跳"), ("falls", "摔倒"), ("recoveries", "自己爬起")):
+        for key, caption in (("runs", "桌面小跑"), ("jumps", "起跳"), ("falls", "摔倒"),
+                             ("recoveries", "自己爬起"), ("actions", "桌面动作")):
             if key in self.practice_values:
                 self.practice_values[key].setText(_fmt(_count(snapshot.get(key))))
         for key in ("agility", "balance"):

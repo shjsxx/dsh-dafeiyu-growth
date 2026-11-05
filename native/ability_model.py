@@ -63,14 +63,18 @@ def _rank(value):
     return RANKS[-1][1]
 
 
-def derive_abilities(state=None, behavior=None, training=None, emotion=None):
+def derive_abilities(state=None, behavior=None, training=None, emotion=None,
+                     preferences=None, memory=None):
     """Return six bounded dimensions plus focus/strongest summaries.
 
     Missing or malformed inputs degrade to zero rather than raising; no field
-    is trusted beyond finite numbers and simple mappings.
+    is trusted beyond finite numbers and simple mappings. When preference and
+    memory snapshots are supplied, their records also contribute so the page
+    does not treat only a subset of practice as learning.
     """
     state, behavior = _mapping(state), _mapping(behavior)
     training, emotion = _mapping(training), _mapping(emotion)
+    preferences, memory = _mapping(preferences), _mapping(memory)
     traits = _mapping(state.get("traits"))
     counters = _mapping(state.get("counters"))
     journal = _mapping(training.get("journal"))
@@ -78,9 +82,14 @@ def derive_abilities(state=None, behavior=None, training=None, emotion=None):
     knowledge = _mapping(training.get("knowledge"))
     learned = state.get("learned") if isinstance(state.get("learned"), list) else []
     diary = state.get("diary") if isinstance(state.get("diary"), list) else []
+    pref_tracked = _count(preferences.get("actions"))
+    pref_observations = _count(preferences.get("observations"))
+    pref_decisions = _count(preferences.get("liked")) + _count(preferences.get("disliked"))
+    memory_total = _count(memory.get("total"))
 
     agility, balance = _count(behavior.get("agility")), _count(behavior.get("balance"))
     runs, jumps = _count(behavior.get("runs")), _count(behavior.get("jumps"))
+    actions = _count(behavior.get("actions"))
     falls, recoveries = _count(behavior.get("falls")), _count(behavior.get("recoveries"))
     pets, chats = _count(behavior.get("pets")), _count(behavior.get("chats"))
     turns = _count(counters.get("turns"))
@@ -94,23 +103,30 @@ def derive_abilities(state=None, behavior=None, training=None, emotion=None):
     passes = _count(totals.get("emotion_adaptation_passes"))
     steps = _count(totals.get("weight_steps"))
 
-    action = .5 * agility + .3 * _log_count(runs + jumps, 32) + .2 * stamina
+    action = (.4 * agility + .2 * _log_count(runs + jumps, 32) + .15 * stamina
+              + .25 * _log_count(actions, 38) + .1 * _log_count(pref_observations, 26))
     recovery_ratio = recoveries / max(1.0, falls)
     balance_score = .65 * balance + .2 * min(100.0, recovery_ratio * 100) + .15 * min(100.0, (runs + jumps) * 4)
-    expression = .45 * _log_count(turns + chats, 34) + .3 * _scaled(len(diary), 8) + .25 * _log_count(pets + chats, 26)
-    learning = .4 * _scaled(knowledge_count, 2) + .3 * _scaled(learned_count + fit_samples, 8) + .3 * min(100.0, steps * 3 + passes * 10)
+    expression = (.4 * _log_count(turns + chats, 34) + .25 * _scaled(len(diary), 8)
+                  + .2 * _log_count(pets + chats, 26) + .15 * _log_count(actions, 24)
+                  + .05 * _log_count(pref_decisions, 20))
+    learning = (.4 * _scaled(knowledge_count, 2) + .3 * _scaled(learned_count + fit_samples, 8)
+                + .3 * min(100.0, steps * 3 + passes * 10)
+                + .1 * _log_count(pref_decisions, 18) + .05 * _log_count(memory_total, 40))
     companionship = .5 * affinity + .3 * _scaled(streak, 12) + .2 * _scaled(pets + chats, 5)
-    memory_score = .4 * _scaled(len(learned), 10) + .35 * _scaled(len(diary), 10) + .25 * _scaled(lexicon, 1.2)
+    memory_score = (.4 * _scaled(len(learned), 10) + .35 * _scaled(len(diary), 10)
+                    + .25 * _scaled(lexicon, 1.2) + .2 * _log_count(memory_total, 40)
+                    + .1 * _log_count(pref_tracked, 20))
 
     values = {"action": action, "balance": balance_score, "expression": expression,
               "learning": learning, "companionship": companionship, "memory": memory_score}
     basis = {
-        "action": f"敏捷 {int(agility)} · 跑跳 {int(runs + jumps)} 次",
+        "action": f"敏捷 {int(agility)} · 跑跳 {int(runs + jumps)} 次 · 动作 {int(actions)} 次 · 偏好观察 {int(pref_observations)}",
         "balance": f"平衡 {int(balance)} · 爬起 {int(recoveries)} 次",
-        "expression": f"对话 {int(turns)} 轮 · 回顾 {len(diary)} 条",
-        "learning": f"知识 {int(knowledge_count)} 条 · 适应 {int(passes)} 轮",
+        "expression": f"对话 {int(turns)} 轮 · 回顾 {len(diary)} 条 · 偏好反馈 {int(pref_decisions)}",
+        "learning": f"知识 {int(knowledge_count)} 条 · 适应 {int(passes)} 轮 · 记忆 {int(memory_total)} 条",
         "companionship": f"连续 {int(streak)} 天 · 互动 {int(pets + chats)} 次",
-        "memory": f"记住 {len(learned)} 条 · 词典 {int(lexicon)} 词",
+        "memory": f"记住 {len(learned)} 条 · 日常 {int(memory_total)} 条 · 动作 {int(pref_tracked)} 个",
     }
     dimensions = []
     for spec in DIMENSIONS:

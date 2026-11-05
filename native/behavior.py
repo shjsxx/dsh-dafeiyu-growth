@@ -20,6 +20,9 @@ RULES = (
     ("run1", "runs", 1, "学会在桌面上小跑"),
     ("run5", "runs", 5, "完成了五次桌面小跑练习"),
     ("run15", "runs", 15, "跑起来像一阵小旋风"),
+    ("action10", "actions", 10, "练习了十次桌面动作"),
+    ("action50", "actions", 50, "已经能熟练表演五十次动作"),
+    ("action200", "actions", 200, "学会了各种桌面小动作"),
     ("jump1", "jumps", 1, "学会原地起跳"),
     ("jump5", "jumps", 5, "完成了五次起跳练习"),
     ("fall1", "falls", 1, "经历了第一次摔倒"),
@@ -37,7 +40,7 @@ RULES = (
     ("greet5", "greetings", 5, "会主动来找你说话"),
 )
 
-FIELDS = ("runs", "jumps", "falls", "recoveries", "agility", "balance", "distance",
+FIELDS = ("runs", "jumps", "falls", "recoveries", "agility", "balance", "distance", "actions",
           "pets", "headPats", "tailPats", "pokes", "chats", "greetings")
 
 
@@ -116,6 +119,7 @@ def _blank():
         "agility": 0.0,
         "balance": 0.0,
         "distance": 0.0,
+        "actions": 0,
         "pets": 0,
         "headPats": 0,
         "tailPats": 0,
@@ -231,6 +235,13 @@ class BehaviorLearner:
         self._unlock()
         self.save()
 
+    def note_action(self, name=None):
+        """Record one presented action; all pinned animations count as practice."""
+        self.data["actions"] += 1
+        self.data["agility"] = min(100.0, self.data["agility"] + 0.05)
+        self._unlock()
+        self.save()
+
     def note_jump(self):
         self.data["jumps"] += 1
         self.data["agility"] = min(100.0, self.data["agility"] + 0.5)
@@ -331,6 +342,8 @@ class BehaviorLearner:
             "jumps": int(self.data["jumps"]),
             "falls": int(self.data["falls"]),
             "recoveries": int(self.data["recoveries"]),
+            "actions": int(self.data.get("actions", 0)),
+            "distance": round(float(self.data.get("distance", 0.0)), 1),
             "pets": int(self.data["pets"]),
             "headPats": int(self.data["headPats"]),
             "tailPats": int(self.data["tailPats"]),

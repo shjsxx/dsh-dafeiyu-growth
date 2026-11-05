@@ -14,6 +14,7 @@ import {
   addDiary, derive, levelFromXp, loadProfile, observe, resetProfile, stageOf,
 } from './growth.js'
 import { createStore, defaultProfilePath, queuePathForProfile } from './store.js'
+import { NativeSupervisor, pluginRootFrom } from './native-supervisor.js'
 
 const BASE = '/plugins/dsh-dafeiyu-growth'
 export const STATE_ENDPOINT = `${BASE}/state`
@@ -82,6 +83,12 @@ export async function apply(ctx, config = {}) {
   let profile = loadProfile(store.get())
   const turnStarts = new Map()
   const disposers = []
+  const nativeSupervisor = new NativeSupervisor({
+    root: pluginRootFrom(import.meta.url),
+    config,
+    logger: ctx.logger ?? console,
+  })
+  nativeSupervisor.start()
 
   const reset = () => {
     store.set(profile)
@@ -255,6 +262,7 @@ export async function apply(ctx, config = {}) {
   consoleLogSafely(`[dsh-dafeiyu-growth] ready · Lv.${levelFromXp(profile.xp)}`)
 
   ctx.effect(() => () => {
+    try { nativeSupervisor.stop() } catch {}
     for (const dispose of disposers) {
       try { dispose?.() } catch {}
     }

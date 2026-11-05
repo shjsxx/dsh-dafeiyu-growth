@@ -194,6 +194,7 @@ class CompanionRuntime:
         self.growth_dialog.update_state(self.growth_state)
         self.growth_dialog.update_behavior(self.learner.snapshot())
         self.growth_dialog.update_neural(self.brain.info())
+        self.growth_dialog.update_action_preferences(self.action_preferences.snapshot(limit=5))
         self.growth_dialog.update_cloud(self.cloud_config)
         self.growth_dialog.update_emotion(self.emotion.snapshot())
         self.growth_dialog.update_memory(self.memory.snapshot())
