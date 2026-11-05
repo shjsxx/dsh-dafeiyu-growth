@@ -15,13 +15,17 @@ Copyright (c) 2026 QCYTSN 与许可全文；修改与再分发时请同时保留
 
 ## 角色素材不在本仓库
 
-本仓库**不分发**上游的任何角色帧、光标或音效：`assets/pet/`（来自
-[PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)，MIT）、
-`legacy/dafeiyu/`（BigFish 旧帧，**不在 MIT 范围**）、Chromium BSD-3-Clause 光标和
-程序生成提示音都由你安装的 `dsh-dafeiyu` 提供，适用其
-[ASSET_LICENSE.md](https://github.com/QCYTSN/dsh-dafeiyu/blob/main/ASSET_LICENSE.md)。
-运行本补丁前请自行确认已合法获得该上游包；本仓库的截图只包含我们自绘的矢量图标和
-合成测试数据，不含上述角色素材。
+本仓库**不分发**上游的任何角色帧、光标或音效：
+
+- **dsh-pet 角色形象与 109 段动画**：来自
+  [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)，固定提交
+  `3c99b1bb4d1bcb831880e8871718c50b64af0d9b`；角色素材适用 **CC BY-NC-SA 4.0**
+  （署名、非商业、相同方式共享），不是 MIT。dsh-pet **代码**本身为 MIT。
+- **dsh-dafeiyu 的旧 BigFish 帧**：不在 MIT 范围，适用其
+  [ASSET_LICENSE.md](https://github.com/QCYTSN/dsh-dafeiyu/blob/main/ASSET_LICENSE.md)。
+- Chromium BSD-3-Clause 光标和程序生成提示音由你安装的 `dsh-dafeiyu` 提供。
+
+运行本补丁前请自行确认已合法获得上游包。本仓库公开截图只包含自绘 UI 与合成测试数据，不含上述角色素材。
 
 **自包含发行版例外**：`tools/package-self-contained.ps1` 生成的发行包会把
 `runtime/prepared-3c99b1b` 中的 dsh-pet 角色动画一并分发。这些素材不是 MIT，
