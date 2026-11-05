@@ -1246,10 +1246,21 @@ class GrowthDialog(QDialog):
                 method()
             else:
                 signal.emit()
-            self.evolution_feedback.setText("已关闭；可再次打开。")
+            if self.evolution_feedback.text() == "正在打开…":
+                self.evolution_feedback.setText("已打开；可查看详情。")
         except Exception as error:
             self.evolution_feedback.setText(f"打开失败：{error}")
-            signal.emit()
+
+    def show_evolution_status(self, text):
+        """Render status inside the journal, never in a hidden modal window."""
+        self.evolution_feedback.setText(text)
+        self.evolution_feedback.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.evolution_feedback.setWordWrap(True)
+        self.tabs.setCurrentWidget(self.page_scrolls[6])
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self.page_scrolls[6].ensureWidgetVisible(self.evolution_feedback)
 
     def _confirm_memory_clear(self):
         answer = QMessageBox.question(

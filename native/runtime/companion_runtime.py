@@ -206,11 +206,7 @@ class CompanionRuntime:
         self.growth_dialog.open_near(self)
 
     def _show_evolution_status(self) -> None:
-        """Read-only status dialog; it never starts research or changes data."""
-        from PySide6.QtWidgets import QMessageBox
-        was_visible = bool(self.growth_dialog and self.growth_dialog.isVisible())
-        if was_visible:
-            self.growth_dialog.hide()
+        """Render the read-only status inside the growth card itself."""
         try:
             from evolution_service import EvolutionService
             status = EvolutionService().status()
@@ -220,92 +216,72 @@ class CompanionRuntime:
             statuses = research.get("statuses") or {}
             status_line = "、".join(f"{key} {value}" for key, value in sorted(statuses.items())) or "无"
             text = (
-                "云岚 · 受控进化\n\n"
+                "受控进化 · 只读状态\n"
                 f"审计链：{'正常' if audit.get('ok') else '需要检查'} · {audit.get('events', 0)} 条记录\n"
                 f"联网：仅公开白名单（{len(hosts)} 个来源），按任务预算\n"
                 f"研究任务：{research.get('total', 0)} 个 · {status_line}\n"
                 "记忆：只生成整理建议，不自动删除\n"
-                "人格：核心不变项锁定，单次漂移有上限\n\n"
+                "人格：核心不变项锁定，单次漂移有上限\n"
                 "研究、整理执行和人格回滚都需要你明确批准。"
             )
-            QMessageBox.information(None, "云岚 · 进化状态", text)
         except Exception as error:
-            QMessageBox.warning(None, "云岚 · 进化状态", f"暂时无法读取进化状态：{error}")
-        finally:
-            if was_visible and self.growth_dialog is not None:
-                self.growth_dialog.show()
-                self.growth_dialog.raise_()
-                self.growth_dialog.activateWindow()
+            text = f"受控进化 · 暂时无法读取状态\n{error}"
+        if self.growth_dialog is not None:
+            self.growth_dialog.show_evolution_status(text)
+        else:
+            self._show_overlay(text.splitlines()[0], "请先打开成长卡", "ERROR", 4200)
+
+    def _keep_evolution_dialog(self, dialog) -> None:
+        """Keep a non-modal review window alive and above the journal."""
+        dialogs = getattr(self, "_evolution_dialogs", None)
+        if dialogs is None:
+            dialogs = []
+            self._evolution_dialogs = dialogs
+        dialogs.append(dialog)
+        def drop(*_args):
+            if dialog in dialogs:
+                dialogs.remove(dialog)
+        dialog.destroyed.connect(drop)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def _open_research_dialog(self) -> None:
         """Open the explicit research plan dialog; never auto-start a task."""
         self._stop_motion()
-        was_visible = bool(self.growth_dialog and self.growth_dialog.isVisible())
-        if was_visible:
-            self.growth_dialog.hide()
         try:
             from PySide6.QtCore import Qt
             from research_ui import ResearchDialog
             dialog = ResearchDialog(None)
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-            dialog.show()
-            dialog.raise_()
-            dialog.activateWindow()
-            dialog.exec()
+            dialog.setModal(False)
+            self._keep_evolution_dialog(dialog)
         except Exception as error:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(None, "云岚 · 研究任务", f"研究界面暂时不可用：{error}")
-        finally:
-            if was_visible and self.growth_dialog is not None:
-                self.growth_dialog.show()
-                self.growth_dialog.raise_()
-                self.growth_dialog.activateWindow()
+            self._show_overlay("研究界面暂时不可用", str(error), "ERROR", 4200)
 
     def _open_memory_curation_dialog(self) -> None:
         """Open the proposal-only memory curation review; never auto-delete."""
         self._stop_motion()
-        was_visible = bool(self.growth_dialog and self.growth_dialog.isVisible())
-        if was_visible:
-            self.growth_dialog.hide()
         try:
             from PySide6.QtCore import Qt
             from memory_curation_ui import MemoryCurationDialog
             dialog = MemoryCurationDialog(None)
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-            dialog.show()
-            dialog.raise_()
-            dialog.activateWindow()
-            dialog.exec()
+            dialog.setModal(False)
+            self._keep_evolution_dialog(dialog)
         except Exception as error:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(None, "云岚 · 记忆整理", f"整理界面暂时不可用：{error}")
-        finally:
-            if was_visible and self.growth_dialog is not None:
-                self.growth_dialog.show()
-                self.growth_dialog.raise_()
-                self.growth_dialog.activateWindow()
+            self._show_overlay("整理界面暂时不可用", str(error), "ERROR", 4200)
 
     def _open_persona_dialog(self) -> None:
         """Open the reflection/rollback review; never auto-change personality."""
         self._stop_motion()
-        was_visible = bool(self.growth_dialog and self.growth_dialog.isVisible())
-        if was_visible:
-            self.growth_dialog.hide()
         try:
             from PySide6.QtCore import Qt
             from persona_ui import PersonaReflectionDialog
             dialog = PersonaReflectionDialog(None)
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-            dialog.show()
-            dialog.raise_()
-            dialog.activateWindow()
-            dialog.exec()
+            dialog.setModal(False)
+            self._keep_evolution_dialog(dialog)
         except Exception as error:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(None, "云岚 · 人格反思", f"反思界面暂时不可用：{error}")
-        finally:
-            if was_visible and self.growth_dialog is not None:
-                self.growth_dialog.show()
-                self.growth_dialog.raise_()
-                self.growth_dialog.activateWindow()
+            self._show_overlay("反思界面暂时不可用", str(error), "ERROR", 4200)
 
