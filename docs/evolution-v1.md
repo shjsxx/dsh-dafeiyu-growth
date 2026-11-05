@@ -153,6 +153,16 @@ proposed → approved → running → done
 - 核心项锁定；倾向项缓慢演化
 - 回滚到指定日期的人格快照
 
+`native/persona_reflection.py` 已实现首批：
+
+- 对比两个人格快照，输出每项变化的 `from/to/delta`
+- 只接受 `feedback` / `interaction` / `practice` / `reflection` 结构化证据
+- 证据必须显式带 `trait`，不把任意反馈硬关联到所有维度
+- 漂移超限、无证据变化或核心不变项变化 → `needs_review`
+- 摘要只包含维度、数值和动作名，不复制聊天原文
+- 回滚必须明确批准 + 回滚点；handler 由调用方提供，反思层自己不写人格文件
+- 回滚动作写 `EvolutionLedger`
+
 ### v1.0 · 受控进化版
 
 - 三条闭环打通

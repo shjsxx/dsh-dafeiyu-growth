@@ -263,9 +263,11 @@ class PolicyGate:
     def persona(self, current, proposed):
         if not isinstance(current, dict) or not isinstance(proposed, dict):
             return PolicyResult(False, "persona snapshots must be objects")
+        before_traits = current.get("traits") if isinstance(current.get("traits"), dict) else current
+        after_traits = proposed.get("traits") if isinstance(proposed.get("traits"), dict) else proposed
         for key in TRAIT_DIMENSIONS:
-            before = current.get(key)
-            after = proposed.get(key)
+            before = before_traits.get(key)
+            after = after_traits.get(key)
             if not isinstance(before, (int, float)) or isinstance(before, bool):
                 return PolicyResult(False, f"missing current trait: {key}")
             if not isinstance(after, (int, float)) or isinstance(after, bool):
