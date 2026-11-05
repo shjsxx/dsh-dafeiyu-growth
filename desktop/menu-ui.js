@@ -94,6 +94,9 @@
     function place(panel, left, top) {
       const view = clamp && [clamp.x, clamp.y, clamp.w, clamp.h].every(Number.isFinite)
         ? clamp : { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+      // The visible clamp shrinks when the pet is near a screen edge. Cap the
+      // panel to that area so its own scrollbar can always reach the last row.
+      panel.style.maxHeight = Math.max(80, view.h - 12) + 'px';
       const width = panel.offsetWidth, height = panel.offsetHeight;
       panel.style.left = Math.max(view.x + 6, Math.min(left, view.x + view.w - width - 6)) + 'px';
       panel.style.top = Math.max(view.y + 6, Math.min(top, view.y + view.h - height - 6)) + 'px';
