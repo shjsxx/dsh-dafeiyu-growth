@@ -16,6 +16,7 @@
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
+- 新增 `tools/audit-frames.py`：109 源 + 109 覆盖逐帧哈希检查，0 解码错误；覆盖层重复帧对 259、最长连续 3 帧，源素材重复帧对 498，未发现整段静止/损坏素材。
 - 修复重复桌宠：Electron 使用 userData 单实例锁，第二个 helper/旧手动实例会自动退出；实测清理了一套重叠的 helper/Electron（双实例会直接造成重影/闪现）。
 - 素材与播放自检：109 段源 + 109 段 60fps 覆盖全部可解码、无缺帧/损坏，alpha/帧率一致；但全量 60fps 在复杂特效上有掉帧（最高约 22 帧）。
 - 新增 `tools/audit-assets.py`；播放改为选择性覆盖：待机/转向/拖拽/点击/移动保留 60fps，复杂效果与分类动作回退 24fps 源，实测最大 dropped 降到约 3 帧。可用 `DSH_YUNLAN_OVERLAY=motion|all|none` 覆盖策略。
