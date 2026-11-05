@@ -10,6 +10,15 @@ const runtimeRoot=arg('--runtime-root'); const dataDir=arg('--user-data-dir')||a
 if(!runtimeRoot || !path.isAbsolute(runtimeRoot) || !dataDir || !path.isAbsolute(dataDir)) throw Error('Explicit runtime and data directories required');
 const rendererRoot=path.join(runtimeRoot,'runtime','electron-helper');
 const cfg=buildConfig(runtimeRoot); cfg.sleepFile=path.join(dataDir,'sleep.json'); const host=new PresentationHost(cfg);
+// 60fps interpolation is most valuable for locomotion and direct interactions.
+// Complex effect/category clips are heavier to decode and can drop frames;
+// serve those from the 24fps source unless the user explicitly opts into all.
+const animations=cfg.renderConfig.main.animations||{};
+const motionOverlayNames=new Set([
+  ...(animations.idle||[]), ...(animations.turn||[]), ...(animations.drag||[]),
+  ...(animations.clicks||[]), ...((animations.moves?.actions||[]).map(action=>action.name||action)),
+].filter(name=>typeof name==='string'&&name));
+const overlayPolicy=String(process.env.DSH_YUNLAN_OVERLAY||'motion').toLowerCase();
 app.setName('yunlan-dsh-pet'); app.setPath('userData',dataDir);
 app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features','HardwareMediaKeyHandling');
@@ -106,7 +115,9 @@ app.whenReady().then(async()=>{
       if(video) {
         const fileName=video[1].endsWith('.webm')?video[1]:video[1]+'.webm';
         const overlayRoot=path.join(path.dirname(dataDir),'interpolated');
-        return fileResponse(safeFile(overlayRoot,fileName)||safeFile(path.join(runtimeRoot,'assets','webm'),fileName),request);
+        const baseName=fileName.endsWith('.webm')?fileName.slice(0,-5):fileName;
+        const useOverlay=overlayPolicy==='all'||(overlayPolicy!=='none'&&motionOverlayNames.has(baseName));
+        return fileResponse((useOverlay?safeFile(overlayRoot,fileName):null)||safeFile(path.join(runtimeRoot,'assets','webm'),fileName),request);
       }
       if(relative.startsWith('font/')) return fileResponse(safeFile(path.join(runtimeRoot,'assets','font'),relative.slice(5)),request);
       if(relative.startsWith('pic/')) return fileResponse(safeFile(path.join(runtimeRoot,'assets','pic'),relative.slice(4)),request);
@@ -128,6 +139,12 @@ app.whenReady().then(async()=>{
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith('yunlan-pet://ui/index.html?'))event.preventDefault();});
   win.webContents.on('render-process-gone',(_event,details)=>{const smoke=arg('--smoke-out');if(smoke){fs.mkdirSync(smoke,{recursive:true});fs.writeFileSync(path.join(smoke,'renderer-gone.json'),JSON.stringify(details));}emit({kind:'status',visible:false,connected:false});app.exit(3);});
+  let diagBusy=false;
+  setInterval(()=>{
+    if(diagBusy || !win || win.isDestroyed() || !fs.existsSync(path.join(dataDir,'diag.flag'))) return;
+    diagBusy=true;
+    win.webContents.executeJavaScript(`(async()=>{const videos=[...document.querySelectorAll('video.pet-video')].map(v=>{const q=v.getVideoPlaybackQuality?v.getVideoPlaybackQuality():{};return {src:(v.currentSrc||'').split('/').pop(),paused:v.paused,ready:v.readyState,time:v.currentTime,total:q.totalVideoFrames||0,dropped:q.droppedVideoFrames||0,corrupt:q.corruptedVideoFrames||0,classes:v.className,visibility:getComputedStyle(v).visibility}});const fps=await new Promise(r=>{let n=0,t=performance.now();const f=x=>{n++;if(x-t>=1000)r(Math.round(n*1000/(x-t)));else requestAnimationFrame(f)};requestAnimationFrame(f)});return {at:Date.now(),fps,videos,debug:{menu:window.__dshPetDebug?.menuOpen,inputBusy:window.__dshPetDebug?.inputBusy}}})()`).then(value=>{try{fs.appendFileSync(path.join(dataDir,'diag.jsonl'),JSON.stringify(value)+'\n');}catch{}}).catch(()=>{}).finally(()=>{diagBusy=false;});
+  },1000).unref?.();
   win.on('closed',()=>{win=null;app.quit();});
   ipcMain.on('pet:set-bounds',(event,b)=>{
     if(!permitted(event)||!b||!['x','y','width','height','boxX','boxY','size'].every(k=>Number.isFinite(b[k])))return;
