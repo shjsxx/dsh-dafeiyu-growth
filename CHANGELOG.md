@@ -17,7 +17,7 @@
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
 - 素材与播放自检：109 段源 + 109 段 60fps 覆盖全部可解码、无缺帧/损坏，alpha/帧率一致；但全量 60fps 在复杂特效上有掉帧（最高约 22 帧）。
-- 新增 `tools/audit-assets.py`；播放改为选择性覆盖：待机/转向/拖拽/点击/移动保留 60fps，复杂效果与分类动作回退 24fps 源，实测最大 dropped 降到约 3 帧。
+- 新增 `tools/audit-assets.py`；播放改为选择性覆盖：待机/转向/拖拽/点击/移动保留 60fps，复杂效果与分类动作回退 24fps 源，实测最大 dropped 降到约 3 帧。可用 `DSH_YUNLAN_OVERLAY=motion|all|none` 覆盖策略。
 - 新增本地 `diag.flag` 播放诊断（rAF FPS、video dropped/corrupt），默认关闭。
 - 修复动作切换闪现：移除视频层 0.18s 透明交叉淡入淡出，改为同帧切换；非前台视频 `visibility:hidden`，避免两帧半透明叠加产生鬼影/空白帧。
 - 隔离端到端：staged bundle 的真实 onedir helper + Electron 启动并保持，stop 后无残留进程；supervisor 保持 helper stdin 管道打开，避免被当成生命周期关闭。
