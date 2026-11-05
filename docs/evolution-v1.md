@@ -107,6 +107,28 @@ v0.34 首批已落地 [`native/web_scout.py`](../native/web_scout.py)：
 
 它还没有接自动搜索/任务调度；下一步是 `WebScout` 的 URL 计划器与可暂停的自主研究队列。
 
+### v0.34b · 研究队列
+
+[`native/research_queue.py`](../native/research_queue.py) 把“自主研究”限制为显式状态机：
+
+```text
+proposed → approved → running → done
+                    ↘ paused → approved
+                    ↘ failed / cancelled
+```
+
+- `propose()` 只规划，不联网；URL 必须预先通过白名单
+- `approve()` 是第一次明确同意
+- `run_next()` 只在调用方主动执行时运行，不启动后台守护线程
+- 请求/字节预算沿用 `WebScout`
+- 完成后只生成短摘要 + 来源，页面正文不写入长期记忆
+- `export_for_memory()` 必须再次 `approved=True`，且 `mark_committed()` 防重复
+- 摘要标记 `trust: untrusted`；网页内容不作为指令
+- 运行中的任务重启后会变成 `paused`，需显式恢复
+- `clear_finished()` 只清理结束任务，不碰原始记忆
+
+当前 `research.json` 只保存目标、URL、来源、短摘要和状态；真正的记忆写入仍由后续的显式确认入口完成。
+
 ### v0.35 · 记忆净化
 
 - `MemoryCurator`：去重、冲突检测、隔离、衰减
