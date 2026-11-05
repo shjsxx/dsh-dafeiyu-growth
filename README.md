@@ -117,6 +117,7 @@ python -m pip install -r requirements-native.txt
 - 新增 onedir helper 构建 `native/build-onedir.ps1`，避免 onefile 每次解压 `MSVCP140.dll` 被杀毒/文件锁拦截。
 - 新增 `tools/package-self-contained.ps1`：把 Electron、pinned renderer、onedir helper、插件代码和授权文件打成约 650MB 的自包含目录/压缩包。
 - 可选轻量流程：`tools/fetch-runtime.ps1` 从固定 release 资产校验并安装 runtime；`-IncludeModels` 可把 24MB BGE 模型放进包内，supervisor 自动设置 `DSH_DAFEIYU_EMBEDDING_DIR`。
+- 修复气泡发虚：按页面缩放补偿字号，物理字号取整且不低于 18px，0.7 缩放也能清晰显示。
 - 修复“飘着走”：移动池去掉“原地漂浮踏步/原地左转奔跑”，改用螃蟹走路并调整移动参数。
 - 逐帧重复审计：109 源 + 109 覆盖 0 解码错误；覆盖层最长连续重复仅 3 帧，无整段静止/损坏素材。
 - 修复重复桌宠：Electron userData 单实例锁，第二个 helper/旧手动实例自动退出；本轮实际清理了一套重叠实例。

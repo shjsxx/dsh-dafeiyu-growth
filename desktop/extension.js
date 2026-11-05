@@ -11,6 +11,12 @@ let chatterEnabled = true;
 const videoLayerStyle = document.createElement('style');
 videoLayerStyle.textContent = 'video.pet-video{will-change:transform;transform:translateZ(0);backface-visibility:hidden;transition:none!important;visibility:hidden}video.pet-video.is-front{visibility:visible}';
 document.head.appendChild(videoLayerStyle);
+// Electron applies a fractional page zoom (e.g. 0.7). A 21px bubble font then
+// lands on 14.7 device pixels and looks soft. Keep the CSS layout, but nudge
+// the bubble's font anchor so the physical size is an integer.
+const crispTextStyle = document.createElement('style');
+crispTextStyle.textContent = '.pet-bubble{--f0:calc(var(--dsh-pet-font-bubble,21px) * var(--yunlan-font-comp,1))!important;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}';
+document.head.appendChild(crispTextStyle);
 document.addEventListener('play', event => {if ((stoppedByCore || reducedByCore) && event.target instanceof HTMLMediaElement) event.target.pause();}, true);
 const originalSwitchTo = PetSprite.prototype.switchTo;
 const lastActionReport = new Map();
@@ -197,6 +203,13 @@ window.yunlanBridge.onControl(function(message) {
     chatterEnabled = message.chatterEnabled !== false;
     if (sprites.some(sprite => sprite.size !== Math.round(360*message.scale))) {
       void boot();
+    }
+    const uiScale = Number(message.scale);
+    const bubbleScale = Number(message.bubbleScale) || 1;
+    if (Number.isFinite(uiScale) && uiScale > 0) {
+      const base = 21 * bubbleScale;
+      const physical = Math.max(18, Math.round(base * uiScale));
+      document.documentElement.style.setProperty('--yunlan-font-comp', String(physical / (base * uiScale)));
     }
     for (const sprite of sprites) {
       sprite.pet.fixedEnabled = !message.motionEnabled;
