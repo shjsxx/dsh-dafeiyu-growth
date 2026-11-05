@@ -145,6 +145,7 @@ npm test
 | 上下文、检索标注与记忆同意 | [陪伴上下文](docs/companion-context.md) |
 | 成长、记忆、人格的接口约定 | [引擎设计](docs/growth-engines.md) |
 | 自包含打包、DSH-only 安装与授权 | [自包含插件](docs/self-contained.md) |
+| v1.0 受控进化、联网/净化/人格边界 | [进化设计](docs/evolution-v1.md) |
 | 历史更新、指标与当时的限制 | [更新记录](CHANGELOG.md) |
 | 安全报告与贡献 | [安全说明](SECURITY.md) · [贡献指南](CONTRIBUTING.md) |
 
