@@ -11,6 +11,12 @@ let chatterEnabled = true;
 const videoLayerStyle = document.createElement('style');
 videoLayerStyle.textContent = 'video.pet-video{will-change:transform;transform:translateZ(0);backface-visibility:hidden;transition:none!important;visibility:hidden}video.pet-video.is-front{visibility:visible}';
 document.head.appendChild(videoLayerStyle);
+// The upstream renderer uses a 32px black-and-white glove bitmap for hover.
+// At 100–125% DPI it reads as a coarse pixel icon. Use the OS grab/grabbing
+// cursors instead: they are crisp, DPI-aware, and visually familiar.
+const cursorStyle = document.createElement('style');
+cursorStyle.textContent = '.pet-hit{cursor:grab!important}.pet-hit.dragging{cursor:grabbing!important}';
+document.head.appendChild(cursorStyle);
 // Electron applies a fractional page zoom (e.g. 0.7). A 21px bubble font then
 // lands on 14.7 device pixels and looks soft. Keep the CSS layout, but nudge
 // the bubble's font anchor so the physical size is an integer.
