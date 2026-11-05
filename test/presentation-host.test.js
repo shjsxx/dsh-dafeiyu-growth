@@ -80,6 +80,7 @@ test('routes expose only the renderer essentials', () => {
   assert.equal(host.route(new URL(base + '/playback/yunlan-1/report'), 'POST', { status: 'ended' }).status, 400);
   assert.equal(COMMANDS.has('open-menu'), true);
   assert.equal(COMMANDS.has('open-evolution'), true);
+  assert.equal(COMMANDS.has('open-research'), true);
   assert.equal(COMMANDS.has('eval'), false);
   assert.equal(STATES.has('SUCCESS'), true);
 });

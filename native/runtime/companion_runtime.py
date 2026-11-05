@@ -225,3 +225,13 @@ class CompanionRuntime:
         except Exception as error:
             QMessageBox.warning(self, "云岚 · 进化状态", f"暂时无法读取进化状态：{error}")
 
+    def _open_research_dialog(self) -> None:
+        """Open the explicit research plan dialog; never auto-start a task."""
+        self._stop_motion()
+        try:
+            from research_ui import ResearchDialog
+            ResearchDialog(self).exec()
+        except Exception as error:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "云岚 · 研究任务", f"研究界面暂时不可用：{error}")
+
