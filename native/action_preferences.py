@@ -201,6 +201,7 @@ class ActionPreferences:
             "observations": totals["shown"],
             "liked": totals["liked"],
             "disliked": totals["disliked"],
+            "rows": [{"name": name, **row} for name, row in sorted(self._data["actions"].items())],
             "top": [{"name": name, **row} for name, row in rows[:max(1, min(20, int(limit)))]],
             "bottom": [{"name": name, **row} for name, row in rows[-max(1, min(20, int(limit))):]],
         }

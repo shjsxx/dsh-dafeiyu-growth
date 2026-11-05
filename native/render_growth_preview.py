@@ -111,6 +111,10 @@ def apply_fixture(dialog, fixture):
                                      {'kindLabel': '公开知识', 'text': '法国：首都是巴黎'}]})
     dialog.update_action_preferences({'status': 'ready', 'actions': 86, 'observations': 1234,
                                       'liked': 7, 'disliked': 2, 'updated': 1793850000,
+                                      'rows': [{'name': '悠闲哼歌', 'shown': 80, 'weight': .45},
+                                               {'name': '放烟花', 'shown': 40, 'weight': .30},
+                                               {'name': '原地左转奔跑', 'shown': 160, 'weight': 0},
+                                               {'name': '打喷嚏', 'shown': 12, 'weight': -.15}],
                                       'top': [], 'bottom': []})
     dialog.update_personality({'status': 'ready', 'simulated': True, 'toneLabel': '温暖',
                                'initiative': .58, 'traits': {'warmth': 62, 'curiosity': 58,

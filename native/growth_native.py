@@ -23,9 +23,10 @@ from PySide6.QtWidgets import (
 )
 
 from training_ui import TrainingPanel
-from growth_charts import BarChart, RadarChart, DonutChart, recent_days, activity_days
+from growth_charts import BarChart, RadarChart, DonutChart, GaugeChart, PreferenceMapChart, recent_days, activity_days
 from ability_model import DIMENSIONS as ABILITY_DIMENSIONS, derive_abilities
 from learning_archive import build_learning_archive
+from movement_model import derive_movement
 from data_panel import DataPanel
 from online_ui import OnlinePanel
 from voice_ui import VoiceDataPanel
@@ -767,6 +768,18 @@ class GrowthDialog(QDialog):
         box.addLayout(grid)
         memory.addWidget(frame)
 
+        self._heading(memory, "运动模型", "跑速与稳定")
+        frame, box = self._card("motionModelCard")
+        self.motion_gauge = GaugeChart()
+        box.addWidget(self.motion_gauge)
+        self.motion_notes = _label("等待运动记录；跑动与摔倒是速度/稳定的训练来源。", "memoryStatus")
+        self.motion_notes.setWordWrap(True)
+        box.addWidget(self.motion_notes)
+        self.motion_layers = _label("", "memoryStatus")
+        self.motion_layers.setWordWrap(True)
+        box.addWidget(self.motion_layers)
+        memory.addWidget(frame)
+
         self._heading(memory, "练习记录", "动作与陪伴")
         frame, box = self._card("practiceCard")
         practice = QGridLayout()
@@ -813,6 +826,11 @@ class GrowthDialog(QDialog):
         self.preference_label = _label("等待动作偏好样本。", "memoryStatus")
         self.preference_label.setWordWrap(True)
         box.addWidget(self.preference_label)
+        self.preference_map = PreferenceMapChart()
+        box.addWidget(self.preference_map)
+        self.preference_caption = _label("横轴为出现次数，纵轴为偏好权重。", "memoryStatus")
+        self.preference_caption.setWordWrap(True)
+        box.addWidget(self.preference_caption)
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         self.neural_rollback = QPushButton("回滚上一版")
@@ -1454,6 +1472,32 @@ class GrowthDialog(QDialog):
         self.daily_scope.setText(
             f"记忆引擎共 {memory['total']:,} 条（本地与公开）；下方是 {memory['learned']} 条长期画像，"
             "只是日常记忆的一个子集，不是全部记录。")
+        movement = derive_movement(getattr(self, "_behavior_snapshot", {}), preferences)
+        self.motion_gauge.set_data([
+            {"label": "跑速", "value": movement["speed"], "min": movement["speed_min"],
+             "max": movement["speed_max"], "suffix": "", "caption": f"敏捷 {movement['agility']:.0f}",
+             "color": "#187E83"},
+            {"label": "稳定", "value": movement["stability"], "min": 0, "max": 100,
+             "suffix": "%", "caption": f"平衡 {movement['balance']:.0f}", "color": "#5B9A8F"},
+            {"label": "爬起", "value": movement["recovery"], "min": 0, "max": 100,
+             "suffix": "%", "caption": ("暂无摔倒" if movement["falls"] == 0
+                                         else f"{movement['falls']} 摔 / {movement['recoveries']} 起"),
+             "color": "#A98A5F"},
+        ])
+        self.motion_notes.setText("\n".join(movement["notes"]))
+        self.motion_layers.setText(
+            f"运动执行：跑 {movement['runs']:,} · 跳 {movement['jumps']:,} · 摔倒 {movement['falls']:,}"
+            f" · 爬起 {movement['recoveries']:,} → 敏捷 {movement['agility']:.0f} / 平衡 {movement['balance']:.0f}\n"
+            f"动作选择：{movement['preference_tracked']} 个动作 · {movement['preference_observations']:,} 次观察"
+            f" → 选哪个动作、出现频率\n"
+            f"日常记忆：{memory['total']:,} 条 → 回应内容与选择语境")
+        self.preference_map.set_data(getattr(self, "_preferences_snapshot", {}).get("rows", []))
+        feedback = preferences["liked"] + preferences["disliked"]
+        caption = (f"横轴为出现次数，纵轴为偏好权重；{preferences['tracked']} 个动作、"
+                   f"{preferences['observations']:,} 次观察、{feedback} 次明确反馈。")
+        if feedback < 5:
+            caption += " 反馈还少，权重亮点只代表少量明确偏好，不等于运动能力。"
+        self.preference_caption.setText(caption)
         lines = []
         for row in archive["timeline"][:8]:
             when = row["at"] or "最近"
