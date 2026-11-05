@@ -16,6 +16,7 @@
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
+- v0.34 WebScout 内核：白名单 HTTPS GET、请求/字节预算、手动重定向校验、6 小时缓存、来源引用与 `untrusted` 标记；7 项假传输测试，不访问真实网络；全量 963 Python / 102 Node 通过。
 - v0.33 进化内核：新增 `EvolutionLedger`（哈希链、追加写、脱敏、损坏保护）、`PolicyGate`（1A 白名单/预算、2A 删除确认+备份、3A 核心不变+漂移上限、自我修改回滚点）与 8 项测试；全量 956 Python / 102 Node 通过；设计见 [docs/evolution-v1.md](docs/evolution-v1.md)。
 - 优化云岚 hover 光标：移除上游 32×32 黑白像素手套图，改用系统 `grab/grabbing` 光标；随 DPI 清晰缩放，拖拽时切换为 grabbing。
 - P1 反馈闭环：明确喜欢/不喜欢现在同时更新动作选择权重、五维人格（有界微调）和一条动作偏好记忆；同一动作改变判断会更新同一记忆槽，不累积矛盾副本。新增 9 项反馈循环测试与跨重启/清除边界测试。

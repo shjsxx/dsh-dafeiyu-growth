@@ -92,10 +92,20 @@ no_silent_delete
 
 ### v0.34 · 受控联网
 
-- `WebScout`：白名单、预算、缓存、来源引用
+- `WebScout`：白名单、预算、手动重定向校验、缓存、来源引用
 - 任务只读取公开页面，不登录、不带 Cookie
 - 每次研究必须有目标、预算、停止条件
 - 结果写摘要 + 来源，不把整页原文塞进记忆
+
+v0.34 首批已落地 [`native/web_scout.py`](../native/web_scout.py)：
+
+- 每次请求先过 `EvolutionKernel` 的 host/预算门禁
+- 3xx 不自动跟随；每个 `Location` 重新校验，未列入白名单立即拒绝
+- 只接受 HTML/XHTML/纯文本/JSON；页面文本标记 `trust: untrusted`
+- 请求与字节双重预算；缓存默认 6 小时；`clear_cache()` 可清
+- 测试全部注入假传输，不访问真实网络
+
+它还没有接自动搜索/任务调度；下一步是 `WebScout` 的 URL 计划器与可暂停的自主研究队列。
 
 ### v0.35 · 记忆净化
 
