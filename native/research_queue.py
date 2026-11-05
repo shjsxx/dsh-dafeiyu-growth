@@ -203,12 +203,8 @@ class ResearchQueue:
             self._save()
             return dict(task)
 
-    def run_next(self):
-        """Run the oldest approved task; never called by a background daemon."""
+    def _run_approved(self, task):
         with self._lock:
-            task = next((row for row in self.tasks if row.get("status") == "approved"), None)
-            if task is None:
-                return None
             task["status"] = "running"
             task["updatedAt"] = int(self.clock())
             task["error"] = ""
@@ -240,6 +236,19 @@ class ResearchQueue:
             task["updatedAt"] = int(self.clock())
             self._save()
             return dict(task)
+
+    def run_next(self):
+        """Run the oldest approved task; never called by a background daemon."""
+        with self._lock:
+            task = next((row for row in self.tasks if row.get("status") == "approved"), None)
+        return self._run_approved(task) if task is not None else None
+
+    def run_task(self, task_id):
+        """Run one specifically approved task; never called by a daemon."""
+        task = self._find(task_id)
+        if task.get("status") != "approved":
+            raise ResearchError("research task must be approved first")
+        return self._run_approved(task)
 
     @staticmethod
     def _summarize(goal, results):

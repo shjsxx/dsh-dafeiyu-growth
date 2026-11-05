@@ -754,6 +754,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._open_conversation()
                 elif command == 'open-growth':
                     self._show_growth_card()
+                elif command == 'open-evolution':
+                    self._show_evolution_status()
                 elif command == 'open-menu':
                     from types import SimpleNamespace
                     self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))

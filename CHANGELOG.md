@@ -16,6 +16,7 @@
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
+- v1.0 集成首批：`EvolutionService` 装配五个受控模块；右键“设置 → 进化状态”可查看审计链、白名单来源、研究任务与只读边界；对话框不会启动研究/删记忆/改人格；全量 988 Python / 102 Node 通过。
 - v0.36 人格反思：对比人格快照、关联结构化反馈证据、检测漂移/核心变化/无证据变化；回滚需批准+回滚点并审计；6 项合成快照测试；全量 984 Python / 102 Node 通过。
 - v0.35 记忆净化：`MemoryCurator` 生成去重/冲突隔离/过期归档计划，只提议不改真实记忆；commit 需批准+备份，delete 独立门禁并审计；7 项合成记录测试；全量 978 Python / 102 Node 通过。
 - v0.34b 研究队列：`proposed→approved→running→done`、暂停/恢复/取消、请求/字节预算、失败恢复、短摘要+来源、写入记忆二次确认与防重复；8 项假传输测试，不访问真实网络；全量 971 Python / 102 Node 通过。

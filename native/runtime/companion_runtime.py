@@ -201,3 +201,27 @@ class CompanionRuntime:
         self._refresh_learning_ui()
         self.growth_dialog.open_near(self)
 
+    def _show_evolution_status(self) -> None:
+        """Read-only status dialog; it never starts research or changes data."""
+        from PySide6.QtWidgets import QMessageBox
+        try:
+            from evolution_service import EvolutionService
+            status = EvolutionService().status()
+            audit = status.get("audit") or {}
+            research = status.get("research") or {}
+            hosts = (status.get("network") or {}).get("hosts") or []
+            statuses = research.get("statuses") or {}
+            status_line = "、".join(f"{key} {value}" for key, value in sorted(statuses.items())) or "无"
+            text = (
+                "云岚 · 受控进化\n\n"
+                f"审计链：{'正常' if audit.get('ok') else '需要检查'} · {audit.get('events', 0)} 条记录\n"
+                f"联网：仅公开白名单（{len(hosts)} 个来源），按任务预算\n"
+                f"研究任务：{research.get('total', 0)} 个 · {status_line}\n"
+                "记忆：只生成整理建议，不自动删除\n"
+                "人格：核心不变项锁定，单次漂移有上限\n\n"
+                "研究、整理执行和人格回滚都需要你明确批准。"
+            )
+            QMessageBox.information(self, "云岚 · 进化状态", text)
+        except Exception as error:
+            QMessageBox.warning(self, "云岚 · 进化状态", f"暂时无法读取进化状态：{error}")
+
