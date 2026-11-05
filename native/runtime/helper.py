@@ -692,6 +692,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                 self.last_neural_ms = 0
             if self.growth_dialog is not None and self.growth_dialog.isVisible():
                 self.growth_dialog.update_behavior(self.learner.snapshot())
+                self.growth_dialog.update_action_preferences(self.action_preferences.snapshot(limit=5))
 
         def _external_interaction(self, spot):
             if not self.external_renderer or not self._presentation_visible() or self.menu_open:
@@ -1332,6 +1333,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             if has_pref:
                 self.action_preferences.observe(
                     action_name, 'liked' if reward > 0 else 'disliked')
+                if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                    self.growth_dialog.update_action_preferences(self.action_preferences.snapshot(limit=5))
             if has_pref and action_name not in ('rest', 'run', 'hop', 'talk'):
                 if self.growth_dialog is not None and self.growth_dialog.isVisible():
                     self.growth_dialog.update_neural(self.brain.info())

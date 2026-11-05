@@ -40,6 +40,12 @@ class BehaviorTests(unittest.TestCase):
         self.assertIn("run5", ids)
         self.assertEqual(snapshot["discoveries"][0]["at"], "2026-10-31T12:00:00")
 
+    def test_action_count_is_visible_in_snapshot_and_survives_reload(self):
+        learner = self.learner()
+        learner.note_action("悠闲哼歌")
+        self.assertEqual(learner.snapshot()["actions"], 1)
+        self.assertEqual(self.learner().snapshot()["actions"], 1)
+
     def test_jumps_and_falls_teach_balance(self):
         learner = self.learner()
         before = learner.fall_chance()

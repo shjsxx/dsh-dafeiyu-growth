@@ -188,10 +188,19 @@ class ActionPreferences:
 
     def snapshot(self, limit=5):
         rows = sorted(self._data["actions"].items(), key=lambda item: item[1]["weight"], reverse=True)
+        totals = {
+            "shown": sum(int(row.get("shown", 0)) for row in self._data["actions"].values()),
+            "liked": sum(int(row.get("liked", 0)) for row in self._data["actions"].values()),
+            "disliked": sum(int(row.get("disliked", 0)) for row in self._data["actions"].values()),
+        }
         return {
             "status": self.status,
             "revision": self._data["revision"],
+            "updated": self._data["updated"],
             "actions": len(self._data["actions"]),
+            "observations": totals["shown"],
+            "liked": totals["liked"],
+            "disliked": totals["disliked"],
             "top": [{"name": name, **row} for name, row in rows[:max(1, min(20, int(limit)))]],
             "bottom": [{"name": name, **row} for name, row in rows[-max(1, min(20, int(limit))):]],
         }

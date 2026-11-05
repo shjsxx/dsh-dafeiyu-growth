@@ -104,11 +104,14 @@ def apply_fixture(dialog, fixture):
     training['evaluation'] = {'accuracy': .7028, 'balanced_accuracy': .7216, 'macro_f1': .4782, 'support': 461}
     training['brain'] = dict(training.get('brain') or {}, diversity=.72, avg_reward=-.1, positive_ratio=.6)
     dialog.update_training(training)
-    dialog.update_memory({'status': 'ready', 'revision': 4,
+    dialog.update_memory({'status': 'ready', 'revision': 4, 'total': 42,
                           'counts': {'preference': 1, 'habit': 1, 'diary': 1, 'public': 2, 'culture': 1},
                           'recent': [{'kindLabel': '诗文', 'text': '关雎：关关雎鸠，在河之洲。'},
                                      {'kindLabel': '偏好', 'text': '喜欢：夜里散步'},
                                      {'kindLabel': '公开知识', 'text': '法国：首都是巴黎'}]})
+    dialog.update_action_preferences({'status': 'ready', 'actions': 86, 'observations': 1234,
+                                      'liked': 7, 'disliked': 2, 'updated': 1793850000,
+                                      'top': [], 'bottom': []})
     dialog.update_personality({'status': 'ready', 'simulated': True, 'toneLabel': '温暖',
                                'initiative': .58, 'traits': {'warmth': 62, 'curiosity': 58,
                                'playfulness': 41, 'steadiness': 60, 'expressiveness': 55}})

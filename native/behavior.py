@@ -342,6 +342,8 @@ class BehaviorLearner:
             "jumps": int(self.data["jumps"]),
             "falls": int(self.data["falls"]),
             "recoveries": int(self.data["recoveries"]),
+            "actions": int(self.data.get("actions", 0)),
+            "distance": round(float(self.data.get("distance", 0.0)), 1),
             "pets": int(self.data["pets"]),
             "headPats": int(self.data["headPats"]),
             "tailPats": int(self.data["tailPats"]),
