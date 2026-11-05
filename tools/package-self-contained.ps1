@@ -49,7 +49,7 @@ function CopyTree([string]$From, [string]$To) {
   & robocopy $From $To /E /NFL /NDL /NJH /NJS /NP | Out-Null
   if ($LASTEXITCODE -gt 7) { throw "robocopy failed ($LASTEXITCODE): $From -> $To" }
 }
-foreach ($name in 'src','lib','web','desktop','docs') {
+foreach ($name in 'src','lib','web','desktop','docs','tools') {
   CopyTree (Join-Path $root $name) (Join-Path $outPath $name)
 }
 foreach ($name in 'package.json','cordis.patch.yml','README.md','CHANGELOG.md','LICENSE','ASSET_LICENSE.md','NOTICE.md','SECURITY.md','CONTRIBUTING.md','requirements-native.txt','requirements-dev.txt') {
