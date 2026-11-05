@@ -114,6 +114,9 @@ dsh-dafeiyu-growth/
 - [x] `package-self-contained.ps1` 成功生成 866 文件、652.8MB staged 包
 - [x] staged 包隔离端到端：真实 onedir helper + staged Electron 启动，9 秒后 helper 仍 running，marker 正确；stop 后 helper/Electron 退出、marker 清理
 - [x] supervisor 保留 stdin 管道（helper 以关闭 stdin 为退出信号；不能用 `ignore`）
-- [ ] 干净 Windows 用户：只装 DSH + 插件，确认桌宠、成长卡、托盘、记忆
+- [x] 隔离 DSH-only 安装：临时 `DSH_HOME`、`dsh plugin --profile yunlan-selftest add <staged>`、`dsh --profile yunlan-selftest`；插件自动拉起 helper/Electron，窗口标题 `dsh-pet 桌宠（桌面模式）`，无 dsh-dafeiyu
+- [x] 可选 runtime 下载：本地 zip + SHA-256 校验、错误哈希拒绝、必需路径检查
+- [x] 可选模型路径：`-IncludeModels` + supervisor 注入 `DSH_DAFEIYU_EMBEDDING_DIR`
+- [ ] 发布前在第二台干净 Windows 机器重复一次并检查 SmartScreen/杀毒
 - [ ] 云端/语音不填 Key 时明确报未配置，不伪装成功
 - [ ] 发布包含全部授权文件，不含用户数据或 Key
