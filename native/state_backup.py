@@ -25,6 +25,7 @@ STATE_FILES = (
     "growth.json",
     "memory.json",
     "memory-archive.json",
+    "relationship.json",
     "personality.json",
     "persona-history.json",
     "research-scheduler.json",

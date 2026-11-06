@@ -18,6 +18,7 @@ from memory_reply import compose_public_answer
 from emotion_model import LABELS
 from reactions import detect_reaction
 from companion_context import CompanionContext
+from relationship import RelationshipStore
 from retrieval_review import RetrievalReviewStore
 from retrieval_review_ui import RetrievalReviewDialog
 from PySide6.QtWidgets import QDialog
@@ -48,6 +49,20 @@ class ConversationRuntime:
             self.dialogue_context = CompanionContext()
         return self.dialogue_context
 
+    def _relationship_store(self):
+        store = getattr(self, 'relationship_store', None)
+        if store is None:
+            memory = getattr(self, 'memory', None)
+            path = memory.path.with_name('relationship.json') if memory is not None else None
+            store = RelationshipStore(path)
+            self.relationship_store = store
+        return store
+
+    def _seed_dialogue_context(self):
+        store = self._relationship_store()
+        store.seed_context(self._dialogue_context())
+        self.last_topic = store.last_topic()
+
     def _reset_conversation_context(self):
         """Forget RAM-only context and invalidate outstanding model requests.
 
@@ -70,6 +85,10 @@ class ConversationRuntime:
 
     def _record_exchange(self, text, answer, mood='neutral', *, private_context=False):
         self._dialogue_context().record(text, answer, mood=mood)
+        try:
+            self._relationship_store().remember(self._dialogue_context(), mood)
+        except (OSError, ValueError, TypeError):
+            pass
         self.last_user_text = str(text)[:200]
         self.last_reply_text = str(answer)[:300]
         self._last_reply_private = bool(private_context)
@@ -91,6 +110,7 @@ class ConversationRuntime:
     def _ensure_conversation(self) -> None:
         if self.conversation is None:
             self._reset_conversation_context()
+            self._seed_dialogue_context()
             self._review_group = uuid.uuid4().hex
             dialog = ConversationDialog(self)
             dialog.local_submitted.connect(self._conversation_local)

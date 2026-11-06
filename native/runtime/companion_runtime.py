@@ -127,6 +127,10 @@ class CompanionRuntime:
 
     def _clear_memory_engine(self) -> None:
         self._reset_conversation_context()
+        try:
+            self._relationship_store().clear()
+        except (OSError, ValueError, TypeError):
+            pass
         ok = self.memory.clear()
         from retrieval_review import RetrievalReviewStore
         reviews_ok = RetrievalReviewStore().clear()
@@ -175,6 +179,10 @@ class CompanionRuntime:
 
     def _forget_memory(self) -> None:
         self._reset_conversation_context()
+        try:
+            self._relationship_store().clear()
+        except (OSError, ValueError, TypeError):
+            pass
         ok = self.learner.forget_user()
         preference_ok = self.memory.clear_preferences()
         from retrieval_review import RetrievalReviewStore
