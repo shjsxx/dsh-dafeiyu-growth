@@ -42,6 +42,16 @@ class SchedulerHostTests(unittest.TestCase):
         finally:
             host.shutdown()
 
+    def test_host_config_is_optional_and_does_not_write_without_it(self):
+        service = FakeService()
+        host = ResearchSchedulerHost(service)
+        try:
+            self.assertFalse(host.state()["persisted"])
+            host.configure(True, 30)
+            self.assertEqual(host.scheduler.interval, 30)
+        finally:
+            host.shutdown()
+
 
 if __name__ == "__main__":
     unittest.main()

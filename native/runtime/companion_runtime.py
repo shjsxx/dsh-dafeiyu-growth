@@ -275,9 +275,39 @@ class CompanionRuntime:
         host = getattr(self, "research_scheduler_host", None)
         if host is None:
             from research_runtime import ResearchSchedulerHost
-            host = ResearchSchedulerHost(self._get_evolution_service(), self)
+            from research_scheduler import ResearchSchedulerConfig
+            host = ResearchSchedulerHost(
+                self._get_evolution_service(), self,
+                config=ResearchSchedulerConfig())
             self.research_scheduler_host = host
         return host
+
+    def _restore_research_scheduler(self):
+        """Restore only a previous explicit opt-in; absence stays disabled."""
+        try:
+            from research_scheduler import ResearchSchedulerConfig
+            config = ResearchSchedulerConfig()
+            if not config.enabled:
+                return
+            host = self._get_research_scheduler()
+            host.configure(True, config.interval)
+        except Exception:
+            pass
+
+    def _stop_research_scheduler(self):
+        host = getattr(self, "research_scheduler_host", None)
+        if host is not None:
+            state = host.state()
+            host.configure(False, state.get("interval", 60))
+        else:
+            try:
+                from research_scheduler import ResearchSchedulerConfig
+                config = ResearchSchedulerConfig()
+                config.set(False, config.interval)
+            except Exception:
+                pass
+        self._show_overlay("自动研究已停止", "不会自动取新任务；当前运行中的任务会完成",
+                           "SUCCESS", 4200)
 
     def _set_research_scheduler(self, enabled, interval):
         """Explicit global scheduler toggle; survives closing the review dialog."""

@@ -27,6 +27,7 @@ STATE_FILES = (
     "memory-archive.json",
     "personality.json",
     "persona-history.json",
+    "research-scheduler.json",
     "continuity.json",
     "companion_state.json",
     "behavior.json",

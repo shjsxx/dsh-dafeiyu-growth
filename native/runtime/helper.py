@@ -762,6 +762,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._open_memory_curation_dialog()
                 elif command == 'open-persona':
                     self._open_persona_dialog()
+                elif command == 'stop-research-scheduler':
+                    self._stop_research_scheduler()
                 elif command == 'open-menu':
                     from types import SimpleNamespace
                     self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))
@@ -2606,6 +2608,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
     application.setQuitOnLastWindowClosed(False)
     inbox = Inbox()
     window = CompanionWindow()
+    QTimer.singleShot(1800, window._restore_research_scheduler)
     application.aboutToQuit.connect(window._shutdown_voice)
     application.aboutToQuit.connect(window.brain.close)
     application.aboutToQuit.connect(window.emotion.close)

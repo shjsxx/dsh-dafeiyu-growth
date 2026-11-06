@@ -9,7 +9,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
 
 from evolution_service import EvolutionService
-from research_scheduler import ResearchScheduler
+from research_scheduler import ResearchScheduler, ResearchSchedulerConfig
 
 
 class ResearchJob(QThread):
@@ -31,10 +31,12 @@ class ResearchJob(QThread):
 class ResearchSchedulerHost(QObject):
     status_changed = Signal(dict)
 
-    def __init__(self, service=None, parent=None):
+    def __init__(self, service=None, parent=None, config=None):
         super().__init__(parent)
         self.service = service or EvolutionService()
-        self.scheduler = ResearchScheduler(self.service.research, interval=60)
+        self.config = config
+        interval = config.interval if config is not None else 60
+        self.scheduler = ResearchScheduler(self.service.research, interval=interval)
         self.worker = None
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
@@ -49,6 +51,7 @@ class ResearchSchedulerHost(QObject):
             "busy": bool(self.worker and self.worker.isRunning()),
             "last": self._last,
             "lastTask": self._last_task,
+            "persisted": self.config is not None,
         }
 
     def _emit(self):
@@ -56,6 +59,8 @@ class ResearchSchedulerHost(QObject):
 
     def configure(self, enabled, interval):
         self.scheduler.set_interval(interval)
+        if self.config is not None:
+            self.config.set(enabled, interval)
         if enabled:
             self.scheduler.enable()
             self.timer.start()

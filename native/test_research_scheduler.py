@@ -1,7 +1,10 @@
 """Scheduler tests: approved-only, interval-gated, never a daemon."""
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from research_scheduler import ResearchScheduler
+from research_scheduler import ResearchScheduler, ResearchSchedulerConfig
 
 
 class FakeQueue:
@@ -47,3 +50,34 @@ class ResearchSchedulerTests(unittest.TestCase):
         scheduler.enable(now=100)
         self.assertIsNone(scheduler.tick(now=100))
         self.assertEqual(scheduler.next_at, 160)
+
+
+class ResearchSchedulerConfigTests(unittest.TestCase):
+    def test_absent_config_is_disabled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = ResearchSchedulerConfig(Path(directory) / "scheduler.json")
+            self.assertFalse(config.enabled)
+            self.assertEqual(config.interval, 60)
+
+    def test_explicit_enable_persists_and_reloads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scheduler.json"
+            config = ResearchSchedulerConfig(path, clock=lambda: 100)
+            self.assertTrue(config.set(True, 120))
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            self.assertTrue(raw["enabled"])
+            self.assertEqual(raw["interval"], 120)
+            loaded = ResearchSchedulerConfig(path)
+            self.assertTrue(loaded.enabled)
+            self.assertEqual(loaded.interval, 120)
+            loaded.set(False, 120)
+            self.assertFalse(ResearchSchedulerConfig(path).enabled)
+
+    def test_corrupt_or_out_of_range_config_is_safe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scheduler.json"
+            path.write_text("{bad", encoding="utf-8")
+            config = ResearchSchedulerConfig(path)
+            self.assertFalse(config.enabled)
+            config.set(True, 99999)
+            self.assertEqual(config.interval, 3600)

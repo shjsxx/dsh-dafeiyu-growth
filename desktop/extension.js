@@ -122,6 +122,7 @@ function menuSections(sprite) {
     { label: `动作 · ${actionCount}`, grid: true,
       items: categories.map(category => ({ label: category.label, children: category.children })) },
     { label: '设置', grid: 2, items: [
+      { label: '停止自动研究', icon: 'hide', command: 'stop-research-scheduler' },
       { label: '语音与实时语音', icon: 'mic', command: 'open-voice-tools' },
       { label: '云端接口', icon: 'cloud', command: 'open-cloud-settings' },
       { label: '界面放大', icon: 'plus', command: 'scale-up' },
