@@ -8,20 +8,23 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
-    QPlainTextEdit, QPushButton, QVBoxLayout,
+    QCheckBox, QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
+    QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout,
 )
 
 from evolution_service import EvolutionService
 from memory_engine import MemoryEngine
+from memory_health import MemoryHealthHost
 from state_backup import StateBackup
 
 
 class MemoryCurationDialog(QDialog):
-    def __init__(self, parent=None, service=None):
+    def __init__(self, parent=None, service=None, health_host=None):
         super().__init__(parent)
         self.service = service or EvolutionService()
         self.memory = MemoryEngine()
+        self._health_shared = health_host is not None
+        self.health_host = health_host or MemoryHealthHost(self.service, self.memory, config=None, parent=self)
         self.plan = None
         self.setWindowTitle("云岚 · 记忆整理")
         self.setMinimumSize(600, 520)
@@ -52,6 +55,22 @@ class MemoryCurationDialog(QDialog):
         self.output.setReadOnly(True)
         self.output.setMaximumHeight(90)
         root.addWidget(self.output)
+        health_row = QHBoxLayout()
+        self.health_enabled = QCheckBox("周期扫描")
+        self.health_enabled.setToolTip("只生成整理计划；不归档、不删除、不写入记忆。")
+        self.health_enabled.toggled.connect(self._toggle_health)
+        health_row.addWidget(self.health_enabled)
+        health_row.addWidget(QLabel("间隔"))
+        self.health_interval = QSpinBox()
+        self.health_interval.setRange(1, 10080)
+        self.health_interval.setValue(360)
+        self.health_interval.setSuffix(" 分钟")
+        self.health_interval.valueChanged.connect(self._health_interval_changed)
+        health_row.addWidget(self.health_interval)
+        self.health_status = QLabel("未启用；只扫描，不改记忆。")
+        self.health_status.setWordWrap(True)
+        health_row.addWidget(self.health_status, 1)
+        root.addLayout(health_row)
         actions = QHBoxLayout()
         self.plan_button = QPushButton("生成计划")
         self.plan_button.clicked.connect(self.build_plan)
@@ -68,11 +87,36 @@ class MemoryCurationDialog(QDialog):
         actions.addStretch(1)
         actions.addWidget(close)
         root.addLayout(actions)
+        self.health_host.status_changed.connect(self._apply_health_state)
+        self._apply_health_state(self.health_host.state())
+
+    def _apply_health_state(self, state):
+        self.health_enabled.blockSignals(True)
+        self.health_enabled.setChecked(bool(state.get("enabled")))
+        self.health_enabled.blockSignals(False)
+        interval = max(1, int(state.get("interval") or 21600) // 60)
+        self.health_interval.blockSignals(True)
+        self.health_interval.setValue(interval)
+        self.health_interval.blockSignals(False)
+        self.health_status.setText(str(state.get("last") or "未启用；只扫描，不改记忆。"))
+
+    def _toggle_health(self, enabled):
+        self.health_host.configure(enabled, self.health_interval.value() * 60)
+
+    def _health_interval_changed(self, minutes):
+        state = self.health_host.state()
+        self.health_host.configure(bool(state.get("enabled")), minutes * 60)
+
+    def closeEvent(self, event):
+        if not self._health_shared:
+            self.health_host.shutdown()
+        event.accept()
 
     def open_archive(self):
         from memory_archive_ui import MemoryArchiveDialog
         MemoryArchiveDialog(self, service=self.service).exec()
         self.memory = MemoryEngine()
+        self.health_host.memory = self.memory
         self.summary.setText("归档已重新读取；如记录有变化，请重新生成计划。")
         self.commit_button.setEnabled(False)
         self.plan = None

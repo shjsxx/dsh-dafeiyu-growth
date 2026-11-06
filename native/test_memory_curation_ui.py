@@ -54,6 +54,19 @@ class MemoryCurationDialogTests(unittest.TestCase):
             finally:
                 dialog.close()
 
+    def test_periodic_health_is_off_by_default(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.dict(os.environ, {"DSH_HOME": directory}):
+            dialog = MemoryCurationDialog()
+            try:
+                self.assertFalse(dialog.health_enabled.isChecked())
+                self.assertFalse(dialog.health_host.timer.isActive())
+                dialog.health_enabled.setChecked(True)
+                self.assertTrue(dialog.health_enabled.isChecked())
+                dialog.health_enabled.setChecked(False)
+            finally:
+                dialog.close()
+
 
 if __name__ == "__main__":
     unittest.main()

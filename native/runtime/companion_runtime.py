@@ -315,6 +315,42 @@ class CompanionRuntime:
         host.configure(enabled, interval)
         return host.state()
 
+    def _get_memory_health_host(self):
+        host = getattr(self, "memory_health_host", None)
+        if host is None:
+            from memory_health import MemoryHealthConfig, MemoryHealthHost
+            host = MemoryHealthHost(
+                self._get_evolution_service(), self.memory,
+                config=MemoryHealthConfig(), parent=self)
+            self.memory_health_host = host
+        return host
+
+    def _restore_memory_health(self):
+        """Restore only a previous explicit opt-in; absence stays disabled."""
+        try:
+            from memory_health import MemoryHealthConfig
+            config = MemoryHealthConfig()
+            if not config.enabled:
+                return
+            self._get_memory_health_host().configure(True, config.interval)
+        except Exception:
+            pass
+
+    def _stop_memory_health(self):
+        host = getattr(self, "memory_health_host", None)
+        if host is not None:
+            state = host.state()
+            host.configure(False, state.get("interval", 21600))
+        else:
+            try:
+                from memory_health import MemoryHealthConfig
+                config = MemoryHealthConfig()
+                config.set(False, config.interval)
+            except Exception:
+                pass
+        self._show_overlay("记忆周期扫描已停止", "不会后台扫描；记忆没有被修改或删除",
+                           "SUCCESS", 4200)
+
     def _research_scheduler_state(self):
         host = getattr(self, "research_scheduler_host", None)
         return host.state() if host is not None else {
@@ -326,6 +362,9 @@ class CompanionRuntime:
         host = getattr(self, "research_scheduler_host", None)
         if host is not None:
             host.shutdown()
+        health = getattr(self, "memory_health_host", None)
+        if health is not None:
+            health.shutdown()
 
     def _keep_evolution_dialog(self, dialog) -> None:
         """Keep a non-modal review window alive and above the journal."""
@@ -348,7 +387,8 @@ class CompanionRuntime:
         try:
             from PySide6.QtCore import Qt
             from research_ui import ResearchDialog
-            dialog = ResearchDialog(None, service=self._get_evolution_service())
+            dialog = ResearchDialog(None, service=self._get_evolution_service(),
+                                    scheduler_host=self._get_research_scheduler())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)
@@ -361,7 +401,8 @@ class CompanionRuntime:
         try:
             from PySide6.QtCore import Qt
             from memory_curation_ui import MemoryCurationDialog
-            dialog = MemoryCurationDialog(None, service=self._get_evolution_service())
+            dialog = MemoryCurationDialog(None, service=self._get_evolution_service(),
+                                           health_host=self._get_memory_health_host())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)
