@@ -18,6 +18,7 @@ from memory_reply import compose_public_answer
 from emotion_model import LABELS
 from reactions import detect_reaction
 from companion_context import CompanionContext
+from naturalization import naturalize
 from relationship import RelationshipStore
 from retrieval_review import RetrievalReviewStore
 from retrieval_review_ui import RetrievalReviewDialog
@@ -217,6 +218,13 @@ class ConversationRuntime:
                 and not meta.startswith(("记忆引擎", "本地对话", "本地上下文")):
             reply = dict(reply, text=self.personality.decorate(
                 str(reply.get("text", "")), mood, bool(self.memory.recent(1))))
+        if reply.get("action") is None and not meta.startswith(("记忆引擎", "云端")):
+            store = self._relationship_store()
+            reply = dict(reply, text=naturalize(
+                str(reply.get("text", "")), user_text=text, mood=mood,
+                last_reply=self.last_reply_text,
+                topics=store.snapshot().get("topics") or [],
+                seed=store.snapshot().get("revision", 0)))
         if any(word in text for word in ("实时动态", "最新动态", "最新地震", "联网动态")):
             snap = self.online_state.snapshot()
             if snap.get("summary"):
