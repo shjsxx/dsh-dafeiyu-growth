@@ -49,6 +49,31 @@ class MemoryArchiveTests(unittest.TestCase):
         self.assertEqual(memory.archive_records(["missing"], "archive", "stale"), 0)
         self.assertEqual(memory.snapshot()["total"], 1)
 
+    def test_archive_can_be_listed_and_restored_explicitly(self):
+        memory = self.memory()
+        memory.remember_research("restore me", now=self.now)
+        record = memory.export_records()[0]
+        self.assertEqual(memory.archive_records([record["id"]], "archive", "stale", now=self.now + 1), 1)
+        archived = memory.list_archive()
+        self.assertEqual(len(archived), 1)
+        self.assertEqual(archived[0]["text"], record["text"])
+        self.assertEqual(memory.restore_archive([record["id"]], approved=False), 0)
+        self.assertEqual(memory.snapshot()["total"], 0)
+        self.assertEqual(memory.restore_archive([record["id"]], approved=True, now=self.now + 2), 1)
+        self.assertEqual(memory.snapshot()["total"], 1)
+        self.assertEqual(memory.list_archive(), [])
+        self.assertEqual(self.memory().snapshot()["total"], 1)
+
+    def test_restore_is_idempotent_and_rejects_unknown_ids(self):
+        memory = self.memory()
+        memory.remember_research("keep", now=self.now)
+        record = memory.export_records()[0]
+        memory.archive_records([record["id"]], "quarantine", "test", now=self.now + 1)
+        self.assertEqual(memory.restore_archive([record["id"]], approved=True, now=self.now + 2), 1)
+        self.assertEqual(memory.restore_archive([record["id"]], approved=True, now=self.now + 3), 0)
+        self.assertEqual(memory.restore_archive(["missing"], approved=True), 0)
+        self.assertEqual(memory.snapshot()["total"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

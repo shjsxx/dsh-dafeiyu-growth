@@ -651,6 +651,91 @@ class MemoryEngine:
         return len(selected)
 
     @_locked
+    def list_archive(self, limit=2000):
+        """Read-only copy of the local archive; never changes memory."""
+        path = self.path.with_name("memory-archive.json")
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError, UnicodeDecodeError):
+            return []
+        if not isinstance(raw, dict) or not isinstance(raw.get("records"), list):
+            return []
+        rows = []
+        for row in raw["records"][-max(1, min(2000, int(limit))):]:
+            if not isinstance(row, dict):
+                continue
+            kind = row.get("kind")
+            text = _plain(row.get("text"))
+            if kind not in KIND_WEIGHT or not text:
+                continue
+            rows.append({
+                "id": str(row.get("id") or _identity(kind, text)),
+                "kind": kind,
+                "text": text,
+                "source": _plain(row.get("source"), MAX_SOURCE),
+                "archivedAt": _count(row.get("archivedAt")),
+                "mode": str(row.get("mode") or "archive")[:16],
+                "reason": _plain(row.get("reason"), 120),
+            })
+        return rows
+
+    @_locked
+    def restore_archive(self, ids, approved=False, now=None):
+        """Restore selected archived rows only after explicit approval.
+
+        The archive is read first, memory is saved atomically, and only then is
+        the archive entry removed. A repeated call is idempotent because rows
+        already present in memory are skipped.
+        """
+        if not approved or self.status == "protected" or not isinstance(ids, (list, tuple)):
+            return 0
+        wanted = {str(value) for value in ids}
+        archived = [row for row in self.list_archive() if row["id"] in wanted]
+        if not archived:
+            return 0
+        present = {row["id"] for row in self.data["records"]}
+        blocked = set(self.data.get("blocked", []))
+        blocked_slots = set(self.data.get("blockedSlots", []))
+        selected = []
+        for row in archived:
+            if row["id"] in present or row["id"] in blocked:
+                continue
+            if _slot(row["kind"], row["text"]) in blocked_slots:
+                continue
+            selected.append(row)
+        if not selected:
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = copy.deepcopy(self.data)
+        for row in selected:
+            self.data["records"].append({
+                "id": row["id"], "kind": row["kind"], "text": row["text"],
+                "source": row["source"] or row["kind"],
+                "importance": KIND_WEIGHT.get(row["kind"], 1),
+                "createdAt": row["archivedAt"] or stamp,
+                "lastSeen": stamp, "hits": 1,
+                "slot": _slot(row["kind"], row["text"]), "previousIds": [],
+            })
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        if not self._save(before):
+            return 0
+        restored = {row["id"] for row in selected}
+        remaining = [row for row in self.list_archive() if row.get("id") not in restored]
+        archive_path = self.path.with_name("memory-archive.json")
+        try:
+            payload = json.dumps({"version": 1, "records": remaining[-2000:]},
+                                 ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            temporary = archive_path.with_name(archive_path.name + f".{os.getpid()}.tmp")
+            temporary.write_text(payload, encoding="utf-8")
+            os.replace(temporary, archive_path)
+        except (OSError, ValueError, TypeError):
+            # The memory write already succeeded; leaving the archive copy is
+            # safer than deleting it when the follow-up write fails.
+            pass
+        return len(selected)
+
+    @_locked
     def clear(self):
         if self.status == "protected":
             return False

@@ -58,13 +58,24 @@ class MemoryCurationDialog(QDialog):
         self.commit_button = QPushButton("批准并整理…")
         self.commit_button.setEnabled(False)
         self.commit_button.clicked.connect(self.commit_plan)
+        self.archive_button = QPushButton("查看归档…")
+        self.archive_button.clicked.connect(self.open_archive)
         close = QPushButton("关闭")
         close.clicked.connect(self.accept)
         actions.addWidget(self.plan_button)
         actions.addWidget(self.commit_button)
+        actions.addWidget(self.archive_button)
         actions.addStretch(1)
         actions.addWidget(close)
         root.addLayout(actions)
+
+    def open_archive(self):
+        from memory_archive_ui import MemoryArchiveDialog
+        MemoryArchiveDialog(self).exec()
+        self.memory = MemoryEngine()
+        self.summary.setText("归档已重新读取；如记录有变化，请重新生成计划。")
+        self.commit_button.setEnabled(False)
+        self.plan = None
 
     def build_plan(self):
         try:
