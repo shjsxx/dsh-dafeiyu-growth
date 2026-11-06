@@ -766,6 +766,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._stop_research_scheduler()
                 elif command == 'stop-memory-health':
                     self._stop_memory_health()
+                elif command == 'stop-persona-health':
+                    self._stop_persona_health()
                 elif command == 'open-menu':
                     from types import SimpleNamespace
                     self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))
@@ -2612,6 +2614,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
     window = CompanionWindow()
     QTimer.singleShot(1800, window._restore_research_scheduler)
     QTimer.singleShot(2200, window._restore_memory_health)
+    QTimer.singleShot(2600, window._restore_persona_health)
     application.aboutToQuit.connect(window._shutdown_voice)
     application.aboutToQuit.connect(window.brain.close)
     application.aboutToQuit.connect(window.emotion.close)

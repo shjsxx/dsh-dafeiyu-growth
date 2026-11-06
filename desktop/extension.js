@@ -124,6 +124,7 @@ function menuSections(sprite) {
     { label: '设置', grid: 2, items: [
       { label: '停止自动研究', icon: 'hide', command: 'stop-research-scheduler' },
       { label: '停止记忆扫描', icon: 'hide', command: 'stop-memory-health' },
+      { label: '停止人格检查', icon: 'hide', command: 'stop-persona-health' },
       { label: '语音与实时语音', icon: 'mic', command: 'open-voice-tools' },
       { label: '云端接口', icon: 'cloud', command: 'open-cloud-settings' },
       { label: '界面放大', icon: 'plus', command: 'scale-up' },

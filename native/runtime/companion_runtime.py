@@ -351,6 +351,52 @@ class CompanionRuntime:
         self._show_overlay("记忆周期扫描已停止", "不会后台扫描；记忆没有被修改或删除",
                            "SUCCESS", 4200)
 
+    def _get_persona_health_host(self):
+        host = getattr(self, "persona_health_host", None)
+        if host is None:
+            from persona_health import PersonaHealthConfig, PersonaHealthHost
+            from persona_history import PersonaHistory
+            history = getattr(self, "persona_history", None)
+            if history is None:
+                history = PersonaHistory()
+                self.persona_history = history
+            host = PersonaHealthHost(
+                self._get_evolution_service(), self.personality, history,
+                config=PersonaHealthConfig(), parent=self)
+            host.review_needed.connect(self._on_persona_review_needed)
+            self.persona_health_host = host
+        return host
+
+    def _restore_persona_health(self):
+        try:
+            from persona_health import PersonaHealthConfig
+            config = PersonaHealthConfig()
+            if not config.enabled:
+                return
+            self._get_persona_health_host().configure(True, config.interval)
+        except Exception:
+            pass
+
+    def _stop_persona_health(self):
+        host = getattr(self, "persona_health_host", None)
+        if host is not None:
+            state = host.state()
+            host.configure(False, state.get("interval", 21600))
+        else:
+            try:
+                from persona_health import PersonaHealthConfig
+                config = PersonaHealthConfig()
+                config.set(False, config.interval)
+            except Exception:
+                pass
+        self._show_overlay("人格周期检查已停止", "不会自动检查或修改人格",
+                           "SUCCESS", 4200)
+
+    def _on_persona_review_needed(self, result):
+        """Notify only; rollback and any persona change remain explicit."""
+        summary = str((result or {}).get("summary") or "人格变化超过检查阈值")[:100]
+        self._show_overlay("人格变化需要复核", summary, "ERROR", 5200)
+
     def _research_scheduler_state(self):
         host = getattr(self, "research_scheduler_host", None)
         return host.state() if host is not None else {
@@ -365,6 +411,9 @@ class CompanionRuntime:
         health = getattr(self, "memory_health_host", None)
         if health is not None:
             health.shutdown()
+        persona_health = getattr(self, "persona_health_host", None)
+        if persona_health is not None:
+            persona_health.shutdown()
 
     def _keep_evolution_dialog(self, dialog) -> None:
         """Keep a non-modal review window alive and above the journal."""
@@ -415,7 +464,9 @@ class CompanionRuntime:
         try:
             from PySide6.QtCore import Qt
             from persona_ui import PersonaReflectionDialog
-            dialog = PersonaReflectionDialog(None, service=self._get_evolution_service())
+            dialog = PersonaReflectionDialog(
+                None, service=self._get_evolution_service(),
+                health_host=self._get_persona_health_host())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)
