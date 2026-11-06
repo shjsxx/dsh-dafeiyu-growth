@@ -64,6 +64,12 @@ class ConversationRuntime:
         store.seed_context(self._dialogue_context())
         self.last_topic = store.last_topic()
 
+    def _apply_cloud_preference(self):
+        config = getattr(self, 'cloud_config', {}) or {}
+        if (self.conversation is not None and config.get('prefer_cloud') is True
+                and config.get('endpoint') and config.get('model')):
+            self.conversation.cloud_button.setChecked(True)
+
     def _offer_relationship_opening(self):
         """Offer at most one gentle callback per relationship revision."""
         if self.conversation is None:
@@ -147,6 +153,7 @@ class ConversationRuntime:
         self._ensure_conversation()
         self.cloud_config = load_config()
         self.conversation.set_cloud_state(self.cloud_config)
+        self._apply_cloud_preference()
         self._refresh_online_ui()
         self.conversation.show()
         self._place_conversation(self.conversation)
@@ -373,6 +380,7 @@ class ConversationRuntime:
                 self.growth_dialog.update_cloud(self.cloud_config)
             if self.conversation is not None:
                 self.conversation.set_cloud_state(self.cloud_config)
+                self._apply_cloud_preference()
             self._show_overlay("云端接口已保存在本机。", "密钥使用 Windows DPAPI 加密，不会写入聊天记录", "SUCCESS", 4200)
             self._sync_bubble_size()
             self.update()

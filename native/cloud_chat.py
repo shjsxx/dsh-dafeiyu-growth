@@ -154,6 +154,7 @@ def load_config(path=None, env=None):
         "max_tokens": 256,
         "key": "",
         "key_saved": False,
+        "prefer_cloud": False,
         "error": None,
         "path": str(selected),
     }
@@ -169,6 +170,7 @@ def load_config(path=None, env=None):
         except CloudConfigError:
             config["endpoint"] = ""
         config["model"] = str(raw.get("model", ""))[:80]
+        config["prefer_cloud"] = raw.get("prefer_cloud") is True
         try:
             config["max_tokens"] = _validate_tokens(raw.get("max_tokens", 256))
         except CloudConfigError:
@@ -205,7 +207,7 @@ def load_config(path=None, env=None):
     return config
 
 
-def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False):
+def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False, prefer_cloud=False):
     """Persist endpoint/model/cap; an empty key keeps the existing encrypted key."""
     selected = Path(path) if path is not None else default_path()
     endpoint = _validate_endpoint(endpoint)
@@ -237,6 +239,7 @@ def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False)
         "endpoint": endpoint,
         "model": model,
         "max_tokens": max_tokens,
+        "prefer_cloud": bool(prefer_cloud),
         "key_protected": protected,
         "key_endpoint": endpoint if protected else "",
     }

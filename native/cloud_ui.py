@@ -41,7 +41,7 @@ class CloudSettingsDialog(QDialog):
         title = QLabel("云端接口设置")
         title.setObjectName("cloudTitle")
         title.setTextFormat(Qt.TextFormat.PlainText)
-        hint = QLabel("独立接口，默认逐句确认；聊天窗可明确允许本次连续云聊。\n连续模式仅含当前窗口最近6条短消息，合计最多4000字；不含其他会话、文件、屏幕或工具调用，关闭窗口撤销。\n密钥只在本机加密保存。\n接口需兼容 OpenAI /chat/completions；地址可填 base URL，模型名要填接口提供方支持的名称。")
+        hint = QLabel("独立接口，默认逐句确认；聊天窗可明确允许本次连续云聊。\n连续模式仅含当前窗口最近6条短消息，合计最多4000字；不含其他会话、文件、屏幕或工具调用，关闭窗口撤销。\n密钥只在本机加密保存。\n勾选“默认打开智能云端模式”后，聊天窗会优先选云端，但每条消息仍需确认。\n接口需兼容 OpenAI /chat/completions；地址可填 base URL，模型名要填接口提供方支持的名称。")
         hint.setObjectName("cloudHint")
         hint.setTextFormat(Qt.TextFormat.PlainText)
         hint.setWordWrap(True)
@@ -59,11 +59,14 @@ class CloudSettingsDialog(QDialog):
         self.key.setEchoMode(QLineEdit.EchoMode.Password)
         self.key.setPlaceholderText("已保存（留空保持原密钥）" if self.config.get("key_saved") else "API 密钥（可留空，取决于接口）")
         self.clear_key = QCheckBox("清除已保存的密钥")
+        self.prefer_cloud = QCheckBox("默认打开智能云端模式（仍需逐条确认发送）")
+        self.prefer_cloud.setChecked(self.config.get("prefer_cloud") is True)
         form.addRow("接口地址", self.endpoint)
         form.addRow("模型", self.model)
         form.addRow("输出上限", self.tokens)
         form.addRow("密钥", self.key)
         form.addRow("", self.clear_key)
+        form.addRow("", self.prefer_cloud)
         self.error = QLabel("")
         self.error.setObjectName("cloudError")
         self.error.setTextFormat(Qt.TextFormat.PlainText)
@@ -92,6 +95,7 @@ class CloudSettingsDialog(QDialog):
                 self.endpoint.text(), self.model.text(), int(self.tokens.value()),
                 self.key.text(), path=self.config.get("path") or None,
                 clear_key=self.clear_key.isChecked(),
+                prefer_cloud=self.prefer_cloud.isChecked(),
             )
         except (CloudConfigError, OSError) as error:
             self.error.setText(str(error))

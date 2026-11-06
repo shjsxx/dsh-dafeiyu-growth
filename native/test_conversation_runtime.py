@@ -29,6 +29,7 @@ CONFIG = {'endpoint': 'https://example.invalid/v1', 'model': 'fake', 'max_tokens
 class FakeDialog:
     def __init__(self):
         self.cloud = dict(CONFIG)
+        self.cloud_button = SimpleNamespace(setChecked=mock.Mock())
         self.replies = []
         self.authorized = False
         self.resets = 0
@@ -144,6 +145,12 @@ class ConversationRuntimeTests(unittest.TestCase):
         self.host._conversation_local('风很舒服')
         self.assertIn('公园的风', self.host.last_reply_text)
         self.assertEqual(len(self.host.dialogue_context.recent_turns()), 4)
+
+    def test_explicit_smart_mode_preference_selects_cloud_without_sending(self):
+        self.host.cloud_config = {'prefer_cloud': True, 'endpoint': 'https://example.invalid/v1',
+                                  'model': 'fake'}
+        self.host._apply_cloud_preference()
+        self.host.conversation.cloud_button.setChecked.assert_called_once_with(True)
 
     def test_structured_memory_question_not_shadowed_by_topic(self):
         self.host.memory.ingest_state({'diary': [{'text': '公园有一座白桥'}]})

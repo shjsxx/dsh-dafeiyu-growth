@@ -210,6 +210,13 @@ class CloudChatTests(unittest.TestCase):
         with self.assertRaises(CloudConfigError):
             save_config(self.endpoint, "m", 8, path=self.path)
 
+    def test_smart_mode_preference_is_persisted(self):
+        self.assertFalse(load_config(self.path, env={})["prefer_cloud"])
+        save_config(self.endpoint, "m", 64, path=self.path, prefer_cloud=True)
+        self.assertTrue(load_config(self.path, env={})["prefer_cloud"])
+        save_config(self.endpoint, "m", 64, path=self.path, prefer_cloud=False)
+        self.assertFalse(load_config(self.path, env={})["prefer_cloud"])
+
 
 if __name__ == "__main__":
     unittest.main()
