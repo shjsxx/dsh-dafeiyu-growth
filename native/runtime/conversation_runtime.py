@@ -64,6 +64,21 @@ class ConversationRuntime:
         store.seed_context(self._dialogue_context())
         self.last_topic = store.last_topic()
 
+    def _offer_relationship_opening(self):
+        """Offer at most one gentle callback per relationship revision."""
+        if self.conversation is None:
+            return
+        try:
+            store = self._relationship_store()
+            line = store.opening_line()
+            if not line:
+                return
+            self.conversation.show_reply(line, "关系记忆 · 本地", private_context=True)
+            store.mark_opening()
+            self.last_topic = store.last_topic()
+        except (OSError, ValueError, TypeError):
+            pass
+
     def _reset_conversation_context(self):
         """Forget RAM-only context and invalidate outstanding model requests.
 
@@ -135,6 +150,7 @@ class ConversationRuntime:
         self._refresh_online_ui()
         self.conversation.show()
         self._place_conversation(self.conversation)
+        self._offer_relationship_opening()
         self.conversation.raise_()
         self.conversation.activateWindow()
         self.chat_open = True

@@ -57,6 +57,17 @@ class RelationshipStoreTests(unittest.TestCase):
         self.assertEqual(broken.status, "protected")
         self.assertFalse(broken.remember(context, now=self.now))
 
+    def test_opening_line_is_once_per_revision_and_not_too_soon(self):
+        store = self.store()
+        store.remember(self.context(), mood="neutral", now=self.now)
+        self.assertEqual(store.opening_line(now=self.now + 60), "")
+        line = store.opening_line(now=self.now + 3600)
+        self.assertIn("公园", line)
+        self.assertTrue(store.mark_opening(now=self.now + 3600))
+        self.assertEqual(store.opening_line(now=self.now + 7200), "")
+        store.remember(self.context(), mood="sad", now=self.now + 8000)
+        self.assertIn("好一点", store.opening_line(now=self.now + 10000))
+
 
 if __name__ == "__main__":
     unittest.main()

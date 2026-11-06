@@ -42,7 +42,8 @@ class RelationshipStore:
 
     def _empty(self):
         return {"version": VERSION, "revision": 0, "topics": [], "episodes": [],
-                "lastMood": "neutral", "lastSeen": 0}
+                "lastMood": "neutral", "lastSeen": 0,
+                "lastOpeningRevision": -1}
 
     def _load(self):
         try:
@@ -83,7 +84,8 @@ class RelationshipStore:
             self.data = {"version": VERSION, "revision": max(0, int(raw.get("revision") or 0)),
                          "topics": topics, "episodes": episodes,
                          "lastMood": _mood(raw.get("lastMood")),
-                         "lastSeen": max(0, int(raw.get("lastSeen") or 0))}
+                         "lastSeen": max(0, int(raw.get("lastSeen") or 0)),
+                         "lastOpeningRevision": max(-1, int(raw.get("lastOpeningRevision") or -1))}
             self.status = "ready"
         except (ValueError, TypeError, UnicodeDecodeError):
             self.status, self.error = "protected", "relationship memory is corrupt or unsupported"
@@ -162,6 +164,35 @@ class RelationshipStore:
     def last_topic(self):
         topics = self.data.get("topics") if isinstance(self.data, dict) else []
         return topics[0]["topic"] if topics else ""
+
+    def opening_line(self, now=None, min_gap=30 * 60, max_age=7 * 24 * 60 * 60):
+        """One gentle topic callback per changed relationship revision."""
+        if self.status == "protected" or not isinstance(self.data, dict):
+            return ""
+        topics = self.data.get("topics") or []
+        if not topics:
+            return ""
+        revision = int(self.data.get("revision", 0))
+        if int(self.data.get("lastOpeningRevision", -1)) == revision:
+            return ""
+        stamp = int(self._clock() if now is None else now)
+        last_seen = int(self.data.get("lastSeen", 0))
+        if not last_seen or stamp - last_seen < min_gap or stamp - last_seen > max_age:
+            return ""
+        topic = _topic(topics[0].get("topic"))
+        if not topic:
+            return ""
+        if self.data.get("lastMood") in ("sad", "tired", "anxious", "anger"):
+            return f"上次你提到{topic}，后来好一点了吗？不想说也没关系。"
+        return f"上次你提到{topic}，今天想接着聊，还是先说点别的？"
+
+    def mark_opening(self, now=None):
+        if self.status == "protected" or not isinstance(self.data, dict):
+            return False
+        before = json.loads(json.dumps(self.data))
+        self.data["lastOpeningRevision"] = int(self.data.get("revision", 0))
+        self.data["lastOpeningAt"] = int(self._clock() if now is None else now)
+        return self._save(before)
 
     def snapshot(self):
         data = self.data if isinstance(self.data, dict) else self._empty()
