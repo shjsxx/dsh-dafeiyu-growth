@@ -586,6 +586,16 @@ class MemoryEngine:
                     for row in newest]}
 
     @_locked
+    def stats(self):
+        """Numeric-only health summary; no record text or model work."""
+        data = self.data or self._empty()
+        counts = {key: 0 for key in KIND_WEIGHT}
+        for row in data["records"]:
+            counts[row["kind"]] += 1
+        return {"version": VERSION, "status": self.status, "error": self.error,
+                "revision": data["revision"], "total": len(data["records"]), "counts": counts}
+
+    @_locked
     def export_records(self):
         """Read-only copy for explicit curation review; never exposes vectors."""
         return copy.deepcopy(self.data["records"])

@@ -238,6 +238,26 @@ class CompanionRuntime:
                 "研究、整理执行和人格回滚都需要你明确批准。"
             )
             recent = status.get("auditRecent") or []
+            metrics = status.get("metrics") or {}
+            if metrics:
+                research_metrics = metrics.get("research") or {}
+                memory_metrics = metrics.get("memory") or {}
+                persona_metrics = metrics.get("persona") or {}
+                automation = metrics.get("automation") or {}
+                rate = research_metrics.get("successRate")
+                rate_text = "暂无" if rate is None else f"{float(rate) * 100:.0f}%"
+                text += (
+                    "\n本地运行指标：\n"
+                    f"研究：完成 {research_metrics.get('done', 0)} / 任务 {research_metrics.get('total', 0)}"
+                    f" · 成功率 {rate_text} · 引用 {research_metrics.get('citations', 0)}\n"
+                    f"记忆：{memory_metrics.get('total', 0)} 条 · 修订 r{memory_metrics.get('revision', 0)}\n"
+                    f"人格：历史 {persona_metrics.get('historyEntries', 0)} 条"
+                    f" · 最近状态 {persona_metrics.get('lastReviewStatus') or '无'}\n"
+                    "自动：研究 {researchScheduler} · 记忆 {memoryHealth} · 人格 {personaHealth}".format(
+                        researchScheduler="开" if automation.get("researchScheduler") else "关",
+                        memoryHealth="开" if automation.get("memoryHealth") else "关",
+                        personaHealth="开" if automation.get("personaHealth") else "关")
+                )
             if recent:
                 from datetime import datetime
                 labels = {"research": "研究", "memory": "记忆", "persona": "人格",

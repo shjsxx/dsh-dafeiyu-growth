@@ -54,8 +54,66 @@ class EvolutionService:
             },
             "research": {"total": len(tasks), "statuses": counts},
             "auditRecent": self.kernel.ledger.recent(8),
+            "metrics": self.metrics(),
             "memory": {"mode": "proposal-only", "autoDelete": False},
             "persona": {"mode": "bounded-reflection", "maxDelta": self.kernel.gate.max_persona_delta},
+        }
+
+    def metrics(self):
+        """Local operational metrics only; never a claim of general intelligence."""
+        from collections import Counter
+        from memory_engine import MemoryEngine
+        from memory_health import MemoryHealthConfig
+        from persona_health import PersonaHealthConfig
+        from persona_history import PersonaHistory
+        from research_scheduler import ResearchSchedulerConfig
+
+        tasks = self.research.list()
+        done = sum(1 for row in tasks if row.get("status") == "done")
+        failed = sum(1 for row in tasks if row.get("status") == "failed")
+        raw_tasks = self.research.tasks
+        citations = sum(len(row.get("citations") or []) for row in raw_tasks)
+        requests = sum(int(row.get("used") or 0) for row in raw_tasks)
+        bytes_used = sum(int(row.get("bytes") or 0) for row in raw_tasks)
+        try:
+            memory = MemoryEngine(self.data_dir / "memory.json").stats()
+        except Exception:
+            memory = {"status": "unavailable", "total": 0, "counts": {}, "revision": 0}
+        try:
+            history = PersonaHistory(self.data_dir / "persona-history.json").entries()
+        except Exception:
+            history = []
+        try:
+            persona_status = PersonaHealthConfig(self.data_dir / "persona-health.json").last_status
+        except Exception:
+            persona_status = ""
+        enabled = {}
+        for name, config_type, filename in (
+            ("researchScheduler", ResearchSchedulerConfig, "research-scheduler.json"),
+            ("memoryHealth", MemoryHealthConfig, "memory-health.json"),
+            ("personaHealth", PersonaHealthConfig, "persona-health.json"),
+        ):
+            try:
+                enabled[name] = bool(config_type(self.data_dir / filename).enabled)
+            except Exception:
+                enabled[name] = False
+        by_kind = Counter(str(row.get("kind") or "unknown") for row in self.kernel.ledger.events)
+        return {
+            "generatedAt": int(self.kernel.ledger.clock()),
+            "research": {
+                "total": len(tasks), "done": done, "failed": failed,
+                "successRate": round(done / (done + failed), 2) if done + failed else None,
+                "citations": citations, "requests": requests, "bytes": bytes_used,
+            },
+            "memory": {"status": memory.get("status"), "total": int(memory.get("total") or 0),
+                       "revision": int(memory.get("revision") or 0),
+                       "counts": dict(memory.get("counts") or {})},
+            "persona": {"historyEntries": len(history),
+                        "lastRevision": int(history[-1].get("revision", 0)) if history else 0,
+                        "lastReviewStatus": persona_status},
+            "automation": enabled,
+            "audit": {"events": len(self.kernel.ledger.events),
+                      "byKind": dict(by_kind)},
         }
 
     def record_audit(self, kind, decision, reason, summary="", meta=None):

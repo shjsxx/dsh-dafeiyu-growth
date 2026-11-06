@@ -81,6 +81,16 @@ class EvolutionServiceTests(unittest.TestCase):
         self.assertEqual(events[-1]["decision"], "restored")
         self.assertEqual(len(events), 1)
 
+    def test_metrics_are_numeric_local_operational_values(self):
+        metrics = self.service.metrics()
+        self.assertEqual(metrics["research"]["total"], 0)
+        self.assertIsNone(metrics["research"]["successRate"])
+        self.assertIsInstance(metrics["memory"]["total"], int)
+        self.assertIsInstance(metrics["persona"]["historyEntries"], int)
+        self.assertEqual(set(metrics["automation"]),
+                         {"researchScheduler", "memoryHealth", "personaHealth"})
+        self.assertIn("byKind", metrics["audit"])
+
     def test_memory_and_persona_are_read_only_helpers(self):
         plan = self.service.plan_memory([
             {"id": "a", "kind": "preference", "slot": "name", "text": "称呼：小云",
