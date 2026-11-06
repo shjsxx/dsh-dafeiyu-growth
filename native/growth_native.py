@@ -1171,18 +1171,18 @@ class GrowthDialog(QDialog):
         self.persona_button = QPushButton("人格反思\n漂移与回滚")
         evolution_actions = QGridLayout()
         evolution_actions.setSpacing(7)
-        for index, (button, signal, glyph) in enumerate((
-            (self.evolution_status_button, self.evolution_status_requested, "shield"),
-            (self.research_button, self.research_requested, "spark"),
-            (self.memory_curation_button, self.memory_curation_requested, "history"),
-            (self.persona_button, self.persona_requested, "emotion"),
+        for index, (button, signal, kind, glyph) in enumerate((
+            (self.evolution_status_button, self.evolution_status_requested, "status", "shield"),
+            (self.research_button, self.research_requested, "research", "spark"),
+            (self.memory_curation_button, self.memory_curation_requested, "memory", "history"),
+            (self.persona_button, self.persona_requested, "persona", "emotion"),
         )):
             button.setAutoDefault(False)
             button.setProperty("evolutionAction", True)
             button.setIcon(theme_icon(glyph, size=18))
             button.setMinimumHeight(56)
             button.clicked.connect(
-                lambda _checked=False, s=signal: self._request_evolution(s))
+                lambda _checked=False, k=kind: self._request_evolution(k))
             evolution_actions.addWidget(button, index // 2, index % 2)
         evolution_box.addLayout(evolution_actions)
         self.evolution_feedback = _label(
@@ -1263,22 +1263,22 @@ class GrowthDialog(QDialog):
         self.page_scrolls.append(scroll)
         return box
 
-    def _request_evolution(self, signal):
+    def _request_evolution(self, kind):
         """Prefer the owning window's method; emit only when used standalone."""
         mapping = {
-            self.evolution_status_requested: "_show_evolution_status",
-            self.research_requested: "_open_research_dialog",
-            self.memory_curation_requested: "_open_memory_curation_dialog",
-            self.persona_requested: "_open_persona_dialog",
+            "status": ("_show_evolution_status", self.evolution_status_requested),
+            "research": ("_open_research_dialog", self.research_requested),
+            "memory": ("_open_memory_curation_dialog", self.memory_curation_requested),
+            "persona": ("_open_persona_dialog", self.persona_requested),
         }
-        method_name = mapping.get(signal)
+        method_name, signal = mapping.get(kind, ("", None))
         self.evolution_feedback.setText("正在打开…")
         parent = self.parent()
         method = getattr(parent, method_name, None) if method_name else None
         try:
             if callable(method):
                 method()
-            else:
+            elif signal is not None:
                 signal.emit()
             if self.evolution_feedback.text() == "正在打开…":
                 self.evolution_feedback.setText("已打开；可查看详情。")

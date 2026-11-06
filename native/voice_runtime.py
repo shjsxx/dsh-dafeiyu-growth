@@ -12,6 +12,7 @@ from computer_control import ComputerController
 from realtime_runtime import RealtimeRuntime
 
 HOTKEY_ID = 0x594C
+GROWTH_HOTKEY_ID = 0x594D
 
 
 class VoiceRuntime(RealtimeRuntime):
@@ -28,7 +29,9 @@ class VoiceRuntime(RealtimeRuntime):
         self.computer = ComputerController()
         self.operation_row = None
         self.safety_hotkey = False
+        self.growth_hotkey = False
         self._init_realtime_runtime()
+        self._register_growth_hotkey()
         self.voice_event.connect(self._on_voice_event)
 
     def _register_safety_hotkey(self):
@@ -42,6 +45,27 @@ class VoiceRuntime(RealtimeRuntime):
         except Exception:
             self.safety_hotkey = False
         return self.safety_hotkey
+
+    def _register_growth_hotkey(self):
+        if self.growth_hotkey:
+            return True
+        if sys.platform != 'win32':
+            return False
+        try:
+            import ctypes
+            # Ctrl+Alt+G: a keyboard route to the growth card when the
+            # transparent renderer swallows synthetic/context-menu clicks.
+            self.growth_hotkey = bool(ctypes.windll.user32.RegisterHotKey(
+                None, GROWTH_HOTKEY_ID, 0x0001 | 0x0002 | 0x4000, 0x47))
+        except Exception:
+            self.growth_hotkey = False
+        return self.growth_hotkey
+
+    def _release_growth_hotkey(self):
+        if self.growth_hotkey and sys.platform == 'win32':
+            import ctypes
+            ctypes.windll.user32.UnregisterHotKey(None, GROWTH_HOTKEY_ID)
+        self.growth_hotkey = False
 
     def _release_safety_hotkey(self):
         if self.safety_hotkey and sys.platform == 'win32':
@@ -333,6 +357,7 @@ class VoiceRuntime(RealtimeRuntime):
         self.computer.close()
         if self.voice_engine:
             self.voice_engine.close()
+        self._release_growth_hotkey()
         if self.safety_hotkey and sys.platform == 'win32':
             import ctypes
             ctypes.windll.user32.UnregisterHotKey(None, HOTKEY_ID)
