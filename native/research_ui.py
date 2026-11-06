@@ -5,14 +5,15 @@ show a cited summary. It never starts research on open and never writes memory.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtCore import QThread, QTimer, Signal, Qt
 from PySide6.QtWidgets import (
-    QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
+    QCheckBox, QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
     QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout,
 )
 
 from evolution_service import EvolutionService
 from memory_engine import MemoryEngine
+from research_scheduler import ResearchScheduler
 from state_backup import StateBackup
 
 
@@ -95,6 +96,27 @@ class ResearchDialog(QDialog):
         self.tasks = QListWidget()
         self.tasks.itemSelectionChanged.connect(self.refresh_buttons)
         root.addWidget(self.tasks, 1)
+
+        scheduler_row = QHBoxLayout()
+        self.auto_schedule = QCheckBox("自动调度已批准任务")
+        self.auto_schedule.setToolTip("只取已批准任务；不自动批准，不绕过预算，关闭窗口即停止。")
+        self.auto_schedule.toggled.connect(self._toggle_scheduler)
+        scheduler_row.addWidget(self.auto_schedule)
+        scheduler_row.addWidget(QLabel("间隔"))
+        self.auto_interval = QSpinBox()
+        self.auto_interval.setRange(15, 3600)
+        self.auto_interval.setValue(60)
+        self.auto_interval.setSuffix(" 秒")
+        self.auto_interval.valueChanged.connect(self._interval_changed)
+        scheduler_row.addWidget(self.auto_interval)
+        self.scheduler_status = QLabel("未启用；只取已批准任务。")
+        self.scheduler_status.setWordWrap(True)
+        scheduler_row.addWidget(self.scheduler_status, 1)
+        root.addLayout(scheduler_row)
+        self.scheduler = ResearchScheduler(self.service.research, interval=60)
+        self.scheduler_timer = QTimer(self)
+        self.scheduler_timer.setInterval(1000)
+        self.scheduler_timer.timeout.connect(self._scheduler_tick)
 
         actions = QHBoxLayout()
         self.approve_button = QPushButton("批准")
@@ -234,6 +256,11 @@ class ResearchDialog(QDialog):
         task_id = self.selected_id()
         if not task_id or self.worker is not None:
             return
+        self._start_worker(task_id)
+
+    def _start_worker(self, task_id):
+        if self.worker is not None:
+            return
         self.output.setPlainText("正在运行；只访问已批准的白名单 URL。")
         self.worker = ResearchWorker(self.service, task_id, self)
         self.worker.done.connect(self.worker_done)
@@ -242,14 +269,44 @@ class ResearchDialog(QDialog):
         self.refresh_buttons()
         self.worker.start()
 
+    def _toggle_scheduler(self, enabled):
+        if enabled:
+            self.scheduler.set_interval(self.auto_interval.value())
+            self.scheduler.enable()
+            self.scheduler_timer.start()
+            self.scheduler_status.setText("已启用；只取已批准任务，间隔到达后运行一个。")
+        else:
+            self.scheduler_timer.stop()
+            self.scheduler.disable()
+            self.scheduler_status.setText("已停用；不会再自动取任务。")
+
+    def _interval_changed(self, value):
+        self.scheduler.set_interval(value)
+
+    def _scheduler_tick(self):
+        if not self.auto_schedule.isChecked() or self.worker is not None:
+            return
+        task = self.scheduler.tick()
+        if not task:
+            self.scheduler_status.setText("等待已批准任务；不会自动批准。")
+            return
+        self.scheduler_status.setText(f"已取任务 {task['id']}；运行中…")
+        self._start_worker(task["id"])
+
     def worker_done(self, task):
         self.output.setPlainText(str(task.get("summary") or task.get("error") or "已完成"))
         self.status.setText("研究完成；摘要未写入记忆。")
+        if self.auto_schedule.isChecked():
+            self.scheduler.postpone()
+            self.scheduler_status.setText("上次任务已完成；按间隔等待下一个已批准任务。")
         self.refresh()
 
     def worker_failed(self, message):
         self.output.setPlainText(f"研究失败：{message}")
         self.status.setText("任务失败；没有写入记忆。")
+        if self.auto_schedule.isChecked():
+            self.scheduler.postpone()
+            self.scheduler_status.setText("上次任务失败；调度器继续等待，不会重试。")
         self.refresh()
 
     def worker_cleanup(self):
@@ -309,4 +366,6 @@ class ResearchDialog(QDialog):
             QMessageBox.information(self, "研究任务", "研究正在运行，请等待完成后再关闭。")
             event.ignore()
             return
+        self.scheduler_timer.stop()
+        self.scheduler.disable()
         event.accept()

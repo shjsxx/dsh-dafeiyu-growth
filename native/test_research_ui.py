@@ -42,6 +42,23 @@ class ResearchDialogTests(unittest.TestCase):
             finally:
                 dialog.close()
 
+    def test_scheduler_is_off_by_default_and_only_explicitly_enabled(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.dict(os.environ, {"DSH_HOME": directory}):
+            dialog = ResearchDialog()
+            try:
+                self.assertFalse(dialog.auto_schedule.isChecked())
+                self.assertFalse(dialog.scheduler.enabled)
+                self.assertFalse(dialog.scheduler_timer.isActive())
+                dialog.auto_schedule.setChecked(True)
+                self.assertTrue(dialog.scheduler.enabled)
+                self.assertTrue(dialog.scheduler_timer.isActive())
+                dialog.auto_schedule.setChecked(False)
+                self.assertFalse(dialog.scheduler.enabled)
+                self.assertFalse(dialog.scheduler_timer.isActive())
+            finally:
+                dialog.close()
+
 
 if __name__ == "__main__":
     unittest.main()
