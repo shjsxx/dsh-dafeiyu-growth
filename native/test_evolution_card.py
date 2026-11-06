@@ -1,5 +1,8 @@
 """Ensure the four controlled-evolution entries live in the growth card."""
+import os
 import unittest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -41,8 +44,15 @@ class EvolutionCardTests(unittest.TestCase):
         try:
             dialog.evolution_status_button.click()
             self.assertEqual(host.status_opened, 1)
-            dialog.show_evolution_status("受控进化 · 只读状态\n审计链：正常")
+            dialog.show_evolution_status(
+                "受控进化 · 只读状态\n审计链：正常\n研究任务：2 个",
+                {"audit": {"ok": True, "events": 3}, "hosts": 4,
+                 "research": {"total": 2, "statuses": {"done": 2}}},
+            )
             self.assertIn("审计链", dialog.evolution_feedback.text())
+            self.assertEqual(dialog.evolution_audit_value.text(), "正常")
+            self.assertEqual(dialog.evolution_hosts_value.text(), "4")
+            self.assertEqual(dialog.evolution_research_value.text(), "2")
             self.assertIs(dialog.tabs.currentWidget(), dialog.page_scrolls[6])
             self.assertEqual(dialog.tabs.count(), 7)
         finally:

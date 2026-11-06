@@ -1130,29 +1130,63 @@ class GrowthDialog(QDialog):
         data_page.addWidget(self.data_panel)
         self.voice_data_panel = VoiceDataPanel(self)
         data_page.addWidget(self.voice_data_panel)
-        self._heading(data_page, "受控进化", "研究 · 记忆 · 人格")
+        self._heading(data_page, "受控进化", "本机 · 明确批准")
         self.evolution_card, evolution_box = self._card("evolutionCard")
+        evolution_box.setContentsMargins(16, 15, 16, 15)
+        evolution_box.setSpacing(9)
+        lead_row = QHBoxLayout()
+        lead_row.setSpacing(8)
+        lead = _label("所有改变，都要你点头。", "evolutionLead", False)
+        lead_row.addWidget(lead, 1)
+        lead_row.addWidget(_label("只读检查", "evolutionBadge", False))
+        evolution_box.addLayout(lead_row)
         evolution_box.addWidget(_label(
-            "研究、记忆整理、人格反思和回滚都需要明确批准；这里不会自动联网或自动改数据。",
-            "memoryStatus"))
-        evolution_buttons = QGridLayout()
-        evolution_buttons.setSpacing(7)
-        self.evolution_status_button = QPushButton("进化状态")
-        self.research_button = QPushButton("研究任务…")
-        self.memory_curation_button = QPushButton("记忆整理…")
-        self.persona_button = QPushButton("人格反思…")
-        for index, (button, signal) in enumerate((
-            (self.evolution_status_button, self.evolution_status_requested),
-            (self.research_button, self.research_requested),
-            (self.memory_curation_button, self.memory_curation_requested),
-            (self.persona_button, self.persona_requested),
+            "研究、记忆整理、人格反思与回滚都不会自动执行。",
+            "evolutionSub"))
+        self.evolution_audit_value, self.evolution_hosts_value, self.evolution_research_value = (
+            _label("待检查", "evolutionStatValue", False),
+            _label("待检查", "evolutionStatValue", False),
+            _label("待检查", "evolutionStatValue", False),
+        )
+        stats = QGridLayout()
+        stats.setHorizontalSpacing(7)
+        stats.setVerticalSpacing(0)
+        for column, (caption, value) in enumerate((
+            ("审计链", self.evolution_audit_value),
+            ("公开来源", self.evolution_hosts_value),
+            ("研究任务", self.evolution_research_value),
+        )):
+            tile = QFrame()
+            tile.setProperty("evolutionStat", True)
+            tile_box = QVBoxLayout(tile)
+            tile_box.setContentsMargins(10, 7, 10, 8)
+            tile_box.setSpacing(1)
+            tile_box.addWidget(_label(caption, "evolutionStatLabel", False))
+            tile_box.addWidget(value)
+            stats.addWidget(tile, 0, column)
+        evolution_box.addLayout(stats)
+        self.evolution_status_button = QPushButton("进化状态\n查看审计与边界")
+        self.research_button = QPushButton("研究任务\n提出公开来源计划")
+        self.memory_curation_button = QPushButton("记忆整理\n去重与归档建议")
+        self.persona_button = QPushButton("人格反思\n漂移与回滚")
+        evolution_actions = QGridLayout()
+        evolution_actions.setSpacing(7)
+        for index, (button, signal, glyph) in enumerate((
+            (self.evolution_status_button, self.evolution_status_requested, "shield"),
+            (self.research_button, self.research_requested, "spark"),
+            (self.memory_curation_button, self.memory_curation_requested, "history"),
+            (self.persona_button, self.persona_requested, "emotion"),
         )):
             button.setAutoDefault(False)
+            button.setProperty("evolutionAction", True)
+            button.setIcon(theme_icon(glyph, size=18))
+            button.setMinimumHeight(56)
             button.clicked.connect(
                 lambda _checked=False, s=signal: self._request_evolution(s))
-            evolution_buttons.addWidget(button, index // 2, index % 2)
-        evolution_box.addLayout(evolution_buttons)
-        self.evolution_feedback = _label("", "memoryStatus")
+            evolution_actions.addWidget(button, index // 2, index % 2)
+        evolution_box.addLayout(evolution_actions)
+        self.evolution_feedback = _label(
+            "尚未检查。点击「进化状态」查看当前边界。", "evolutionDetail")
         evolution_box.addWidget(self.evolution_feedback)
         data_page.addWidget(self.evolution_card)
         data_page.addStretch()
@@ -1251,11 +1285,20 @@ class GrowthDialog(QDialog):
         except Exception as error:
             self.evolution_feedback.setText(f"打开失败：{error}")
 
-    def show_evolution_status(self, text):
+    def show_evolution_status(self, text, data=None):
         """Render status inside the journal, never in a hidden modal window."""
         self.evolution_feedback.setText(text)
         self.evolution_feedback.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.evolution_feedback.setWordWrap(True)
+        if isinstance(data, dict):
+            audit = data.get("audit") or {}
+            research = data.get("research") or {}
+            self.evolution_audit_value.setText("正常" if audit.get("ok") else "需检查")
+            self.evolution_audit_value.setToolTip(f"{audit.get('events', 0)} 条审计记录")
+            self.evolution_hosts_value.setText(str(data.get("hosts", 0)))
+            self.evolution_hosts_value.setToolTip("公开 HTTPS 白名单来源")
+            self.evolution_research_value.setText(str(research.get("total", 0)))
+            self.evolution_research_value.setToolTip("尚未完成的研究任务")
         self.tabs.setCurrentWidget(self.page_scrolls[6])
         self.show()
         self.raise_()

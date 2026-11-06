@@ -216,7 +216,7 @@ class CompanionRuntime:
             statuses = research.get("statuses") or {}
             status_line = "、".join(f"{key} {value}" for key, value in sorted(statuses.items())) or "无"
             text = (
-                "受控进化 · 只读状态\n"
+                "只读检查 · 不改动任何数据\n"
                 f"审计链：{'正常' if audit.get('ok') else '需要检查'} · {audit.get('events', 0)} 条记录\n"
                 f"联网：仅公开白名单（{len(hosts)} 个来源），按任务预算\n"
                 f"研究任务：{research.get('total', 0)} 个 · {status_line}\n"
@@ -226,8 +226,11 @@ class CompanionRuntime:
             )
         except Exception as error:
             text = f"受控进化 · 暂时无法读取状态\n{error}"
+            data = None
+        else:
+            data = {"audit": audit, "hosts": len(hosts), "research": research}
         if self.growth_dialog is not None:
-            self.growth_dialog.show_evolution_status(text)
+            self.growth_dialog.show_evolution_status(text, data)
         else:
             self._show_overlay(text.splitlines()[0], "请先打开成长卡", "ERROR", 4200)
 

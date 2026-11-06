@@ -170,6 +170,7 @@ proposed → approved → running → done
 - `EvolutionService` 统一装配 kernel、WebScout、ResearchQueue、MemoryCurator、PersonaReflection
 - 统一入口：**成长卡 → 数据 → 受控进化**
 - 四个按钮：**进化状态 / 研究任务 / 记忆整理 / 人格反思**
+- 视觉：标题区、三格只读摘要（审计链 / 公开来源 / 研究任务）、带图标操作卡、底部状态详情
 - **进化状态直接显示在成长卡内**，不会关闭成长卡或弹出隐藏的模态窗口
 - 研究、记忆整理、人格反思使用成长卡持有的非模态置顶窗口；不阻塞成长卡
 - 状态内容只读：不会启动研究、不会清理记忆、不会改人格
