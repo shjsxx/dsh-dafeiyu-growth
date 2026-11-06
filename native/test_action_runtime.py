@@ -59,7 +59,24 @@ class Host(ActionRuntime):
     def _schedule_next_motion(self): self.scheduled += 1
 
 
+class ExternalHost(Host):
+    def __init__(self):
+        super().__init__()
+        self.external_renderer = True
+        self.presented = []
+
+    def _present_external(self, text, state, ttl, intent):
+        self.presented.append((text, state, ttl, intent))
+
+
 class ActionRuntimeTests(unittest.TestCase):
+    def test_external_proactive_keeps_pending_line_after_chat_open(self):
+        host = ExternalHost()
+        host._maybe_talk(force=True)
+        self.assertEqual(host.presented[0][0], host.line)
+        self.assertEqual(host.last_proactive, host.line)
+        self.assertTrue(host.chat_open)
+
     def test_direct_proactive_captures_before_opening_chat(self):
         host = Host()
         host._maybe_talk(force=True)

@@ -17,12 +17,14 @@ class ActionRuntime:
             self.next_talk_ms = now_ms + 60000
             return
         if getattr(self, 'external_renderer', False):
-            self.last_proactive = text
             self._present_external(text, 'IDLE', 8000, 'greet')
             # A bubble is ambient; open a replyable window only when the owner
             # is genuinely idle, never while a task or overlay is active.
             if self._idle_only() and not self.tasks:
                 self._invite_to_chat(text)
+            # _invite_to_chat may create/reset the conversation context, so set
+            # the pending proactive line only after that reset.
+            self.last_proactive = text
             self.last_neural = (context, 'talk')
             self.last_neural_ms = now_ms
             self.learner.note_greeting()
