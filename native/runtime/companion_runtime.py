@@ -238,6 +238,22 @@ class CompanionRuntime:
                 "人格：核心不变项锁定，单次漂移有上限\n"
                 "研究、整理执行和人格回滚都需要你明确批准。"
             )
+            recent = status.get("auditRecent") or []
+            if recent:
+                from datetime import datetime
+                labels = {"research": "研究", "memory": "记忆", "persona": "人格",
+                          "network": "联网", "deletion": "删除"}
+                lines = ["", "最近审计："]
+                for row in recent[-6:]:
+                    try:
+                        when = datetime.fromtimestamp(int(row.get("at", 0))).strftime("%m-%d %H:%M")
+                    except (OSError, OverflowError, ValueError):
+                        when = "时间未知"
+                    kind = labels.get(str(row.get("kind")), str(row.get("kind") or "事件"))
+                    decision = str(row.get("decision") or "")
+                    summary = str(row.get("summary") or row.get("reason") or "")[:80]
+                    lines.append(f"· {when} {kind}/{decision} · {summary}")
+                text += "\n".join(lines)
         except Exception as error:
             text = f"受控进化 · 暂时无法读取状态\n{error}"
             data = None

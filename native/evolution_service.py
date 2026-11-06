@@ -53,23 +53,66 @@ class EvolutionService:
                 "budget": "per-task",
             },
             "research": {"total": len(tasks), "statuses": counts},
+            "auditRecent": self.kernel.ledger.recent(8),
             "memory": {"mode": "proposal-only", "autoDelete": False},
             "persona": {"mode": "bounded-reflection", "maxDelta": self.kernel.gate.max_persona_delta},
         }
 
+    def record_audit(self, kind, decision, reason, summary="", meta=None):
+        """Append one bounded event without failing the user's action."""
+        try:
+            self.kernel.ledger.append(str(kind), str(decision), str(reason), str(summary), meta)
+            return True
+        except Exception:
+            return False
+
     # Thin, explicit delegates. No caller in this module starts them automatically.
     def plan_research(self, goal, max_sources=3):
         """Generate an editable allowlisted URL plan; no network or state write."""
-        return self.planner.plan(goal, max_sources=max_sources)
+        plan = self.planner.plan(goal, max_sources=max_sources)
+        self.record_audit("research", "planned", "local allowlist planner",
+                          f"{len(plan.get('urls') or [])} sources",
+                          {"sources": len(plan.get("urls") or []),
+                           "matched": bool(plan.get("matched"))})
+        return plan
 
     def propose_research(self, goal, urls, max_requests=6, max_bytes=500_000):
-        return self.research.propose(goal, urls, max_requests, max_bytes)
+        task = self.research.propose(goal, urls, max_requests, max_bytes)
+        self.record_audit("research", "proposed", "explicit proposal", task["id"],
+                          {"urls": len(task.get("urls") or []), "requests": task.get("maxRequests", 0)})
+        return task
 
     def approve_research(self, task_id):
-        return self.research.approve(task_id)
+        task = self.research.approve(task_id)
+        self.record_audit("research", "approved", "explicit approval", task["id"])
+        return task
+
+    def pause_research(self, task_id):
+        task = self.research.pause(task_id)
+        self.record_audit("research", "paused", "explicit pause", task["id"])
+        return task
+
+    def resume_research(self, task_id):
+        task = self.research.resume(task_id)
+        self.record_audit("research", "resumed", "explicit resume", task["id"])
+        return task
+
+    def cancel_research(self, task_id):
+        task = self.research.cancel(task_id)
+        self.record_audit("research", "cancelled", "explicit cancel", task["id"])
+        return task
 
     def run_research(self, task_id):
-        return self.research.run_task(task_id)
+        self.record_audit("research", "started", "explicit run", task_id)
+        try:
+            task = self.research.run_task(task_id)
+        except Exception as error:
+            self.record_audit("research", "failed", type(error).__name__, task_id)
+            raise
+        status = "done" if task.get("status") == "done" else "failed"
+        self.record_audit("research", status, "run result", task_id,
+                          {"requests": task.get("used", 0), "bytes": task.get("bytes", 0)})
+        return task
 
     def plan_memory(self, records):
         return self.curator.plan(records)

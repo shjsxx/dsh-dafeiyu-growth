@@ -142,6 +142,11 @@ class PersonaReflectionDialog(QDialog):
             if not self.personality.restore_traits(
                     self.previous["traits"], approved=True, backup_id=str(snapshot)):
                 raise RuntimeError("人格回滚没有写入成功")
+            self.service.record_audit("persona", "rolled_back", "explicit approved rollback",
+                                      "five learned traits", {
+                                          "from": int(self.previous.get("revision", 0)),
+                                          "to": int(self.current.get("revision", 0)),
+                                      })
             self.rollback_button.setEnabled(False)
             self.summary.setText(f"已恢复到上一锚点；备份：{snapshot.name}")
             self.output.setPlainText("只恢复了五维学习倾向；核心不变项没有被修改。")

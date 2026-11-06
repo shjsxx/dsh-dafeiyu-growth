@@ -71,7 +71,7 @@ class MemoryCurationDialog(QDialog):
 
     def open_archive(self):
         from memory_archive_ui import MemoryArchiveDialog
-        MemoryArchiveDialog(self).exec()
+        MemoryArchiveDialog(self, service=self.service).exec()
         self.memory = MemoryEngine()
         self.summary.setText("归档已重新读取；如记录有变化，请重新生成计划。")
         self.commit_button.setEnabled(False)

@@ -213,9 +213,9 @@ class ResearchDialog(QDialog):
             return
         try:
             if task.get("status") == "paused":
-                self.service.research.resume(task["id"])
+                self.service.resume_research(task["id"])
             else:
-                self.service.research.pause(task["id"])
+                self.service.pause_research(task["id"])
         except Exception as error:
             QMessageBox.warning(self, "研究任务", str(error))
         self.refresh()
@@ -225,7 +225,7 @@ class ResearchDialog(QDialog):
         if not task_id:
             return
         try:
-            self.service.research.cancel(task_id)
+            self.service.cancel_research(task_id)
         except Exception as error:
             QMessageBox.warning(self, "研究任务", str(error))
         self.refresh()
@@ -295,6 +295,8 @@ class ResearchDialog(QDialog):
             if not self.memory.remember_research(text):
                 raise RuntimeError("长期记忆没有写入成功")
             self.service.research.mark_committed(task["id"])
+            self.service.record_audit("memory", "written", "explicit research memory write",
+                                      task["id"], {"citations": len(citations)})
             self.status.setText(f"已写入长期记忆；恢复点：{snapshot.name}")
             self.output.setPlainText(text)
         except Exception as error:

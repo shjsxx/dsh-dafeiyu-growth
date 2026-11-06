@@ -7,14 +7,16 @@ from PySide6.QtWidgets import (
     QPushButton, QVBoxLayout,
 )
 
+from evolution_service import EvolutionService
 from memory_engine import KIND_LABEL, MemoryEngine
 from state_backup import StateBackup
 
 
 class MemoryArchiveDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, service=None):
         super().__init__(parent)
         self.memory = MemoryEngine()
+        self.service = service or EvolutionService()
         self.setWindowTitle("云岚 · 记忆归档")
         self.setMinimumSize(560, 420)
         self.setStyleSheet(
@@ -93,6 +95,8 @@ class MemoryArchiveDialog(QDialog):
             restored = self.memory.restore_archive([record_id], approved=True)
             if not restored:
                 raise RuntimeError("记录已存在、已被清除，或归档写入失败")
+            self.service.record_audit("memory", "restored", "explicit archive restore",
+                                      f"{restored} records", {"count": restored})
             self.refresh()
             self.status.setText(f"已恢复 1 条；状态备份：{snapshot.name}")
         except Exception as error:

@@ -64,6 +64,22 @@ class EvolutionServiceTests(unittest.TestCase):
         self.assertEqual(done["status"], "done")
         self.assertEqual(len(self.transport.calls), 1)
         self.assertEqual(self.service.status()["research"]["statuses"]["done"], 1)
+        recent = self.service.status()["auditRecent"]
+        decisions = [row["decision"] for row in recent]
+        self.assertIn("proposed", decisions)
+        self.assertIn("approved", decisions)
+        self.assertIn("started", decisions)
+        self.assertIn("done", decisions)
+        research_decisions = [row["decision"] for row in recent if row["kind"] == "research"]
+        self.assertEqual(research_decisions, ["proposed", "approved", "started", "done"])
+
+    def test_record_audit_is_bounded_and_failure_does_not_escape(self):
+        self.assertTrue(self.service.record_audit("memory", "restored", "explicit", "1 record",
+                                                  {"count": 1}))
+        events = self.service.status()["auditRecent"]
+        self.assertEqual(events[-1]["kind"], "memory")
+        self.assertEqual(events[-1]["decision"], "restored")
+        self.assertEqual(len(events), 1)
 
     def test_memory_and_persona_are_read_only_helpers(self):
         plan = self.service.plan_memory([
