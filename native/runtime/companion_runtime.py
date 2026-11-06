@@ -222,8 +222,7 @@ class CompanionRuntime:
     def _show_evolution_status(self) -> None:
         """Render the read-only status inside the growth card itself."""
         try:
-            from evolution_service import EvolutionService
-            status = EvolutionService().status()
+            status = self._get_evolution_service().status()
             audit = status.get("audit") or {}
             research = status.get("research") or {}
             hosts = (status.get("network") or {}).get("hosts") or []
@@ -264,6 +263,40 @@ class CompanionRuntime:
         else:
             self._show_overlay(text.splitlines()[0], "请先打开成长卡", "ERROR", 4200)
 
+    def _get_evolution_service(self):
+        service = getattr(self, "evolution_service", None)
+        if service is None:
+            from evolution_service import EvolutionService
+            service = EvolutionService()
+            self.evolution_service = service
+        return service
+
+    def _get_research_scheduler(self):
+        host = getattr(self, "research_scheduler_host", None)
+        if host is None:
+            from research_runtime import ResearchSchedulerHost
+            host = ResearchSchedulerHost(self._get_evolution_service(), self)
+            self.research_scheduler_host = host
+        return host
+
+    def _set_research_scheduler(self, enabled, interval):
+        """Explicit global scheduler toggle; survives closing the review dialog."""
+        host = self._get_research_scheduler()
+        host.configure(enabled, interval)
+        return host.state()
+
+    def _research_scheduler_state(self):
+        host = getattr(self, "research_scheduler_host", None)
+        return host.state() if host is not None else {
+            "enabled": False, "interval": 60, "busy": False,
+            "last": "未启用；只取已批准任务。", "lastTask": "",
+        }
+
+    def _shutdown_research_scheduler(self) -> None:
+        host = getattr(self, "research_scheduler_host", None)
+        if host is not None:
+            host.shutdown()
+
     def _keep_evolution_dialog(self, dialog) -> None:
         """Keep a non-modal review window alive and above the journal."""
         dialogs = getattr(self, "_evolution_dialogs", None)
@@ -285,7 +318,7 @@ class CompanionRuntime:
         try:
             from PySide6.QtCore import Qt
             from research_ui import ResearchDialog
-            dialog = ResearchDialog(None)
+            dialog = ResearchDialog(None, service=self._get_evolution_service())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)
@@ -298,7 +331,7 @@ class CompanionRuntime:
         try:
             from PySide6.QtCore import Qt
             from memory_curation_ui import MemoryCurationDialog
-            dialog = MemoryCurationDialog(None)
+            dialog = MemoryCurationDialog(None, service=self._get_evolution_service())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)
@@ -311,7 +344,7 @@ class CompanionRuntime:
         try:
             from PySide6.QtCore import Qt
             from persona_ui import PersonaReflectionDialog
-            dialog = PersonaReflectionDialog(None)
+            dialog = PersonaReflectionDialog(None, service=self._get_evolution_service())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)

@@ -2610,6 +2610,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
     application.aboutToQuit.connect(window.brain.close)
     application.aboutToQuit.connect(window.emotion.close)
     application.aboutToQuit.connect(window.learner.save)
+    application.aboutToQuit.connect(window._shutdown_research_scheduler)
     glove_filter = GloveCursorFilter(window, window.glove_open_h, window.glove_closed_h)
     application.installNativeEventFilter(glove_filter)
     inbox.message.connect(window.apply_message)

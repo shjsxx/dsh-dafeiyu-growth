@@ -21,9 +21,9 @@ from state_backup import StateBackup
 
 
 class PersonaReflectionDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, service=None):
         super().__init__(parent)
-        self.service = EvolutionService()
+        self.service = service or EvolutionService()
         self.personality = PersonalityEngine()
         self.continuity = ContinuityStore()
         self.history = PersonaHistory()

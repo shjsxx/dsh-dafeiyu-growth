@@ -34,11 +34,12 @@ class ResearchWorker(QThread):
 
 
 class ResearchDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, service=None, scheduler_host=None):
         super().__init__(parent)
-        self.service = EvolutionService()
+        self.service = service or EvolutionService()
         self.memory = MemoryEngine()
         self.worker = None
+        self._scheduler_host = scheduler_host
         self.setWindowTitle("云岚 · 研究任务")
         self.setMinimumSize(620, 560)
         self.setStyleSheet(
@@ -117,6 +118,13 @@ class ResearchDialog(QDialog):
         self.scheduler_timer = QTimer(self)
         self.scheduler_timer.setInterval(1000)
         self.scheduler_timer.timeout.connect(self._scheduler_tick)
+        if self._scheduler_host is not None:
+            try:
+                self._scheduler_host.status_changed.connect(self._on_scheduler_host_status)
+                state = self._scheduler_host.state()
+                self._apply_scheduler_state(state)
+            except (AttributeError, RuntimeError):
+                self._scheduler_host = None
 
         actions = QHBoxLayout()
         self.approve_button = QPushButton("批准")
@@ -176,7 +184,8 @@ class ResearchDialog(QDialog):
     def refresh_buttons(self):
         task = self.selected_task()
         status = task.get("status") if task else ""
-        busy = bool(self.worker and self.worker.isRunning())
+        host_busy = bool(self._scheduler_host and self._scheduler_host.state().get("busy"))
+        busy = bool(self.worker and self.worker.isRunning()) or host_busy
         self.approve_button.setEnabled(not busy and status == "proposed")
         self.pause_button.setEnabled(not busy and status in ("proposed", "approved", "paused"))
         self.cancel_button.setEnabled(not busy and status not in ("done", "failed", "cancelled", ""))
@@ -256,11 +265,19 @@ class ResearchDialog(QDialog):
         task_id = self.selected_id()
         if not task_id or self.worker is not None:
             return
-        self._start_worker(task_id)
+        if self._scheduler_host is not None and self._scheduler_host.state().get("enabled"):
+            self._scheduler_host.configure(False, self.auto_interval.value())
+            self.auto_schedule.blockSignals(True)
+            self.auto_schedule.setChecked(False)
+            self.auto_schedule.blockSignals(False)
+            self.scheduler_status.setText("已暂停常驻调度，正在手动运行。")
+        self._start_worker(task_id, manual=True)
 
-    def _start_worker(self, task_id):
+    def _start_worker(self, task_id, manual=False):
         if self.worker is not None:
             return
+        if manual and self._scheduler_host is not None:
+            self._scheduler_host.configure(False, self.auto_interval.value())
         self.output.setPlainText("正在运行；只访问已批准的白名单 URL。")
         self.worker = ResearchWorker(self.service, task_id, self)
         self.worker.done.connect(self.worker_done)
@@ -269,7 +286,23 @@ class ResearchDialog(QDialog):
         self.refresh_buttons()
         self.worker.start()
 
+    def _apply_scheduler_state(self, state):
+        self.auto_schedule.blockSignals(True)
+        self.auto_schedule.setChecked(bool(state.get("enabled")))
+        self.auto_schedule.blockSignals(False)
+        self.auto_interval.blockSignals(True)
+        self.auto_interval.setValue(int(state.get("interval") or 60))
+        self.auto_interval.blockSignals(False)
+        self.scheduler_status.setText(str(state.get("last") or "未启用；只取已批准任务。"))
+
+    def _on_scheduler_host_status(self, state):
+        self._apply_scheduler_state(state)
+        self.refresh_buttons()
+
     def _toggle_scheduler(self, enabled):
+        if self._scheduler_host is not None:
+            self._scheduler_host.configure(enabled, self.auto_interval.value())
+            return
         if enabled:
             self.scheduler.set_interval(self.auto_interval.value())
             self.scheduler.enable()
@@ -281,6 +314,10 @@ class ResearchDialog(QDialog):
             self.scheduler_status.setText("已停用；不会再自动取任务。")
 
     def _interval_changed(self, value):
+        if self._scheduler_host is not None:
+            state = self._scheduler_host.state()
+            self._scheduler_host.configure(bool(state.get("enabled")), value)
+            return
         self.scheduler.set_interval(value)
 
     def _scheduler_tick(self):

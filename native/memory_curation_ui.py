@@ -18,9 +18,9 @@ from state_backup import StateBackup
 
 
 class MemoryCurationDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, service=None):
         super().__init__(parent)
-        self.service = EvolutionService()
+        self.service = service or EvolutionService()
         self.memory = MemoryEngine()
         self.plan = None
         self.setWindowTitle("云岚 · 记忆整理")
