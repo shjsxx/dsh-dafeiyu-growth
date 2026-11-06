@@ -82,6 +82,9 @@ class ResearchDialog(QDialog):
         self.bytes.setValue(500_000)
         self.bytes.setSingleStep(50_000)
         budget_row.addWidget(self.bytes)
+        plan_button = QPushButton("自动规划")
+        plan_button.clicked.connect(self.plan)
+        budget_row.addWidget(plan_button)
         propose = QPushButton("提出计划")
         propose.clicked.connect(self.propose)
         budget_row.addWidget(propose)
@@ -158,6 +161,28 @@ class ResearchDialog(QDialog):
         self.run_button.setEnabled(not busy and status == "approved")
         self.summary_button.setEnabled(not busy and status == "done")
         self.commit_button.setEnabled(not busy and status == "done" and not task.get("committed"))
+
+    def plan(self):
+        """Fill an editable allowlisted plan; this never proposes or fetches."""
+        goal = self.goal.toPlainText().strip()
+        if not goal:
+            QMessageBox.information(self, "研究规划", "先写一个研究目标。")
+            return
+        try:
+            plan = self.service.plan_research(goal)
+        except Exception as error:
+            QMessageBox.warning(self, "研究规划", str(error))
+            return
+        urls = list(plan.get("urls") or [])
+        if not urls:
+            self.status.setText(str(plan.get("note") or "没有匹配的公开来源。"))
+            return
+        self.urls.setPlainText("\n".join(urls))
+        self.requests.setValue(int(plan.get("maxRequests") or 6))
+        self.bytes.setValue(int(plan.get("maxBytes") or 500_000))
+        titles = "、".join(row.get("title", "") for row in plan.get("sources", [])[:3])
+        note = str(plan.get("note") or "")
+        self.status.setText(f"已生成 {len(urls)} 个候选来源：{titles}。{note}")
 
     def propose(self):
         urls = [line.strip() for line in self.urls.toPlainText().splitlines() if line.strip()]

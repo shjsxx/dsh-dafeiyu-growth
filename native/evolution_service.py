@@ -12,6 +12,7 @@ from pathlib import Path
 from evolution_kernel import EvolutionKernel, EvolutionLedger, PolicyGate
 from memory_curator import MemoryCurator
 from persona_reflection import PersonaReflection
+from research_planner import ResearchPlanner
 from research_queue import ResearchQueue
 from web_scout import WebScout
 
@@ -29,6 +30,7 @@ class EvolutionService:
                 PolicyGate(network_hosts))
         self.scout = scout or WebScout(self.kernel, self.data_dir / "web-cache", clock=clock)
         self.research = ResearchQueue(self.data_dir / "research.json", self.scout, clock=clock)
+        self.planner = ResearchPlanner(self.kernel.gate)
         self.curator = MemoryCurator(self.kernel, now=clock)
         self.reflection = PersonaReflection(self.kernel)
 
@@ -56,6 +58,10 @@ class EvolutionService:
         }
 
     # Thin, explicit delegates. No caller in this module starts them automatically.
+    def plan_research(self, goal, max_sources=3):
+        """Generate an editable allowlisted URL plan; no network or state write."""
+        return self.planner.plan(goal, max_sources=max_sources)
+
     def propose_research(self, goal, urls, max_requests=6, max_bytes=500_000):
         return self.research.propose(goal, urls, max_requests, max_bytes)
 
