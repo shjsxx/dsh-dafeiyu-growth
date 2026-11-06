@@ -45,6 +45,11 @@ class Host(ActionRuntime):
     def _ensure_conversation(self):
         self.chat_open = True
         self.conversation = SimpleNamespace(isVisible=lambda:False, show_proactive=lambda *a:None)
+
+    def _invite_to_chat(self, text):
+        self._ensure_conversation()
+        self.conversation.show_proactive(text, '云岚主动搭话 · 可直接回复')
+
     def _refresh_online_ui(self): pass
     def _place_conversation(self, *a): pass
     def _idle_only(self): return True

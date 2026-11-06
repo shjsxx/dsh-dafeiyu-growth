@@ -85,6 +85,26 @@ class ConversationRuntime:
         except (OSError, ValueError, TypeError):
             pass
 
+    def _invite_to_chat(self, text):
+        """Open a replyable chat window for a proactive line and focus input."""
+        self._ensure_conversation()
+        dialog = self.conversation
+        if dialog is None:
+            return
+        self._apply_cloud_preference()
+        was_visible = dialog.isVisible()
+        self._refresh_online_ui()
+        dialog.show_proactive(text, "云岚主动搭话 · 可直接回复")
+        if not was_visible:
+            self._place_conversation(dialog)
+        self.chat_open = True
+        dialog.raise_()
+        dialog.activateWindow()
+        try:
+            dialog.input.setFocus()
+        except AttributeError:
+            pass
+
     def _reset_conversation_context(self):
         """Forget RAM-only context and invalidate outstanding model requests.
 

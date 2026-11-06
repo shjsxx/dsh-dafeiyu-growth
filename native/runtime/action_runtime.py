@@ -19,6 +19,10 @@ class ActionRuntime:
         if getattr(self, 'external_renderer', False):
             self.last_proactive = text
             self._present_external(text, 'IDLE', 8000, 'greet')
+            # A bubble is ambient; open a replyable window only when the owner
+            # is genuinely idle, never while a task or overlay is active.
+            if self._idle_only() and not self.tasks:
+                self._invite_to_chat(text)
             self.last_neural = (context, 'talk')
             self.last_neural_ms = now_ms
             self.learner.note_greeting()
@@ -26,11 +30,7 @@ class ActionRuntime:
             return
         self._ensure_conversation()
         self.last_proactive = text
-        was_visible = self.conversation.isVisible()
-        self._refresh_online_ui()
-        self.conversation.show_proactive(text, "云岚主动搭话 · 可直接回复")
-        if not was_visible:
-            self._place_conversation(self.conversation)
+        self._invite_to_chat(text)
         self.chat_open = True
         self.last_neural = (context, "talk")
         self.last_neural_ms = now_ms
