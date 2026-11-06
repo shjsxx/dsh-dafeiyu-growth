@@ -6,6 +6,8 @@ confirmation, a safety snapshot, and an explicit backup id.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox,
     QPlainTextEdit, QPushButton, QVBoxLayout,
@@ -13,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from continuity import ContinuityStore
 from evolution_service import EvolutionService
+from persona_history import PersonaHistory
 from personality_engine import PersonalityEngine
 from state_backup import StateBackup
 
@@ -23,6 +26,7 @@ class PersonaReflectionDialog(QDialog):
         self.service = EvolutionService()
         self.personality = PersonalityEngine()
         self.continuity = ContinuityStore()
+        self.history = PersonaHistory()
         self.previous = None
         self.current = None
         self.setWindowTitle("云岚 · 人格反思")
@@ -71,24 +75,45 @@ class PersonaReflectionDialog(QDialog):
     def refresh(self):
         self.changes.clear()
         self.current = self.personality.snapshot()
-        anchors = self.continuity.data.get("anchors") if isinstance(self.continuity.data, dict) else {}
-        days = sorted(anchors) if isinstance(anchors, dict) else []
-        if len(days) < 2:
-            self.previous = None
-            self.summary.setText("还没有两个连续性锚点，暂时无法比较人格漂移。")
-            self.rollback_button.setEnabled(False)
-            return
-        previous_day = days[-2]
-        anchor = anchors[previous_day]
-        self.previous = {"revision": int(anchor.get("personality", 0)),
-                         "traits": dict(anchor.get("traits") or {})}
+        # Capture a changed snapshot for automatic review, but never invent
+        # evidence for a change that came only from a passive state refresh.
         try:
-            result = self.service.reflection.reflect(self.previous, self.current, [])
+            self.history.record(self.current, reason="review")
+        except (OSError, ValueError, TypeError):
+            pass
+        automatic = self.history.entries(2)
+        events = automatic[-1].get("evidence", []) if len(automatic) >= 2 else []
+        if len(automatic) >= 2:
+            previous_entry = automatic[-2]
+            self.previous = {
+                "revision": int(previous_entry.get("revision", 0)),
+                "traits": dict(previous_entry.get("traits") or {}),
+            }
+            try:
+                when = datetime.fromtimestamp(int(previous_entry.get("at", 0))).strftime("%m-%d %H:%M")
+            except (OSError, OverflowError, ValueError):
+                when = "历史记录"
+            source = f"自动记录 {when} → 当前"
+        else:
+            anchors = self.continuity.data.get("anchors") if isinstance(self.continuity.data, dict) else {}
+            days = sorted(anchors) if isinstance(anchors, dict) else []
+            if len(days) < 2:
+                self.previous = None
+                self.summary.setText("还没有两个连续性锚点，暂时无法比较人格漂移。")
+                self.rollback_button.setEnabled(False)
+                return
+            previous_day = days[-2]
+            anchor = anchors[previous_day]
+            self.previous = {"revision": int(anchor.get("personality", 0)),
+                             "traits": dict(anchor.get("traits") or {})}
+            source = f"连续性锚点 {previous_day}"
+        try:
+            result = self.service.reflection.reflect(self.previous, self.current, events)
         except Exception as error:
             self.summary.setText(f"人格快照不可比较：{error}")
             self.rollback_button.setEnabled(False)
             return
-        self.summary.setText(f"{result.status} · 对照 {previous_day}：{result.summary}")
+        self.summary.setText(f"{result.status} · 对照{source}：{result.summary}")
         for change in result.changes:
             item = QListWidgetItem(
                 f"{change['label']} {change['from']:.1f} → {change['to']:.1f} "

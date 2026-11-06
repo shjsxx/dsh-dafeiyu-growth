@@ -1338,7 +1338,17 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             if not action_name:
                 return
             try:
+                before = self.personality.snapshot()
                 self.personality.feedback(liked)
+                after = self.personality.snapshot()
+                evidence = []
+                for key in ("warmth", "curiosity", "playfulness", "steadiness", "expressiveness"):
+                    if before.get("traits", {}).get(key) != after.get("traits", {}).get(key):
+                        evidence.append({
+                            "kind": "feedback", "trait": key, "action": action_name,
+                            "liked": bool(liked), "at": int(time.time()),
+                        })
+                self._record_persona_history(evidence, reason="feedback")
                 self.memory.remember_feedback(action_name, liked)
             except Exception:
                 # A feedback click must never break the pet; the bounded

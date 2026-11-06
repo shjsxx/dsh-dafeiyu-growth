@@ -83,10 +83,24 @@ class CompanionRuntime:
     def _sync_personality(self) -> None:
         self.personality.update(self.learning.companion.snapshot(), self.emotion.snapshot(),
                                 self.growth_state)
+        self._record_persona_history(reason="state")
         mood = self.emotion.current().get("label", "neutral")
         has_memory = bool(self.memory.recent(1, kinds=("preference", "habit", "diary", "culture")))
         if self.growth_dialog is not None:
             self.growth_dialog.update_personality(self.personality.snapshot(mood, has_memory))
+
+    def _record_persona_history(self, evidence=(), reason="state") -> None:
+        """Record changed trait snapshots without storing user text."""
+        try:
+            from persona_history import PersonaHistory
+            history = getattr(self, "persona_history", None)
+            if history is None:
+                history = PersonaHistory()
+                self.persona_history = history
+            history.record(self.personality.snapshot(), evidence=evidence, reason=reason)
+        except (OSError, ValueError, TypeError):
+            # A history write must never break the pet or block personality sync.
+            pass
 
 
     def _personality_talk(self, base: str) -> str:
