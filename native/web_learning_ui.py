@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal, Qt
 from PySide6.QtWidgets import (
-    QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
@@ -42,9 +42,10 @@ class LearnWorker(QThread):
 
 
 class WebLearningDialog(QDialog):
-    def __init__(self, parent=None, service=None):
+    def __init__(self, parent=None, service=None, autonomous_host=None):
         super().__init__(parent)
         self.service = service or WebLearningService()
+        self.autonomous_host = autonomous_host
         self.worker = None
         self.setWindowTitle("云岚 · 自选网站学习")
         self.setMinimumSize(600, 540)
@@ -89,6 +90,20 @@ class WebLearningDialog(QDialog):
         remove_row.addWidget(self.remove_button)
         root.addLayout(remove_row)
 
+        self.autonomous = QCheckBox("每小时自主选源学习一条（内置新闻/视频/情感/办公目录）")
+        self.autonomous.setToolTip("系统从内置公开源目录自行选题；不抓取用户未指定的任意站点，不下载视频文件。")
+        if self.autonomous_host is not None:
+            self.autonomous.setChecked(bool(self.autonomous_host.state().get("enabled")))
+        self.autonomous.toggled.connect(self._autonomous_toggled)
+        root.addWidget(self.autonomous)
+        self.autonomous_status = QLabel("自主模式未启用")
+        self.autonomous_status.setObjectName("webHint")
+        self.autonomous_status.setWordWrap(True)
+        root.addWidget(self.autonomous_status)
+        if self.autonomous_host is not None:
+            self.autonomous_host.status_changed.connect(self._autonomous_state)
+            self._autonomous_state(self.autonomous_host.state())
+
         root.addWidget(QLabel("记录"))
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
@@ -113,6 +128,19 @@ class WebLearningDialog(QDialog):
     def _set_busy(self, busy):
         self.learn_button.setEnabled(not busy)
         self.add_button.setEnabled(not busy)
+
+    def _autonomous_toggled(self, enabled):
+        if self.autonomous_host is None:
+            self.autonomous_status.setText("自主主机未连接；只能手动学习。")
+            return
+        self.autonomous_host.configure(enabled, 60)
+
+    def _autonomous_state(self, state):
+        state = state if isinstance(state, dict) else {}
+        if state.get("enabled"):
+            self.autonomous_status.setText(f"自主模式已启用 · 每 {state.get('interval', 60)} 分钟 · {state.get('last', '')}")
+        else:
+            self.autonomous_status.setText(f"自主模式未启用 · {state.get('last', '')}")
 
     def add_source(self):
         url = self.url.text().strip()

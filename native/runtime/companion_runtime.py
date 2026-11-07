@@ -436,12 +436,28 @@ class CompanionRuntime:
         host = getattr(self, "research_scheduler_host", None)
         if host is not None:
             host.shutdown()
+        auto = getattr(self, "autonomous_learning_host", None)
+        if auto is not None:
+            auto.shutdown()
         health = getattr(self, "memory_health_host", None)
         if health is not None:
             health.shutdown()
         persona_health = getattr(self, "persona_health_host", None)
         if persona_health is not None:
             persona_health.shutdown()
+
+    def _get_autonomous_learning_host(self):
+        host = getattr(self, "autonomous_learning_host", None)
+        if host is None:
+            from autonomous_learning import AutonomousLearningHost
+            host = AutonomousLearningHost(parent=self)
+            self.autonomous_learning_host = host
+        return host
+
+    def _restore_autonomous_learning(self):
+        host = self._get_autonomous_learning_host()
+        if host.config.enabled:
+            host.configure(True, host.config.interval)
 
     def _keep_evolution_dialog(self, dialog) -> None:
         """Keep a non-modal review window alive and above the journal."""
@@ -465,7 +481,8 @@ class CompanionRuntime:
             from PySide6.QtCore import Qt
             from research_ui import ResearchDialog
             dialog = ResearchDialog(None, service=self._get_evolution_service(),
-                                    scheduler_host=self._get_research_scheduler())
+                                    scheduler_host=self._get_research_scheduler(),
+                                    autonomous_host=self._get_autonomous_learning_host())
             dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
             dialog.setModal(False)
             self._keep_evolution_dialog(dialog)

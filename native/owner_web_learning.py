@@ -248,7 +248,7 @@ class WebArticleFetcher:
             raise WebLearningError("robots_unavailable") from None
         return robots.can_fetch(USER_AGENT, url)
 
-    def fetch(self, url):
+    def fetch(self, url, allow_xml=False):
         current = normalize_url(url)
         if not self.sources.allows(current):
             raise WebLearningError("source_not_added")
@@ -295,10 +295,17 @@ class WebArticleFetcher:
             content_type = str(headers.get("Content-Type") or headers.get("content-type") or "")
             if content_type and not any(kind in content_type.lower() for kind in
                                         ("text/html", "text/plain", "application/xhtml+xml",
-                                         "application/json")):
+                                         "application/json")
+                                        + (("application/rss+xml", "application/atom+xml",
+                                            "application/xml", "text/xml") if allow_xml else ())):
                 raise WebLearningError("unsupported_content")
-            title, text = extract_page(body, content_type)
-            text = " ".join(text.split())[:MAX_TEXT]
+            if allow_xml and any(kind in content_type.lower() for kind in
+                                 ("rss+xml", "atom+xml", "xml")):
+                title = ""
+                text = body.decode("utf-8", "replace")[:256 * 1024]
+            else:
+                title, text = extract_page(body, content_type)
+                text = " ".join(text.split())[:MAX_TEXT]
             if len(text) < MIN_TEXT:
                 raise WebLearningError("empty_page")
             final_url = getattr(response, "final_url", "") or current

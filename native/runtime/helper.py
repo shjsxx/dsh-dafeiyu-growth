@@ -2627,6 +2627,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
     QTimer.singleShot(1800, window._restore_research_scheduler)
     QTimer.singleShot(2200, window._restore_memory_health)
     QTimer.singleShot(2600, window._restore_persona_health)
+    QTimer.singleShot(2800, window._restore_autonomous_learning)
     application.aboutToQuit.connect(window._shutdown_voice)
     application.aboutToQuit.connect(window.brain.close)
     application.aboutToQuit.connect(window.emotion.close)

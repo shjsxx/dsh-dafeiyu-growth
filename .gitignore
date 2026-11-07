@@ -45,6 +45,7 @@ research-scheduler.json
 memory-health.json
 persona-health.json
 web-sources.json
+auto-learning.json
 web-learning-cache/
 continuity.json
 embedding_rerank.json

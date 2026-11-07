@@ -34,12 +34,13 @@ class ResearchWorker(QThread):
 
 
 class ResearchDialog(QDialog):
-    def __init__(self, parent=None, service=None, scheduler_host=None):
+    def __init__(self, parent=None, service=None, scheduler_host=None, autonomous_host=None):
         super().__init__(parent)
         self.service = service or EvolutionService()
         self.memory = MemoryEngine()
         self.worker = None
         self._scheduler_host = scheduler_host
+        self._autonomous_host = autonomous_host
         self.setWindowTitle("云岚 · 研究任务")
         self.setMinimumSize(620, 560)
         self.setStyleSheet(
@@ -198,7 +199,7 @@ class ResearchDialog(QDialog):
 
     def open_web_learning(self):
         from web_learning_ui import WebLearningDialog
-        dialog = WebLearningDialog(self)
+        dialog = WebLearningDialog(self, autonomous_host=self._autonomous_host)
         dialog.exec()
 
     def plan(self):
