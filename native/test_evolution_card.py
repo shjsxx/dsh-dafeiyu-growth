@@ -1,12 +1,15 @@
 """Ensure the four controlled-evolution entries live in the growth card."""
 import os
+import tempfile
 import unittest
+from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QWidget
 
 from growth_native import GrowthDialog
+from runtime.companion_runtime import CompanionRuntime
 
 APP = QApplication.instance() or QApplication([])
 
@@ -18,6 +21,10 @@ class _Host(QWidget):
 
     def _show_evolution_status(self):
         self.status_opened += 1
+
+
+class _RealHost(QWidget, CompanionRuntime):
+    pass
 
 
 class EvolutionCardTests(unittest.TestCase):
@@ -55,6 +62,40 @@ class EvolutionCardTests(unittest.TestCase):
             self.assertEqual(dialog.evolution_research_value.text(), "2")
             self.assertIs(dialog.tabs.currentWidget(), dialog.page_scrolls[6])
             self.assertEqual(dialog.tabs.count(), 7)
+        finally:
+            dialog.close()
+            host.close()
+
+    def test_real_host_renders_status_inside_card(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.dict(os.environ, {"DSH_HOME": directory}):
+            host = _RealHost()
+            dialog = GrowthDialog(host)
+            host.growth_dialog = dialog
+            try:
+                dialog.evolution_status_button.click()
+                text = dialog.evolution_feedback.text()
+                self.assertIn("只读检查", text)
+                self.assertIn("本地运行指标", text)
+                self.assertIs(dialog.tabs.currentWidget(), dialog.page_scrolls[6])
+            finally:
+                dialog.close()
+                host.close()
+
+    def test_other_three_buttons_call_their_host_methods(self):
+        host = _RealHost()
+        dialog = GrowthDialog(host)
+        host.growth_dialog = dialog
+        try:
+            with mock.patch.object(host, "_open_research_dialog") as research, \
+                    mock.patch.object(host, "_open_memory_curation_dialog") as memory, \
+                    mock.patch.object(host, "_open_persona_dialog") as persona:
+                dialog.research_button.click()
+                dialog.memory_curation_button.click()
+                dialog.persona_button.click()
+                research.assert_called_once_with()
+                memory.assert_called_once_with()
+                persona.assert_called_once_with()
         finally:
             dialog.close()
             host.close()
