@@ -68,6 +68,24 @@ class RelationshipStoreTests(unittest.TestCase):
         store.remember(self.context(), mood="sad", now=self.now + 8000)
         self.assertIn("好一点", store.opening_line(now=self.now + 10000))
 
+    def test_recall_answer_uses_topics_but_never_raw_sentences(self):
+        store = self.store()
+        store.remember(self.context(), mood="neutral", now=self.now)
+        answer = store.recall_answer("上次咱们聊的啥")
+        self.assertIn("公园", answer)
+        self.assertIn("聊到", answer)
+        self.assertNotIn("我昨天去了公园", answer)
+        self.assertEqual(store.recall_answer("今天天气"), "")
+
+    def test_memory_context_is_structured_and_bounded(self):
+        store = self.store()
+        store.remember(self.context(), mood="sad", now=self.now)
+        rows = store.memory_context()
+        self.assertEqual(rows[0]["source"], "本地关系记忆")
+        self.assertIn("公园", rows[0]["text"])
+        self.assertIn("sad", rows[0]["text"])
+        self.assertLessEqual(len(rows), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

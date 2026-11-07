@@ -165,6 +165,50 @@ class RelationshipStore:
         topics = self.data.get("topics") if isinstance(self.data, dict) else []
         return topics[0]["topic"] if topics else ""
 
+    def recall_answer(self, text):
+        """Answer a direct 'what did we talk about' question from local structure."""
+        if not isinstance(text, str) or not text.strip():
+            return ""
+        markers = ("上次", "之前", "刚才", "记得", "聊过", "说过", "提过", "接着聊")
+        if not any(marker in text for marker in markers):
+            return ""
+        if self.status == "protected" or not isinstance(self.data, dict):
+            return ""
+        topics = self.data.get("topics") or []
+        if not topics:
+            return "我这边还没有可接上的关系话题。你可以给我一个关键词，我只会记话题，不保存原句。"
+        row = topics[0]
+        topic = _topic(row.get("topic"))
+        if not topic:
+            return ""
+        details = [str(value)[:24] for value in (row.get("details") or [])[:3]
+                   if isinstance(value, str) and value.strip()]
+        line = f"上次我们聊到{topic}"
+        if details:
+            line += "，你提到过" + "、".join(details)
+        line += "。"
+        if self.data.get("lastMood") in ("sad", "tired", "anxious", "anger"):
+            line += "后来好一点了吗？不想说也没关系。"
+        return line
+
+    def memory_context(self, limit=3):
+        """Structured rows for an explicitly authorized model memory envelope."""
+        if self.status == "protected" or not isinstance(self.data, dict):
+            return []
+        rows = []
+        for row in (self.data.get("topics") or [])[:max(0, int(limit))]:
+            topic = _topic(row.get("topic"))
+            if not topic:
+                continue
+            details = [str(value)[:24] for value in (row.get("details") or [])[:3]
+                       if isinstance(value, str) and value.strip()]
+            text = f"关系话题：{topic}"
+            if details:
+                text += "；细节：" + "、".join(details)
+            text += f"；最后情绪：{self.data.get('lastMood', 'neutral')}"
+            rows.append({"text": text, "source": "本地关系记忆"})
+        return rows
+
     def opening_line(self, now=None, min_gap=30 * 60, max_age=7 * 24 * 60 * 60):
         """One gentle topic callback per changed relationship revision."""
         if self.status == "protected" or not isinstance(self.data, dict):

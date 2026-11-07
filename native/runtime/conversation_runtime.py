@@ -64,6 +64,12 @@ class ConversationRuntime:
         store.seed_context(self._dialogue_context())
         self.last_topic = store.last_topic()
 
+    def _relationship_answer(self, text):
+        try:
+            return self._relationship_store().recall_answer(text)
+        except (AttributeError, OSError, TypeError, ValueError):
+            return ""
+
     def _apply_cloud_preference(self):
         config = getattr(self, 'cloud_config', {}) or {}
         if (self.conversation is not None and config.get('prefer_cloud') is True
@@ -334,6 +340,11 @@ class ConversationRuntime:
             dialog.show_reply(answer, '本地上下文 · 未发送模型', private_context=private_context)
             self._record_exchange(text, answer, private_context=private_context)
             return
+        relationship_answer = self._relationship_answer(text)
+        if relationship_answer:
+            dialog.show_reply(relationship_answer, '关系记忆 · 本地 · 未发送云端', private_context=True)
+            self._record_exchange(text, relationship_answer, private_context=True)
+            return
         if is_meta_question(text):
             answer = meta_reply(text, self.last_user_text, self.last_reply_text)
             private_context = getattr(self, '_last_reply_private', False)
@@ -376,6 +387,7 @@ class ConversationRuntime:
         if authorized:
             # This request's own local retrieval, not a stale earlier turn.
             hits = self.memory.recall(text, 5, kinds=('preference', 'habit', 'diary'))
+            hits = list(hits) + self._relationship_store().memory_context(limit=3)
             self._capture_retrieval(text, hits)
         request_id = uuid.uuid4().hex
         context = {'policy': self.personality.personality_policy(proposal['intent']),
