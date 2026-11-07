@@ -380,12 +380,13 @@ def ask_cloud_proactive(config, context=None, timeout=20.0):
     time_hint = str(context.get("time") or "")[:40]
     mood = str(context.get("mood") or "neutral")[:24]
     topic = " ".join(str(context.get("topic") or "").split())[:32]
+    details = " ".join(str(context.get("details") or "").split())[:80]
     relationship = max(0, int(context.get("topics") or 0))
     prompt = (
         "现在请你主动对用户说一句很短的话，像一直住在桌面上的云岚自然地开口。"
         "只输出一句话，不要解释这是提示词，不要列清单，不要声称执行了任何操作。"
         f"当前时间感觉：{time_hint or '未知'}；当前情绪线索：{mood}；"
-        f"最近关系话题：{topic or '无'}；已经记住的话题数：{relationship}。"
+        f"最近关系话题：{topic or '无'}；话题细节：{details or '无'}；已经记住的话题数：{relationship}。"
         "如果话题不适合主动提，就问一句轻松的近况；不要编造具体事实。"
     )
     local = dict(config)

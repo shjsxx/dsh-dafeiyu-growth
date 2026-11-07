@@ -226,11 +226,13 @@ class CloudChatTests(unittest.TestCase):
         with mock.patch("cloud_chat.ask_cloud", return_value={
                 "ok": True, "text": "  今天也慢慢来。\n不要列清单  "}) as call:
             result = ask_cloud_proactive(config, {"time": "晚上", "mood": "sad",
-                                                  "topic": "考试", "topics": 2})
+                                                  "topic": "考试", "details": "考试前紧张",
+                                                  "topics": 2})
         self.assertTrue(result["ok"])
         self.assertEqual(result["text"], "今天也慢慢来。 不要列清单")
         prompt = call.call_args.args[1]
         self.assertIn("考试", prompt)
+        self.assertIn("考试前紧张", prompt)
         self.assertNotIn("private", prompt)
         self.assertLessEqual(len(result["text"]), 180)
 

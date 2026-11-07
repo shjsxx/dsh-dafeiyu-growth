@@ -36,15 +36,22 @@ class ActionRuntime:
                 snapshot = store.snapshot()
                 topics = snapshot.get("topics") or []
                 count = len(topics)
-                topic = str(topics[0].get("topic") or "") if topics else ""
+                if topics:
+                    topic = str(topics[0].get("topic") or "")
+                    details = "、".join(
+                        str(value)[:24] for value in (topics[0].get("details") or [])[:3]
+                        if isinstance(value, str) and value.strip())
+                else:
+                    details = ""
             payload = {
                 "time": time.strftime("%H:%M"),
                 "mood": mood,
                 "topic": topic[:32],
+                "details": details[:80],
                 "topics": count,
             }
         except Exception:
-            payload = {"time": "", "mood": "neutral", "topic": "", "topics": 0}
+            payload = {"time": "", "mood": "neutral", "topic": "", "details": "", "topics": 0}
         def work():
             try:
                 result = ask_cloud_proactive(config, payload)
