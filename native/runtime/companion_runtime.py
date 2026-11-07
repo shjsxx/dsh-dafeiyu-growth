@@ -462,7 +462,7 @@ class CompanionRuntime:
     def _restore_autonomous_learning(self):
         host = self._get_autonomous_learning_host()
         if host.config.enabled:
-            host.configure(True, host.config.interval)
+            host.configure(True, host.config.interval, host.config.batch)
 
     def _keep_evolution_dialog(self, dialog) -> None:
         """Keep a non-modal review window alive and above the journal."""

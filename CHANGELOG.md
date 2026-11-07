@@ -16,6 +16,7 @@
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
+- v1.0 自主加速模式：每 15 分钟最多 3 条，目录扩展为新闻/情感/办公/学习/视频；逐条仍过训练 + 情感双记录；不承诺无限抓取，保留 robots/版权/服务器负载边界；实测连续 3 条成功；全量 1056 Python / 102 Node 通过。
 - 修复训练日志保护与动态联网中断：自主学习曾创建独立 `TrainingJournal`，与主训练并发写同一文件触发共同写入者保护；现在自主/手动网站学习共用主记忆、情感、训练实例；重启后训练 ready、动态联网恢复正常；全量 1055 Python / 102 Node 通过。
 - v1.0 自主选源学习：内置新闻/视频/情感/办公公开目录，支持 RSS/Atom 与视频页面文本；默认关闭，开启后每 60 分钟最多一条；仍强制训练日志 + 情感记录后才能写知识；新增 4 项测试；实测四类来源均可学习；全量 1055 Python / 102 Node 通过。
 - 修复桌宠不显示：自选网站学习覆盖了旧 `web_learning.py`，缺少 `fetch_builtin_lexicon`，helper 启动即退出；现将新功能拆到 `owner_web_learning.py`，恢复旧公开词典 API，并新增启动导入回归测试；全量 1051 Python / 102 Node 通过。

@@ -55,7 +55,16 @@ class AutonomousLearningTests(unittest.TestCase):
 
     def test_catalog_covers_all_requested_categories(self):
         categories = {row["category"] for row in CATALOG}
-        self.assertTrue({"news", "video", "emotion", "office"}.issubset(categories))
+        self.assertTrue({"news", "video", "emotion", "office", "study"}.issubset(categories))
+
+    def test_batch_is_bounded_and_keeps_each_record_gate(self):
+        service = FakeService()
+        learner = AutonomousLearner(service)
+        result = learner.next_batch(3)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["count"], 3)
+        self.assertEqual(len(result["items"]), 3)
+        self.assertEqual(len(service.learned), 3)
 
     def test_learner_selects_feed_item_without_user_url(self):
         service = FakeService()
@@ -70,10 +79,11 @@ class AutonomousLearningTests(unittest.TestCase):
             path = Path(folder) / "auto-learning.json"
             config = AutonomousLearningConfig(path)
             self.assertFalse(config.enabled)
-            self.assertTrue(config.set(True, 120))
+            self.assertTrue(config.set(True, 120, 2))
             loaded = AutonomousLearningConfig(path)
             self.assertTrue(loaded.enabled)
             self.assertEqual(loaded.interval, 120)
+            self.assertEqual(loaded.batch, 2)
 
 
 if __name__ == "__main__":

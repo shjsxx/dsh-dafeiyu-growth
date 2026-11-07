@@ -90,7 +90,7 @@ class WebLearningDialog(QDialog):
         remove_row.addWidget(self.remove_button)
         root.addLayout(remove_row)
 
-        self.autonomous = QCheckBox("每小时自主选源学习一条（内置新闻/视频/情感/办公目录）")
+        self.autonomous = QCheckBox("每15分钟自主选源最多3条（内置新闻/视频/情感/办公目录）")
         self.autonomous.setToolTip("系统从内置公开源目录自行选题；不抓取用户未指定的任意站点，不下载视频文件。")
         if self.autonomous_host is not None:
             self.autonomous.setChecked(bool(self.autonomous_host.state().get("enabled")))
@@ -133,12 +133,14 @@ class WebLearningDialog(QDialog):
         if self.autonomous_host is None:
             self.autonomous_status.setText("自主主机未连接；只能手动学习。")
             return
-        self.autonomous_host.configure(enabled, 60)
+        self.autonomous_host.configure(enabled, 15, 3)
 
     def _autonomous_state(self, state):
         state = state if isinstance(state, dict) else {}
         if state.get("enabled"):
-            self.autonomous_status.setText(f"自主模式已启用 · 每 {state.get('interval', 60)} 分钟 · {state.get('last', '')}")
+            self.autonomous_status.setText(
+                f"自主模式已启用 · 每 {state.get('interval', 15)} 分钟 · "
+                f"最多 {state.get('batch', 3)} 条 · {state.get('last', '')}")
         else:
             self.autonomous_status.setText(f"自主模式未启用 · {state.get('last', '')}")
 

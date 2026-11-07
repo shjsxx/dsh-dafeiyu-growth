@@ -28,11 +28,15 @@ CATALOG = (
      "feed": "https://www.psychologytoday.com/us/front/feed"},
     {"category": "office", "name": "Microsoft 365 Blog",
      "feed": "https://www.microsoft.com/en-us/microsoft-365/blog/feed/"},
+    {"category": "study", "name": "NASA Education News",
+     "feed": "https://www.nasa.gov/rss/dyn/educationnews.rss"},
     {"category": "video", "name": "TED Talks",
      "feed": "https://www.ted.com/talks", "kind": "page"},
 )
 MAX_ITEMS = 10
-DEFAULT_INTERVAL_MINUTES = 60
+DEFAULT_INTERVAL_MINUTES = 15
+DEFAULT_BATCH = 3
+MAX_BATCH = 5
 
 
 def _text(node, *names, ns=None):
@@ -83,6 +87,7 @@ class AutonomousLearningConfig:
         self.path = Path(path) if path is not None else root / "auto-learning.json"
         self.enabled = False
         self.interval = DEFAULT_INTERVAL_MINUTES
+        self.batch = DEFAULT_BATCH
         self.nextAt = 0
         self.index = 0
         self.last = "未启用"
@@ -97,20 +102,26 @@ class AutonomousLearningConfig:
             return
         self.enabled = raw.get("enabled") is True
         try:
-            self.interval = max(15, min(24 * 60, int(raw.get("interval", DEFAULT_INTERVAL_MINUTES))))
+            self.interval = max(10, min(24 * 60, int(raw.get("interval", DEFAULT_INTERVAL_MINUTES))))
+            self.batch = max(1, min(MAX_BATCH, int(raw.get("batch", DEFAULT_BATCH))))
             self.nextAt = max(0, int(raw.get("nextAt", 0)))
             self.index = max(0, int(raw.get("index", 0)))
         except (TypeError, ValueError):
             self.enabled = False
         self.last = str(raw.get("last") or "未启用")[:120]
 
-    def set(self, enabled, interval=None):
+    def set(self, enabled, interval=None, batch=None):
         self.enabled = bool(enabled)
         if interval is not None:
             try:
-                self.interval = max(15, min(24 * 60, int(interval)))
+                self.interval = max(10, min(24 * 60, int(interval)))
             except (TypeError, ValueError):
                 self.interval = DEFAULT_INTERVAL_MINUTES
+        if batch is not None:
+            try:
+                self.batch = max(1, min(MAX_BATCH, int(batch)))
+            except (TypeError, ValueError):
+                self.batch = DEFAULT_BATCH
         if not self.enabled:
             self.nextAt = 0
         return self.save()
@@ -124,7 +135,8 @@ class AutonomousLearningConfig:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             body = json.dumps({"version": 1, "enabled": self.enabled, "interval": self.interval,
-                               "nextAt": self.nextAt, "index": self.index, "last": self.last},
+                               "batch": self.batch, "nextAt": self.nextAt, "index": self.index,
+                               "last": self.last},
                               ensure_ascii=False, separators=(",", ":"))
             temporary = self.path.with_name(self.path.name + f".{os.getpid()}.tmp")
             temporary.write_text(body, encoding="utf-8")
@@ -188,17 +200,31 @@ class AutonomousLearner:
         return {"ok": False, "error": "all_sources_failed", "details": errors[:4],
                 "category": self.catalog[start]["category"]}
 
+    def next_batch(self, limit=DEFAULT_BATCH):
+        """Run a bounded batch; each item still passes the two record gates."""
+        limit = max(1, min(MAX_BATCH, int(limit)))
+        items = []
+        for _ in range(limit):
+            result = self.next()
+            items.append(result)
+        ok = [row for row in items if row.get("ok")]
+        return {"ok": bool(ok), "count": len(ok), "items": items,
+                "errors": [row.get("error") for row in items if not row.get("ok")],
+                "category": ok[-1].get("category") if ok else items[-1].get("category")}
+
 
 class AutonomousJob(QThread):
     done = Signal(object)
 
-    def __init__(self, learner, parent=None):
+    def __init__(self, learner, batch=1, parent=None):
         super().__init__(parent)
         self.learner = learner
+        self.batch = max(1, int(batch))
 
     def run(self):
         try:
-            self.done.emit(self.learner.next())
+            self.done.emit(self.learner.next_batch(self.batch) if self.batch > 1
+                           else self.learner.next())
         except Exception as error:
             self.done.emit({"ok": False, "error": type(error).__name__})
 
@@ -220,13 +246,14 @@ class AutonomousLearningHost(QObject):
 
     def state(self):
         return {"enabled": bool(self.config.enabled), "interval": self.config.interval,
+                "batch": self.config.batch,
                 "busy": bool(self.worker and self.worker.isRunning()),
                 "nextAt": self.config.nextAt, "index": self.config.index,
                 "last": self._last, "catalog": [{"category": row["category"], "name": row["name"]}
                                                 for row in CATALOG]}
 
-    def configure(self, enabled, interval=None):
-        self.config.set(enabled, interval)
+    def configure(self, enabled, interval=None, batch=None):
+        self.config.set(enabled, interval, batch)
         if enabled:
             if not self.config.nextAt:
                 self.config.nextAt = int(time.time())
@@ -244,7 +271,7 @@ class AutonomousLearningHost(QObject):
             return
         if int(time.time()) < int(self.config.nextAt or 0):
             return
-        self.worker = AutonomousJob(self.learner, self)
+        self.worker = AutonomousJob(self.learner, self.config.batch, self)
         self.worker.done.connect(self._done)
         self.worker.finished.connect(self._cleanup)
         self._last = "正在自主选题并学习…"
@@ -255,7 +282,10 @@ class AutonomousLearningHost(QObject):
         result = result if isinstance(result, dict) else {}
         self.config.index = self.learner.index
         if result.get("ok"):
-            self._last = f"{result.get('category', '')} · {result.get('title', '')[:40]}"
+            if result.get("items"):
+                self._last = f"批量 {result.get('count', 0)} 条 · 最近 {result.get('category', '')}"
+            else:
+                self._last = f"{result.get('category', '')} · {result.get('title', '')[:40]}"
         else:
             self._last = f"学习失败：{str(result.get('error', 'unknown'))[:60]}"
         self.config.last = self._last
