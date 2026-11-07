@@ -116,6 +116,7 @@ class EmotionModel:
         self.mood_ms = 0.0
         self.lexicon_count = 0
         self.source_host = ""
+        self.web_learning = []
         self.status = "new"
         self.error = ""
         self._seed()
@@ -171,6 +172,21 @@ class EmotionModel:
             self.lexicon_count = sum(len(words) for words in cues.values())
             host = raw.get("sourceHost")
             self.source_host = host[:120] if isinstance(host, str) else ""
+            rows = []
+            for item in raw.get("webLearning", [])[-20:] if isinstance(raw.get("webLearning"), list) else []:
+                if not isinstance(item, dict):
+                    continue
+                row_status = item.get("status")
+                if row_status not in ("success", "no_change", "failed"):
+                    continue
+                rows.append({
+                    "at": _counter(item.get("at")),
+                    "host": str(item.get("host") or "")[:80],
+                    "title": str(item.get("title") or "")[:60],
+                    "chars": _counter(item.get("chars")),
+                    "status": row_status,
+                })
+            self.web_learning = rows
             self.mood = mood if isinstance(mood, str) and mood in (*EMOTIONS, "neutral") else "neutral"
             self.mood_confidence = _clamp(_finite(raw.get("moodConfidence")), 0, 1)
             self.mood_ms = max(0.0, _finite(raw.get("moodMs")))
@@ -192,6 +208,7 @@ class EmotionModel:
             "adaptation_passes": self.adaptation_passes,
             "lexiconCount": self.lexicon_count,
             "sourceHost": self.source_host,
+            "webLearning": list(self.web_learning[-20:]),
             "extraCues": {emotion: sorted(words) for emotion, words in self.extra_cues.items()},
             "mood": self.mood,
             "moodConfidence": self.mood_confidence,
@@ -263,11 +280,31 @@ class EmotionModel:
         """Number of stored emotion/feature weight entries, not private keys."""
         return sum(len(row) for row in self.weights.values())
 
+    def note_web_learning(self, host, title="", chars=0, status="success"):
+        """Record one web-learning event without treating it as user emotion."""
+        if status not in ("success", "no_change", "failed"):
+            return False
+        before = self._state()
+        self.web_learning = (list(self.web_learning) + [{
+            "at": int(time.time()),
+            "host": str(host or "")[:80],
+            "title": " ".join(str(title or "").split())[:60],
+            "chars": max(0, int(chars)),
+            "status": status,
+        }])[-20:]
+        self.events += 1
+        if self.save():
+            return True
+        for key, value in before.items():
+            setattr(self, key, value)
+        return False
+
     def _state(self) -> dict:
         state = {key: getattr(self, key) for key in (
             "learned_count", "events", "mood", "mood_confidence", "mood_ms",
             "lexicon_count", "source_host", "revision", "fit_samples", "adaptation_passes", "status", "error",
         )}
+        state["web_learning"] = list(self.web_learning)
         state["last_eval"] = dict(self.last_eval)
         state["weights"] = {emotion: dict(row) for emotion, row in self.weights.items()}
         state["extra_cues"] = {emotion: set(words) for emotion, words in self.extra_cues.items()}
@@ -706,6 +743,8 @@ class EmotionModel:
             "adaptation_passes": self.adaptation_passes,
             "lexicon": self.lexicon_count,
             "source": self.source_host,
+            "webLearning": len(self.web_learning),
+            "webLearningRecent": list(self.web_learning[-3:]),
             "status": self.status,
             "error": self.error,
             "evaluation": (self._clean_eval(self.last_eval)
@@ -730,6 +769,7 @@ class EmotionModel:
         self.mood_ms = 0.0
         self.lexicon_count = 0
         self.source_host = ""
+        self.web_learning = []
         self.last_eval = {}
         self.extra_cues = {emotion: set() for emotion in EMOTIONS}
         self.status = "new"

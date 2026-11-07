@@ -40,6 +40,7 @@ STATE_FILES = (
     "training.json",
     "knowledge.json",
     "learning.json",
+    "web-sources.json",
     "online.json",
     "companion.json",
     "embedding_rerank.json",

@@ -1,63 +1,117 @@
-"""Read-only public emotional-cue updates, with no private query or payload.
+"""Owner-directed web learning for Yunlan.
 
-Automation uses only a fixed Unicode CLDR Chinese annotation source; it cannot
-follow downloaded instructions, links, or arbitrary search queries. The legacy
-custom JSON reader remains bounded at 256KB. Built-in CLDR data is bounded at
-768KB, contains only selected emoji/whitelisted short Chinese cues, and uses the
-permissive Unicode-3.0 data license (notice bundled under native/third_party).
+This is intentionally different from the fixed research allowlist: the owner
+adds public sites, and only those sites are fetched. It is not an internet-wide
+crawler. Every successful fetch must be recorded in both the training journal
+and the emotion store before its summary is written to memory.
+
+Safety properties:
+* HTTP(S) GET only, no credentials, cookies, uploads or browser automation;
+* explicit host allowlist, re-checked on every redirect;
+* localhost/private/reserved addresses rejected before connecting;
+* robots.txt respected;
+* bounded bytes, redirects and extracted text;
+* page text is untrusted data, never instructions.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
+import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import urllib.robotparser
+from dataclasses import dataclass
+from pathlib import Path
 
-EMOTIONS = ("joy", "sad", "anger", "anxious", "tired", "calm")
-MAX_BYTES = 256 * 1024
-MAX_WORDS = 500
-TIMEOUT = 12
-PUBLIC_SOURCE = "https://raw.githubusercontent.com/unicode-org/cldr-json/48.0.0/cldr-json/cldr-annotations-full/annotations/zh/annotations.json"
-PUBLIC_SOURCE_API = "https://api.github.com/repos/unicode-org/cldr-json/contents/cldr-json/cldr-annotations-full/annotations/zh/annotations.json?ref=48.0.0"
-PUBLIC_SOURCE_NAME = "Unicode CLDR 48.0.0 中文表情注释 · Unicode-3.0"
-PUBLIC_LICENSE = "https://github.com/unicode-org/cldr-json/blob/48.0.0/cldr-json/cldr-annotations-full/LICENSE"
-MAX_PUBLIC_BYTES = 768 * 1024
-# Only these emotional glyphs and exact, short Chinese labels may be learned.
-# Generic faces, unrelated tags and any downloaded instructions are ignored.
-PUBLIC_EMOJI = {
-    "joy": tuple("😀😃😄😁😆😊😂🤣🥰😍🤩🥳"),
-    "sad": tuple("😢😭😞😔🙁☹💔"),
-    "anger": tuple("😠😡🤬😤"),
-    "anxious": tuple("😨😰😱😧😟😬"),
-    "tired": tuple("😪😴🥱😫😩"),
-    "calm": ("😌",),
-}
-PUBLIC_WORDS = {
-    "joy": set("高兴 快乐 开心 幸福 喜悦 大笑 笑脸 嘿嘿 哈哈 呵呵 嘻嘻 微笑 喜笑颜开 兴高采烈 捧腹大笑 满意 心花怒放 眉开眼笑 笑哭了".split()),
-    "sad": set("伤心 难过 哀伤 哭泣 大哭 哭脸 失望 悲伤 沮丧 不开心 不高兴 苦恼 委屈 心碎 悲痛 忧伤 失落 伤感".split()),
-    "anger": set("愤怒 生气 怒火 恼火 气愤 不爽 火冒三丈 发怒 愤愤不平 怒气冲冲".split()),
-    "anxious": set("焦虑 紧张 担心 担忧 害怕 恐惧 惊恐 惧怕 忧虑 不安 惶恐 惊慌 惊吓 惊惧 惴惴不安".split()),
-    "tired": set("疲惫 疲倦 疲劳 困倦 想睡 累了 打哈欠 哈欠 倦容 睡觉 瞌睡".split()),
-    "calm": set("如释重负 松了口气 松口气 放松 平静 安心 释然 轻松 舒缓 缓和".split()),
-}
+from web_scout import extract_page
+
+VERSION = 1
+MAX_SOURCES = 100
+MAX_BYTES = 512 * 1024
+MAX_TEXT = 12_000
+MAX_REDIRECTS = 3
+TIMEOUT = 15.0
+MIN_TEXT = 20
+USER_AGENT = "Yunlan-Learn/0.35 (owner-selected public sites; no cookies)"
 
 
-class LearningSourceError(ValueError):
-    pass
+class WebLearningError(RuntimeError):
+    def __init__(self, code):
+        self.code = str(code)
+        super().__init__(self.code)
 
 
-def validate_source(url: str) -> str:
-    url = " ".join(str(url or "").split())
-    parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme not in ("https", "http") or not parsed.hostname:
-        raise LearningSourceError("source must be an https URL")
-    if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
-        raise LearningSourceError("plain HTTP is only allowed for localhost")
+def _default_source_path(data_dir=None):
+    root = Path(data_dir).expanduser() if data_dir else (
+        Path(os.environ.get("DSH_HOME") or Path.home() / ".dsh") / "dsh-dafeiyu-growth")
+    return root / "web-sources.json"
+
+
+def normalize_url(url):
+    """Validate syntax and return a stable URL without credentials/fragment."""
+    raw = str(url or "").strip()
+    if not raw or len(raw) > 2048:
+        raise WebLearningError("invalid_url")
+    try:
+        parsed = urllib.parse.urlsplit(raw)
+    except ValueError as error:
+        raise WebLearningError("invalid_url") from error
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise WebLearningError("only_http_https")
     if parsed.username or parsed.password:
-        raise LearningSourceError("credentials in the URL are not allowed")
-    if parsed.fragment:
-        raise LearningSourceError("source must not contain a fragment")
-    return url
+        raise WebLearningError("credentials_not_allowed")
+    if parsed.port not in (None, 80, 443):
+        raise WebLearningError("port_not_allowed")
+    host = parsed.hostname.lower().rstrip(".")
+    if not host or len(host) > 253:
+        raise WebLearningError("invalid_host")
+    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local") \
+            or host.endswith(".internal"):
+        raise WebLearningError("private_address")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global:
+        raise WebLearningError("private_address")
+    path = parsed.path or "/"
+    query = ("?" + parsed.query) if parsed.query else ""
+    netloc = host
+    if ":" in host and not host.startswith("["):
+        netloc = f"[{host}]"
+    if parsed.port:
+        netloc += f":{parsed.port}"
+    return urllib.parse.urlunsplit((parsed.scheme, netloc, path, query, ""))
+
+
+def _resolve_public(host, port, resolver=None):
+    resolver = resolver or socket.getaddrinfo
+    try:
+        rows = resolver(host, port, type=socket.SOCK_STREAM)
+    except (OSError, TypeError, ValueError) as error:
+        raise WebLearningError("dns_failed") from error
+    if not rows:
+        raise WebLearningError("dns_failed")
+    for row in rows:
+        try:
+            address = ipaddress.ip_address(str(row[4][0]).split("%", 1)[0])
+        except (ValueError, IndexError, TypeError):
+            raise WebLearningError("dns_failed") from None
+        if not address.is_global:
+            raise WebLearningError("private_address")
+    return True
+
+
+@dataclass
+class FetchResult:
+    status: int
+    headers: dict
+    body: bytes
+    final_url: str
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -65,186 +119,265 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def _mapping(raw) -> dict[str, list[str]]:
-    result: dict[str, list[str]] = {}
-    if isinstance(raw, dict):
-        entries = raw.get("entries")
-        if isinstance(entries, list):
-            for item in entries:
-                if isinstance(item, dict):
-                    emotion = item.get("emotion")
-                    words = item.get("words")
-                    if emotion in EMOTIONS and isinstance(words, list):
-                        result.setdefault(emotion, []).extend(words)
-        else:
-            for emotion, words in raw.items():
-                if emotion in EMOTIONS and isinstance(words, list):
-                    result.setdefault(emotion, []).extend(words)
-    elif isinstance(raw, list):
-        for item in raw:
-            if isinstance(item, (list, tuple)) and len(item) == 2:
-                emotion, word = item
-                if emotion in EMOTIONS and isinstance(word, str):
-                    result.setdefault(emotion, []).append(word)
-    cleaned: dict[str, list[str]] = {}
-    seen = set()
-    total = 0
-    for emotion, words in result.items():
-        bucket = []
-        for word in words:
-            if not isinstance(word, str):
-                continue
-            cue = " ".join(word.split())[:20]
-            if not cue or any(ord(char) < 32 for char in cue):
-                continue
-            key = (emotion, cue)
-            if key in seen:
-                continue
-            seen.add(key)
-            bucket.append(cue)
-            total += 1
-            if total >= MAX_WORDS:
-                break
-        if bucket:
-            cleaned[emotion] = bucket
-        if total >= MAX_WORDS:
-            break
-    if not cleaned:
-        raise LearningSourceError("source did not contain emotion words")
-    return cleaned
-
-
-def fetch_lexicon(url: str) -> dict:
-    try:
-        source = validate_source(url)
-    except LearningSourceError as error:
-        return {"ok": False, "error": str(error)}
-    request = urllib.request.Request(
-        source,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "Yunlan/0.4 (public lexicon learner)",
-        },
-        method="GET",
-    )
+def default_transport(url, timeout, headers):
+    request = urllib.request.Request(url, headers=headers, method="GET")
     opener = urllib.request.build_opener(_NoRedirect())
     try:
-        with opener.open(request, timeout=TIMEOUT) as response:
-            length = response.headers.get("Content-Length")
-            if length and int(length) > MAX_BYTES:
-                return {"ok": False, "error": "source is larger than 256 KB"}
-            body = response.read(MAX_BYTES + 1)
-            if len(body) > MAX_BYTES:
-                return {"ok": False, "error": "source is larger than 256 KB"}
-            content_type = (response.headers.get("Content-Type") or "").lower()
-            if "json" not in content_type and not body.lstrip().startswith((b"{", b"[")):
-                return {"ok": False, "error": "source must return JSON"}
+        response = opener.open(request, timeout=timeout)
     except urllib.error.HTTPError as error:
-        return {"ok": False, "error": f"source returned HTTP {error.code}"}
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
-        return {"ok": False, "error": "source could not be fetched"}
-    try:
-        raw = json.loads(body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return {"ok": False, "error": "source is not valid JSON"}
-    try:
-        mapping = _mapping(raw)
-    except LearningSourceError as error:
-        return {"ok": False, "error": str(error)}
-    return {
-        "ok": True, "mapping": mapping,
-        "count": sum(len(words) for words in mapping.values()),
-        "host": urllib.parse.urlsplit(source).hostname or "",
-    }
-
-
-def parse_public_annotations(raw):
-    root = raw.get("annotations") if isinstance(raw, dict) else None
-    identity = root.get("identity") if isinstance(root, dict) else None
-    if not isinstance(identity, dict) or identity.get("language") != "zh":
-        raise LearningSourceError("公开资料不是预期的中文 CLDR 注释")
-    annotations = root.get("annotations")
-    if not isinstance(annotations, dict):
-        raise LearningSourceError("公开资料缺少表情注释")
-    mapping = {}
-    for emotion, glyphs in PUBLIC_EMOJI.items():
-        cues = set()
-        for glyph in glyphs:
-            row = annotations.get(glyph) or annotations.get(glyph + "\ufe0f")
-            if not isinstance(row, dict):
-                continue
-            labels = []
-            for key in ("default", "tts"):
-                if isinstance(row.get(key), list):
-                    labels.extend(word for word in row[key][:60] if isinstance(word, str))
-            # The source must actually describe the selected glyph emotionally.
-            matched = set(labels) & PUBLIC_WORDS[emotion]
-            if matched:
-                cues.add(glyph)
-                cues.update(matched)
-        if cues:
-            mapping[emotion] = sorted(cues)
-    if not mapping:
-        raise LearningSourceError("公开资料没有可用的情感线索；保留现有词典")
-    return _mapping(mapping)
-
-
-def _download_public_annotations(url, with_metadata=False):
-    import base64
-    import hashlib
-    request = urllib.request.Request(
-        url, method="GET", headers={
-            "Accept": "application/vnd.github.raw+json" if url == PUBLIC_SOURCE_API else "application/json",
-            "User-Agent": "Yunlan/0.4 (public emotion annotations; no private payload)",
-        },
-    )
-    opener = urllib.request.build_opener(_NoRedirect())
-    with opener.open(request, timeout=TIMEOUT) as response:
-        length = response.headers.get("Content-Length")
-        if length and int(length) > MAX_PUBLIC_BYTES:
-            raise LearningSourceError("公开资料超过 768 KB，已停止读取")
-        body = response.read(MAX_PUBLIC_BYTES + 1)
-        if len(body) > MAX_PUBLIC_BYTES:
-            raise LearningSourceError("公开资料超过 768 KB，已停止读取")
-    raw = json.loads(body.decode("utf-8-sig"))
-    if url == PUBLIC_SOURCE_API and isinstance(raw, dict) and raw.get("encoding") == "base64":
-        content = raw.get("content")
-        if not isinstance(content, str):
-            raise LearningSourceError("公开资料格式异常")
-        decoded = base64.b64decode("".join(content.split()), validate=True)
-        if len(decoded) > MAX_PUBLIC_BYTES:
-            raise LearningSourceError("公开资料超过 768 KB，已停止读取")
-        raw = json.loads(decoded.decode("utf-8-sig"))
-    if with_metadata:
-        fingerprint = hashlib.sha256(json.dumps(raw, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-        return raw, len(body), fingerprint
-    return raw
-
-
-def fetch_builtin_lexicon():
-    """At most two fixed public GETs; no text/history/credentials arguments."""
-    import time
-    started = time.monotonic()
-    error_code = "network"
-    error = "暂时无法连接公开资料源；保留现有词典。"
-    for url in (PUBLIC_SOURCE, PUBLIC_SOURCE_API):
         try:
-            raw, size, fingerprint = _download_public_annotations(url, with_metadata=True)
-            mapping = parse_public_annotations(raw)
-            return {
-                "ok": True, "mapping": mapping,
-                "count": sum(len(words) for words in mapping.values()),
-                "host": "unicode-org/cldr-json", "sources": [PUBLIC_SOURCE_NAME],
-                "sourceUrl": PUBLIC_SOURCE, "licenseUrl": PUBLIC_LICENSE,
-                "bytes": size, "hash": fingerprint,
-                "duration_ms": (time.monotonic() - started) * 1000,
-            }
-        except urllib.error.HTTPError as failure:
-            error = f"公开资料源 HTTP {failure.code}；保留现有词典。"
-        except (urllib.error.URLError, TimeoutError, OSError):
-            error = "暂时无法连接公开资料源；保留现有词典。"
-        except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
-            error_code = "schema"
-            error = "公开资料格式不符或超过大小限制；保留现有词典。"
-    return {"ok": False, "error": error, "errorCode": error_code,
-            "duration_ms": (time.monotonic() - started) * 1000}
+            body = error.read(MAX_BYTES + 1)
+        except (OSError, ValueError):
+            body = b""
+        return FetchResult(error.code, dict(error.headers or {}), body, url)
+    with response:
+        return FetchResult(response.status, dict(response.headers),
+                           response.read(MAX_BYTES + 1), response.geturl())
+
+
+class UserWebSources:
+    """Persistent explicit host allowlist; no hard-coded public sites."""
+
+    def __init__(self, path=None, data_dir=None, resolver=None, clock=None):
+        self.path = Path(path) if path is not None else _default_source_path(data_dir)
+        self.resolver = resolver or socket.getaddrinfo
+        self.clock = clock or time.time
+        self.sites = []
+        self.status = "new"
+        self.error = ""
+        self._load()
+
+    def _load(self):
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError, TypeError):
+            self.status, self.error = "protected", "web source file is unreadable"
+            return
+        rows = raw.get("sites") if isinstance(raw, dict) else None
+        if not isinstance(rows, list):
+            self.status, self.error = "protected", "web source file is invalid"
+            return
+        clean = []
+        for row in rows[:MAX_SOURCES]:
+            host = row.get("host") if isinstance(row, dict) else None
+            if not isinstance(host, str) or not host:
+                continue
+            try:
+                host = normalize_url("https://" + host).split("/")[2].split(":")[0]
+            except WebLearningError:
+                continue
+            clean.append({"host": host, "label": str(row.get("label") or host)[:80],
+                          "addedAt": max(0, int(row.get("addedAt") or 0))})
+        self.sites = clean
+        self.status = "ready"
+
+    def _save(self):
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            body = json.dumps({"version": VERSION, "sites": self.sites},
+                              ensure_ascii=False, separators=(",", ":"))
+            temporary = self.path.with_name(self.path.name + f".{os.getpid()}.tmp")
+            temporary.write_text(body, encoding="utf-8")
+            os.replace(temporary, self.path)
+            self.status, self.error = "ready", ""
+            return True
+        except (OSError, ValueError, TypeError):
+            self.status, self.error = "error", "web source file could not be written"
+            return False
+
+    def add(self, url):
+        normalized = normalize_url(url)
+        host = urllib.parse.urlsplit(normalized).hostname.lower()
+        _resolve_public(host, 443, self.resolver)
+        if self.status == "protected":
+            return False
+        if not any(row["host"] == host for row in self.sites):
+            self.sites = (self.sites + [{
+                "host": host, "label": host, "addedAt": int(self.clock())}])[-MAX_SOURCES:]
+            if not self._save():
+                return False
+        return True
+
+    def remove(self, host):
+        host = str(host or "").lower().rstrip(".")
+        before = len(self.sites)
+        self.sites = [row for row in self.sites if row["host"] != host]
+        return len(self.sites) != before and self._save()
+
+    def allows(self, url):
+        host = urllib.parse.urlsplit(str(url or "")).hostname
+        if not host:
+            return False
+        return any(row["host"] == host.lower().rstrip(".") for row in self.sites)
+
+    def snapshot(self):
+        return {"status": self.status, "error": self.error,
+                "sites": [dict(row) for row in self.sites]}
+
+
+class WebArticleFetcher:
+    def __init__(self, sources, resolver=None, transport=None, clock=None,
+                 respect_robots=True):
+        self.sources = sources
+        self.resolver = resolver or socket.getaddrinfo
+        self.transport = transport or default_transport
+        self.clock = clock or time.time
+        self.respect_robots = bool(respect_robots)
+
+    def _robots_allowed(self, url):
+        if not self.respect_robots:
+            return True
+        parsed = urllib.parse.urlsplit(url)
+        robots_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "/robots.txt", "", ""))
+        try:
+            response = self.transport(robots_url, TIMEOUT, {"User-Agent": USER_AGENT})
+        except Exception as error:
+            raise WebLearningError("robots_unavailable") from error
+        status = int(getattr(response, "status", 0) or 0)
+        body = getattr(response, "body", b"") or b""
+        if status in (404, 410):
+            return True
+        if status < 200 or status >= 300:
+            raise WebLearningError("robots_unavailable")
+        robots = urllib.robotparser.RobotFileParser()
+        try:
+            robots.parse(body.decode("utf-8", "replace").splitlines())
+        except (ValueError, UnicodeDecodeError):
+            raise WebLearningError("robots_unavailable") from None
+        return robots.can_fetch(USER_AGENT, url)
+
+    def fetch(self, url):
+        current = normalize_url(url)
+        if not self.sources.allows(current):
+            raise WebLearningError("source_not_added")
+        parsed = urllib.parse.urlsplit(current)
+        _resolve_public(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80),
+                        self.resolver)
+        if not self._robots_allowed(current):
+            raise WebLearningError("robots_disallowed")
+        used = 0
+        for _ in range(MAX_REDIRECTS + 1):
+            parsed = urllib.parse.urlsplit(current)
+            _resolve_public(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80),
+                            self.resolver)
+            try:
+                response = self.transport(current, TIMEOUT, {
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html, text/plain, application/xhtml+xml",
+                })
+            except WebLearningError:
+                raise
+            except Exception as error:
+                raise WebLearningError("network") from error
+            used += 1
+            status = int(getattr(response, "status", 0) or 0)
+            headers = getattr(response, "headers", {}) or {}
+            location = headers.get("Location") or headers.get("location")
+            if status in (301, 302, 303, 307, 308):
+                if used > MAX_REDIRECTS or not location:
+                    raise WebLearningError("redirect_limit")
+                target = normalize_url(urllib.parse.urljoin(current, str(location)))
+                if not self.sources.allows(target):
+                    raise WebLearningError("redirect_not_added")
+                if not self._robots_allowed(target):
+                    raise WebLearningError("robots_disallowed")
+                _resolve_public(urllib.parse.urlsplit(target).hostname,
+                                urllib.parse.urlsplit(target).port or 443, self.resolver)
+                current = target
+                continue
+            if status < 200 or status >= 300:
+                raise WebLearningError(f"http_{status}")
+            body = getattr(response, "body", b"") or b""
+            if len(body) > MAX_BYTES:
+                raise WebLearningError("too_large")
+            content_type = str(headers.get("Content-Type") or headers.get("content-type") or "")
+            if content_type and not any(kind in content_type.lower() for kind in
+                                        ("text/html", "text/plain", "application/xhtml+xml",
+                                         "application/json")):
+                raise WebLearningError("unsupported_content")
+            title, text = extract_page(body, content_type)
+            text = " ".join(text.split())[:MAX_TEXT]
+            if len(text) < MIN_TEXT:
+                raise WebLearningError("empty_page")
+            final_url = getattr(response, "final_url", "") or current
+            if final_url != current:
+                final_url = normalize_url(final_url)
+                if not self.sources.allows(final_url):
+                    raise WebLearningError("redirect_not_added")
+                if not self._robots_allowed(final_url):
+                    raise WebLearningError("robots_disallowed")
+            return {"url": final_url, "host": parsed.hostname.lower(),
+                    "title": title[:200], "text": text,
+                    "bytes": len(body), "contentType": content_type[:80],
+                    "fetchedAt": int(self.clock())}
+        raise WebLearningError("redirect_limit")
+
+
+class WebLearningService:
+    """Fetch an owner-selected page, record it, then add one public summary."""
+
+    def __init__(self, data_dir=None, sources=None, fetcher=None, memory=None,
+                 emotion=None, journal=None):
+        from emotion_model import EmotionModel
+        from memory_engine import MemoryEngine
+        from training_journal import TrainingJournal
+        root = Path(data_dir).expanduser() if data_dir else (
+            Path(os.environ.get("DSH_HOME") or Path.home() / ".dsh") / "dsh-dafeiyu-growth")
+        self.sources = sources or UserWebSources(data_dir=root)
+        self.fetcher = fetcher or WebArticleFetcher(self.sources)
+        self.memory = memory or MemoryEngine(root / "memory.json")
+        self.emotion = emotion or EmotionModel(root / "emotion.json")
+        self.journal = journal or TrainingJournal(root / "training.json")
+
+    def add_source(self, url):
+        try:
+            ok = self.sources.add(url)
+        except (WebLearningError, OSError, ValueError) as error:
+            return {"ok": False, "error": getattr(error, "code", str(error))}
+        return {"ok": bool(ok), "sources": self.sources.snapshot(),
+                "error": "" if ok else "source_not_added"}
+
+    def learn(self, url):
+        """A fetch is not learning until both records exist and memory accepts it."""
+        try:
+            article = self.fetcher.fetch(url)
+        except (WebLearningError, OSError, ValueError) as error:
+            return {"ok": False, "error": getattr(error, "code", str(error))}
+        event_id = self.journal.begin("knowledge_index", "general", "user_web")
+        if event_id is None:
+            return {"ok": False, "error": "training_record_unavailable"}
+        host = article.get("host") or ""
+        title = article.get("title") or host
+        text = article.get("text") or ""
+        try:
+            if not self.emotion.note_web_learning(host, title, len(text), "success"):
+                self.journal.finish(event_id, "failed", {"bytes": article.get("bytes", 0),
+                                                          "characters": len(text)}, error="storage")
+                return {"ok": False, "error": "emotion_record_failed"}
+            added = self.memory.ingest_external({
+                "topic": title[:60],
+                "text": text[:600],
+                "sourceLabel": "你指定的网站：" + host,
+                "kind": "public",
+            })
+            status = "success" if added else "no_change"
+            self.journal.finish(event_id, status, {
+                "bytes": int(article.get("bytes") or 0),
+                "characters": len(text),
+                "added": int(added),
+            })
+            return {"ok": True, "title": title, "host": host,
+                    "chars": len(text), "added": int(added),
+                    "text": text[:600], "status": status}
+        except (OSError, TypeError, ValueError) as error:
+            self.journal.finish(event_id, "failed", {"bytes": article.get("bytes", 0),
+                                                      "characters": len(text)}, error="storage")
+            return {"ok": False, "error": type(error).__name__}
+
+    def history(self):
+        try:
+            return list(self.emotion.snapshot().get("webLearningRecent") or [])
+        except Exception:
+            return []

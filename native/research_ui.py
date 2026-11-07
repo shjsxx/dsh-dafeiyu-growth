@@ -56,8 +56,8 @@ class ResearchDialog(QDialog):
         title = QLabel("研究任务")
         title.setStyleSheet("font-size:20px;font-weight:700;color:#1D3A48;")
         root.addWidget(title)
-        hint = QLabel("只读取公开白名单来源；提出后必须批准，运行一次才联网。"
-                      "摘要只作为未受信资料，写入记忆仍需下一次确认。")
+        hint = QLabel("只读取公开来源；研究任务使用固定来源目录，自选网站学习使用你明确添加的网站。"
+                      "提出后必须批准，运行一次才联网；摘要只作为未受信资料。")
         hint.setWordWrap(True)
         root.addWidget(hint)
 
@@ -90,6 +90,9 @@ class ResearchDialog(QDialog):
         propose = QPushButton("提出计划")
         propose.clicked.connect(self.propose)
         budget_row.addWidget(propose)
+        web_button = QPushButton("自选网站学习")
+        web_button.clicked.connect(self.open_web_learning)
+        budget_row.addWidget(web_button)
         budget_row.addStretch(1)
         root.addLayout(budget_row)
 
@@ -192,6 +195,11 @@ class ResearchDialog(QDialog):
         self.run_button.setEnabled(not busy and status == "approved")
         self.summary_button.setEnabled(not busy and status == "done")
         self.commit_button.setEnabled(not busy and status == "done" and not task.get("committed"))
+
+    def open_web_learning(self):
+        from web_learning_ui import WebLearningDialog
+        dialog = WebLearningDialog(self)
+        dialog.exec()
 
     def plan(self):
         """Fill an editable allowlisted plan; this never proposes or fetches."""

@@ -1424,12 +1424,15 @@ class GrowthDialog(QDialog):
         confidence = max(0.0, min(1.0, _number(info.get("confidence"))))
         learned = _fmt(_count(info.get("learned")))
         lexicon = _fmt(_count(info.get("lexicon")))
+        web_learning = _count(info.get("webLearning"))
         status = info.get("status") if isinstance(info.get("status"), str) else "new"
         source = info.get("source") if isinstance(info.get("source"), str) else ""
         lines = [
             f"现在：{label} · 启发式线索分数 {round(confidence * 100)}%" if confidence > 0 else "现在：尚无明确的情绪线索",
             f"已学线索 {learned} 条 · 公开词典词 {lexicon} 条",
         ]
+        if web_learning:
+            lines.append(f"网页学习记录 {web_learning} 条（已同步训练/情感）")
         self.emotion_label.setToolTip(
             "个人情绪学习保存哈希特征和数字权重，不保存原句；公开词条会存入词典。"
             + (f"\n最近公开来源：{source}" if source else "")
