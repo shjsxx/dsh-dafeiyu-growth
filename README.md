@@ -100,11 +100,16 @@ DSH 设置 → 内置插件 → 云岚养成。
 
 **最省事：自包含包（推荐给只想用桌宠的人）**
 
-把发布包解压到：
+[下载云岚 v1.0.0 Windows x64 自包含包](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.0.0/dsh-dafeiyu-growth-v1.0.0-windows-x64.zip)
+
+解压后，把 zip 里的 `desktop`、`runtime`、`package.json` 等文件**直接放进**：
 
 ```text
 %USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth
 ```
+
+不要再套一层 `dsh-dafeiyu-growth-v1.0.0-windows-x64\` 文件夹。  
+校验值：`4D80492B7B4D958CE70E020D88135FB9196B3C6DD4C2AD41EA4C84A9E7AF433B`
 
 重启 DSH 桌面版，在 **设置 → 插件** 启用「云岚养成」。包内已带 Electron、固定渲染器、onedir helper 与运行依赖；安装后不再依赖单独的 `dsh-dafeiyu`。详见 [自包含打包与安装](docs/self-contained.md)。
 
