@@ -70,6 +70,12 @@ class ConversationRuntime:
                 and config.get('endpoint') and config.get('model')):
             self.conversation.cloud_button.setChecked(True)
 
+    def _refresh_proactive_cloud_permission(self):
+        config = getattr(self, 'cloud_config', {}) or {}
+        self.proactive_cloud_allowed = bool(
+            config.get('proactive_smart') is True
+            and config.get('endpoint') and config.get('model'))
+
     def _offer_relationship_opening(self):
         """Offer at most one gentle callback per relationship revision."""
         if self.conversation is None:
@@ -173,6 +179,7 @@ class ConversationRuntime:
         self._ensure_conversation()
         self.cloud_config = load_config()
         self.conversation.set_cloud_state(self.cloud_config)
+        self._refresh_proactive_cloud_permission()
         self._apply_cloud_preference()
         self._refresh_online_ui()
         self.conversation.show()
@@ -396,6 +403,7 @@ class ConversationRuntime:
             self.chat_open = False
         if accepted:
             self.cloud_config = load_config()
+            self._refresh_proactive_cloud_permission()
             if self.growth_dialog is not None:
                 self.growth_dialog.update_cloud(self.cloud_config)
             if self.conversation is not None:

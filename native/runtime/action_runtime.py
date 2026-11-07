@@ -1,9 +1,81 @@
 """Native action runtime: capture decision features before UI/motion side effects."""
 import random
+import threading
+import time
 from motion_model import plan_run
 
 
 class ActionRuntime:
+    def _proactive_cloud_config(self):
+        try:
+            from cloud_chat import load_config
+            config = load_config()
+            if (config.get("proactive_smart") is True
+                    and config.get("endpoint") and config.get("model")):
+                return config
+        except Exception:
+            pass
+        return None
+
+    def _start_proactive_cloud(self, config, fallback, context):
+        """One bounded proactive model call; no history, files or actions."""
+        self._proactive_cloud_busy = True
+        now_ms = self._now_ms()
+        self.next_talk_ms = now_ms + 30 * 60 * 1000
+        self.last_neural = (context, "talk")
+        self.last_neural_ms = now_ms
+        try:
+            from cloud_chat import ask_cloud_proactive
+            mood = self.emotion.current().get("label", "neutral")
+            topic = ""
+            count = 0
+            store = getattr(self, "relationship_store", None)
+            if store is None and hasattr(self, "_relationship_store"):
+                store = self._relationship_store()
+            if store is not None:
+                snapshot = store.snapshot()
+                topics = snapshot.get("topics") or []
+                count = len(topics)
+                topic = str(topics[0].get("topic") or "") if topics else ""
+            payload = {
+                "time": time.strftime("%H:%M"),
+                "mood": mood,
+                "topic": topic[:32],
+                "topics": count,
+            }
+        except Exception:
+            payload = {"time": "", "mood": "neutral", "topic": "", "topics": 0}
+        def work():
+            try:
+                result = ask_cloud_proactive(config, payload)
+            except Exception as error:
+                result = {"ok": False, "error": type(error).__name__}
+            result = dict(result)
+            result["fallback"] = fallback
+            try:
+                self.proactive_reply.emit(result)
+            except RuntimeError:
+                pass
+        threading.Thread(target=work, name="yunlan-proactive-cloud", daemon=True).start()
+
+    def _on_proactive_reply(self, result):
+        self._proactive_cloud_busy = False
+        result = result if isinstance(result, dict) else {}
+        text = str(result.get("text") or result.get("fallback") or "").strip()[:180]
+        if not text:
+            self.next_talk_ms = self._now_ms() + 5 * 60 * 1000
+            return
+        self.last_proactive = text
+        if getattr(self, "external_renderer", False):
+            self._present_external(text, "IDLE", 9000, "greet")
+        else:
+            self._show_overlay(text, "云岚 · 主动智能消息", "IDLE", 6000)
+        if self.conversation is not None and self.conversation.isVisible():
+            self.conversation.show_proactive(text, "云岚主动智能 · 本地关系记忆")
+        self.learner.note_greeting()
+        self.next_talk_ms = self._now_ms() + 30 * 60 * 1000
+        self.update()
+
     def _maybe_talk(self, force: bool = False, neural_context=None) -> None:
         now_ms = self._now_ms()
         if not force and now_ms < self.next_talk_ms:
@@ -16,6 +88,12 @@ class ActionRuntime:
         if not text:
             self.next_talk_ms = now_ms + 60000
             return
+        if (getattr(self, "proactive_cloud_allowed", False)
+                and not getattr(self, "_proactive_cloud_busy", False)):
+            config = self._proactive_cloud_config()
+            if config is not None:
+                self._start_proactive_cloud(config, text, context)
+                return
         if getattr(self, 'external_renderer', False):
             self._present_external(text, 'IDLE', 8000, 'greet')
             # A bubble is ambient; open a replyable window only when the owner

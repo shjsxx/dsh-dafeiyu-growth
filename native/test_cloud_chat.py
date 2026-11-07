@@ -6,9 +6,11 @@ import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest import mock
 
 from cloud_chat import (
-    CloudConfigError, ask_cloud, load_config, normalize_endpoint, save_config, SYSTEM_PROMPT,
+    CloudConfigError, ask_cloud, ask_cloud_proactive, load_config, normalize_endpoint,
+    save_config, SYSTEM_PROMPT,
 )
 
 
@@ -212,10 +214,25 @@ class CloudChatTests(unittest.TestCase):
 
     def test_smart_mode_preference_is_persisted(self):
         self.assertFalse(load_config(self.path, env={})["prefer_cloud"])
-        save_config(self.endpoint, "m", 64, path=self.path, prefer_cloud=True)
+        save_config(self.endpoint, "m", 64, path=self.path, prefer_cloud=True, proactive_smart=True)
         self.assertTrue(load_config(self.path, env={})["prefer_cloud"])
-        save_config(self.endpoint, "m", 64, path=self.path, prefer_cloud=False)
-        self.assertFalse(load_config(self.path, env={})["prefer_cloud"])
+        self.assertTrue(load_config(self.path, env={})["proactive_smart"])
+        save_config(self.endpoint, "m", 64, path=self.path, prefer_cloud=False,
+                    proactive_smart=False)
+        self.assertFalse(load_config(self.path, env={})["proactive_smart"])
+
+    def test_proactive_prompt_contains_only_minimal_context_and_bounds_output(self):
+        config = {"endpoint": self.endpoint, "model": "m", "max_tokens": 256, "key": ""}
+        with mock.patch("cloud_chat.ask_cloud", return_value={
+                "ok": True, "text": "  今天也慢慢来。\n不要列清单  "}) as call:
+            result = ask_cloud_proactive(config, {"time": "晚上", "mood": "sad",
+                                                  "topic": "考试", "topics": 2})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["text"], "今天也慢慢来。 不要列清单")
+        prompt = call.call_args.args[1]
+        self.assertIn("考试", prompt)
+        self.assertNotIn("private", prompt)
+        self.assertLessEqual(len(result["text"]), 180)
 
 
 if __name__ == "__main__":

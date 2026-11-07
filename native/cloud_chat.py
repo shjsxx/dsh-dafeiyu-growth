@@ -155,6 +155,7 @@ def load_config(path=None, env=None):
         "key": "",
         "key_saved": False,
         "prefer_cloud": False,
+        "proactive_smart": False,
         "error": None,
         "path": str(selected),
     }
@@ -171,6 +172,7 @@ def load_config(path=None, env=None):
             config["endpoint"] = ""
         config["model"] = str(raw.get("model", ""))[:80]
         config["prefer_cloud"] = raw.get("prefer_cloud") is True
+        config["proactive_smart"] = raw.get("proactive_smart") is True
         try:
             config["max_tokens"] = _validate_tokens(raw.get("max_tokens", 256))
         except CloudConfigError:
@@ -207,7 +209,8 @@ def load_config(path=None, env=None):
     return config
 
 
-def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False, prefer_cloud=False):
+def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False, prefer_cloud=False,
+                proactive_smart=False):
     """Persist endpoint/model/cap; an empty key keeps the existing encrypted key."""
     selected = Path(path) if path is not None else default_path()
     endpoint = _validate_endpoint(endpoint)
@@ -240,6 +243,7 @@ def save_config(endpoint, model, max_tokens, key="", path=None, clear_key=False,
         "model": model,
         "max_tokens": max_tokens,
         "prefer_cloud": bool(prefer_cloud),
+        "proactive_smart": bool(proactive_smart),
         "key_protected": protected,
         "key_endpoint": endpoint if protected else "",
     }
@@ -361,3 +365,38 @@ def ask_cloud(config, text, timeout=30.0, history=None, *, companion_policy=None
     if not isinstance(content, str) or not content.strip():
         return {"ok": False, "error": "cloud returned an empty answer"}
     return {"ok": True, "text": content.strip()[:4000], "endpoint": endpoint, "model": model}
+
+
+def ask_cloud_proactive(config, context=None, timeout=20.0):
+    """Ask for one short, unsolicited companion line using minimal local context.
+
+    The caller must have an explicit proactive-session opt-in. No chat history,
+    files, screen, tools, URLs or durable memory are included. The result is
+    bounded to one short line and never executes an action.
+    """
+    if not isinstance(config, dict):
+        return {"ok": False, "error": "cloud is not configured"}
+    context = context if isinstance(context, dict) else {}
+    time_hint = str(context.get("time") or "")[:40]
+    mood = str(context.get("mood") or "neutral")[:24]
+    topic = " ".join(str(context.get("topic") or "").split())[:32]
+    relationship = max(0, int(context.get("topics") or 0))
+    prompt = (
+        "现在请你主动对用户说一句很短的话，像一直住在桌面上的云岚自然地开口。"
+        "只输出一句话，不要解释这是提示词，不要列清单，不要声称执行了任何操作。"
+        f"当前时间感觉：{time_hint or '未知'}；当前情绪线索：{mood}；"
+        f"最近关系话题：{topic or '无'}；已经记住的话题数：{relationship}。"
+        "如果话题不适合主动提，就问一句轻松的近况；不要编造具体事实。"
+    )
+    local = dict(config)
+    local["max_tokens"] = 64
+    result = ask_cloud(local, prompt, timeout=timeout, history=None,
+                       memory_context=None, memory_authorized=False)
+    if not result.get("ok"):
+        return result
+    text = " ".join(str(result.get("text") or "").split())
+    text = text.strip("「」\"'“”")[:180].strip()
+    if not text:
+        return {"ok": False, "error": "cloud returned an empty proactive line"}
+    return {"ok": True, "text": text, "endpoint": result.get("endpoint"),
+            "model": result.get("model"), "proactive": True}

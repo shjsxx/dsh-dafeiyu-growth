@@ -367,6 +367,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
 
     class CompanionWindow(QWidget, ActionRuntime, VoiceRuntime, CompanionRuntime, ConversationRuntime, PublicLearningRuntime, PresentationRuntime):
         cloud_reply = Signal(dict)
+        proactive_reply = Signal(dict)
         learning_result = Signal(dict)
         learning_progress = Signal(dict)
         online_result = Signal(dict)
@@ -540,6 +541,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             self.comfort_until_ms = 0
             self.cloud_config = load_config()
             self.cloud_busy = False
+            self.proactive_cloud_allowed = bool(
+                self.cloud_config.get("proactive_smart") is True
+                and self.cloud_config.get("endpoint") and self.cloud_config.get("model"))
+            self._proactive_cloud_busy = False
+            self.proactive_reply.connect(self._on_proactive_reply)
             self.fatigue = 0.0
             self.last_interaction_ms = self._now_ms()
             self.pending_neural = None
