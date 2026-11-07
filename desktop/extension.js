@@ -11,6 +11,12 @@ let chatterEnabled = true;
 const videoLayerStyle = document.createElement('style');
 videoLayerStyle.textContent = 'video.pet-video{will-change:transform;transform:translateZ(0);backface-visibility:hidden;transition:none!important;visibility:hidden}video.pet-video.is-front{visibility:visible}';
 document.head.appendChild(videoLayerStyle);
+// The upstream renderer uses a 32px black-and-white glove bitmap for hover.
+// At 100–125% DPI it reads as a coarse pixel icon. Use the OS grab/grabbing
+// cursors instead: they are crisp, DPI-aware, and visually familiar.
+const cursorStyle = document.createElement('style');
+cursorStyle.textContent = '.pet-hit{cursor:grab!important}.pet-hit.dragging{cursor:grabbing!important}';
+document.head.appendChild(cursorStyle);
 // Electron applies a fractional page zoom (e.g. 0.7). A 21px bubble font then
 // lands on 14.7 device pixels and looks soft. Keep the CSS layout, but nudge
 // the bubble's font anchor so the physical size is an integer.
@@ -116,6 +122,9 @@ function menuSections(sprite) {
     { label: `动作 · ${actionCount}`, grid: true,
       items: categories.map(category => ({ label: category.label, children: category.children })) },
     { label: '设置', grid: 2, items: [
+      { label: '停止自动研究', icon: 'hide', command: 'stop-research-scheduler' },
+      { label: '停止记忆扫描', icon: 'hide', command: 'stop-memory-health' },
+      { label: '停止人格检查', icon: 'hide', command: 'stop-persona-health' },
       { label: '语音与实时语音', icon: 'mic', command: 'open-voice-tools' },
       { label: '云端接口', icon: 'cloud', command: 'open-cloud-settings' },
       { label: '界面放大', icon: 'plus', command: 'scale-up' },

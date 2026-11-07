@@ -108,6 +108,37 @@ class CompanionContext:
         self._last_intent = "idle_share"
         self._repair = False
 
+    def seed(self, topics=(), episodes=()):
+        """Load bounded structured topics from local relationship memory.
+
+        Only topic labels/details are accepted; callers must not pass raw turns.
+        """
+        seeded_topics = []
+        for row in list(topics or [])[-MAX_TOPICS:]:
+            if not isinstance(row, dict):
+                continue
+            topic = _text(row.get("topic"), 64)
+            if not topic:
+                continue
+            details = [str(value)[:24] for value in (row.get("details") or [])[:8]
+                       if isinstance(value, str)]
+            seeded_topics.append({"topic": topic[:32], "details": details})
+        seeded_episodes = []
+        for row in list(episodes or [])[-MAX_EPISODES:]:
+            if not isinstance(row, dict):
+                continue
+            topic = _text(row.get("topic"), 64)
+            if not topic:
+                continue
+            seeded_episodes.append({
+                "topic": topic[:32],
+                "kind": str(row.get("kind") or "user_report")[:24],
+                "details": [str(value)[:24] for value in (row.get("details") or [])[:8]
+                            if isinstance(value, str)],
+            })
+        self._topics = list(reversed(seeded_topics))
+        self._episodes = seeded_episodes
+
     def recent_turns(self):
         """Private local rows, chronological; callers receive independent copies."""
         return [dict(row) for row in self._turns]

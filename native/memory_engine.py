@@ -72,6 +72,11 @@ def _slot(kind, text):
     canonical = text
     if kind == "preference" and re.match(r"^称呼\s*[:：]", text):
         canonical = "name"
+    elif kind == "preference" and text.startswith("动作偏好："):
+        # One action has one factual slot whether it was liked or disliked;
+        # changing the verdict updates the record instead of accumulating
+        # contradictory duplicates.
+        canonical = re.sub(r"^动作偏好：(?:喜欢|不喜欢)", "动作偏好：", text)
     elif kind == "habit":
         patterns = (("tool", r"^最常用的工具[是为]"),
                     ("hour", r"^你最常在\s*\d+\s*点活跃"),
@@ -276,6 +281,33 @@ class MemoryEngine:
         keep = rows[-MAX_RECORDS:]
         keep.sort(key=lambda row: row["lastSeen"], reverse=True)
         return keep
+
+    @_locked
+    def remember_feedback(self, action, liked, now=None):
+        """Persist one bounded action preference; no chat text is stored."""
+        if self.status == "protected" or not isinstance(action, str):
+            return 0
+        action = _plain(action, 80)
+        if not action or not isinstance(liked, bool):
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = copy.deepcopy(self.data)
+        text = f"动作偏好：{'喜欢' if liked else '不喜欢'}「{action}」"
+        # A new explicit feedback is new consent, not re-ingestion of the
+        # forgotten row. Clear only this action's tombstones so the same old
+        # memory cannot silently return, while the user's new verdict can.
+        for verdict in ("喜欢", "不喜欢"):
+            old = f"动作偏好：{verdict}「{action}」"
+            self.data["blocked"] = [value for value in self.data.get("blocked", [])
+                                    if value != _identity("preference", old)]
+        self.data["blockedSlots"] = [value for value in self.data.get("blockedSlots", [])
+                                     if value != _slot("preference", text)]
+        if not self._remember("preference", text, "local_feedback", stamp):
+            self.data = before
+            return 0
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        return 1 if self._save(before) else 0
 
     @_locked
     def ingest_behavior(self, behavior, now=None):
@@ -552,6 +584,166 @@ class MemoryEngine:
                 "publicRevision": data.get("publicRevision", 0), "recent": [
                     {"id": row["id"], "kindLabel": KIND_LABEL[row["kind"]], "text": row["text"], "source": row["source"]}
                     for row in newest]}
+
+    @_locked
+    def stats(self):
+        """Numeric-only health summary; no record text or model work."""
+        data = self.data or self._empty()
+        counts = {key: 0 for key in KIND_WEIGHT}
+        for row in data["records"]:
+            counts[row["kind"]] += 1
+        return {"version": VERSION, "status": self.status, "error": self.error,
+                "revision": data["revision"], "total": len(data["records"]), "counts": counts}
+
+    @_locked
+    def export_records(self):
+        """Read-only copy for explicit curation review; never exposes vectors."""
+        return copy.deepcopy(self.data["records"])
+
+    @_locked
+    def remember_research(self, summary, now=None):
+        """Persist a cited research summary as a bounded public-memory row."""
+        text = _plain("研究摘要：" + str(summary or ""), MAX_TEXT)
+        if self.status == "protected" or len(text) <= len("研究摘要："):
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = copy.deepcopy(self.data)
+        if not self._remember("public", text, "local_research", stamp):
+            return 0
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        return 1 if self._save(before) else 0
+
+    @_locked
+    def archive_records(self, ids, mode="archive", reason="", now=None):
+        """Move selected records to a local archive before removing them.
+
+        The archive is written first; memory is changed only after that write
+        succeeds. The caller is responsible for the user confirmation and a
+        separate state backup (see MemoryCurator / the curation dialog).
+        """
+        if self.status == "protected" or not isinstance(ids, (list, tuple)):
+            return 0
+        wanted = {str(value) for value in ids}
+        selected = [row for row in self.data["records"] if row.get("id") in wanted]
+        if not selected:
+            return 0
+        archive_path = self.path.with_name("memory-archive.json")
+        try:
+            existing = []
+            if archive_path.exists():
+                raw = json.loads(archive_path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict) and isinstance(raw.get("records"), list):
+                    existing = raw["records"][-2000:]
+            stamp = int(self._clock() if now is None else now)
+            rows = existing + [{
+                "id": row["id"], "kind": row["kind"], "text": row["text"],
+                "source": row.get("source", ""), "archivedAt": stamp,
+                "mode": str(mode)[:16], "reason": str(reason)[:120],
+            } for row in selected]
+            payload = json.dumps({"version": 1, "records": rows[-2000:]},
+                                 ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            if len(payload.encode("utf-8")) > 1024 * 1024:
+                return 0
+            temporary = archive_path.with_name(archive_path.name + f".{os.getpid()}.tmp")
+            temporary.write_text(payload, encoding="utf-8")
+            os.replace(temporary, archive_path)
+        except (OSError, ValueError, TypeError):
+            return 0
+        before = copy.deepcopy(self.data)
+        self.data["records"] = [row for row in self.data["records"] if row.get("id") not in wanted]
+        self.data["revision"] += 1
+        if not self._save(before):
+            return 0
+        valid = {row["id"] for row in self.data["records"]}
+        self._vectors = {key: value for key, value in self._vectors.items() if key in valid}
+        self._vectors_ready = bool(valid) and valid.issubset(self._vectors)
+        return len(selected)
+
+    @_locked
+    def list_archive(self, limit=2000):
+        """Read-only copy of the local archive; never changes memory."""
+        path = self.path.with_name("memory-archive.json")
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError, UnicodeDecodeError):
+            return []
+        if not isinstance(raw, dict) or not isinstance(raw.get("records"), list):
+            return []
+        rows = []
+        for row in raw["records"][-max(1, min(2000, int(limit))):]:
+            if not isinstance(row, dict):
+                continue
+            kind = row.get("kind")
+            text = _plain(row.get("text"))
+            if kind not in KIND_WEIGHT or not text:
+                continue
+            rows.append({
+                "id": str(row.get("id") or _identity(kind, text)),
+                "kind": kind,
+                "text": text,
+                "source": _plain(row.get("source"), MAX_SOURCE),
+                "archivedAt": _count(row.get("archivedAt")),
+                "mode": str(row.get("mode") or "archive")[:16],
+                "reason": _plain(row.get("reason"), 120),
+            })
+        return rows
+
+    @_locked
+    def restore_archive(self, ids, approved=False, now=None):
+        """Restore selected archived rows only after explicit approval.
+
+        The archive is read first, memory is saved atomically, and only then is
+        the archive entry removed. A repeated call is idempotent because rows
+        already present in memory are skipped.
+        """
+        if not approved or self.status == "protected" or not isinstance(ids, (list, tuple)):
+            return 0
+        wanted = {str(value) for value in ids}
+        archived = [row for row in self.list_archive() if row["id"] in wanted]
+        if not archived:
+            return 0
+        present = {row["id"] for row in self.data["records"]}
+        blocked = set(self.data.get("blocked", []))
+        blocked_slots = set(self.data.get("blockedSlots", []))
+        selected = []
+        for row in archived:
+            if row["id"] in present or row["id"] in blocked:
+                continue
+            if _slot(row["kind"], row["text"]) in blocked_slots:
+                continue
+            selected.append(row)
+        if not selected:
+            return 0
+        stamp = int(self._clock() if now is None else now)
+        before = copy.deepcopy(self.data)
+        for row in selected:
+            self.data["records"].append({
+                "id": row["id"], "kind": row["kind"], "text": row["text"],
+                "source": row["source"] or row["kind"],
+                "importance": KIND_WEIGHT.get(row["kind"], 1),
+                "createdAt": row["archivedAt"] or stamp,
+                "lastSeen": stamp, "hits": 1,
+                "slot": _slot(row["kind"], row["text"]), "previousIds": [],
+            })
+        self.data["records"] = self._prune(self.data["records"])
+        self.data["revision"] += 1
+        if not self._save(before):
+            return 0
+        restored = {row["id"] for row in selected}
+        remaining = [row for row in self.list_archive() if row.get("id") not in restored]
+        archive_path = self.path.with_name("memory-archive.json")
+        try:
+            payload = json.dumps({"version": 1, "records": remaining[-2000:]},
+                                 ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            temporary = archive_path.with_name(archive_path.name + f".{os.getpid()}.tmp")
+            temporary.write_text(payload, encoding="utf-8")
+            os.replace(temporary, archive_path)
+        except (OSError, ValueError, TypeError):
+            # The memory write already succeeded; leaving the archive copy is
+            # safer than deleting it when the follow-up write fails.
+            pass
+        return len(selected)
 
     @_locked
     def clear(self):

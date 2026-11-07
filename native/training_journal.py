@@ -31,6 +31,7 @@ SOURCES = {
     "local_chat": "直接对云岚说的话（不保存原文）", "local_touch": "触摸互动",
     "realtime_voice": "独立实时语音接口（未核对转写，仅数字日志）",
     "local_voice": "本机语音转写（不保存原文）", "typed_direct": "你的直接文字命令", "voice_direct": "你的直接语音命令", 
+    "user_web": "你指定的公开网站",
     "cldr_zh": "Unicode CLDR 中文表情注释", "countries": "公开国家资料",
     "cldr_units": "Unicode CLDR 单位资料", "mime_db": "公开媒体类型资料",
     "stackexchange": "Stack Overflow 审阅问答摘要", "usgs_live": "USGS 动态公开监测",

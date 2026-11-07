@@ -158,6 +158,7 @@ class ConversationDialog(QDialog):
         extra = QHBoxLayout()
         self._memory_target = None
         self.memory_checkbox = QCheckBox("本次允许模型使用记忆摘要")
+        self.memory_checkbox.setToolTip("包括本地偏好/日记摘要和结构化关系话题；不发送聊天原句。")
         self.memory_checkbox.setToolTip("默认关闭。需单独确认；最多3条摘要/800字符，关闭窗口或切换目标即撤销。")
         self.memory_checkbox.clicked.connect(self._memory_clicked)
         extra.addWidget(self.memory_checkbox, 1)

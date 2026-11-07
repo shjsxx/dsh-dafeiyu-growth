@@ -278,7 +278,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
         from cloud_chat import load_config, ask_cloud
         from cloud_ui import CloudSettingsDialog
         from conversation_ui import ConversationDialog
-        from voice_runtime import VoiceRuntime, HOTKEY_ID
+        from voice_runtime import VoiceRuntime, HOTKEY_ID, GROWTH_HOTKEY_ID, CHAT_HOTKEY_ID
         from learning_state import PublicLearningState
         from live_online import LiveOnlineState, fetch_live_facts
         from learning_hub import LearningHub
@@ -344,6 +344,12 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                 if msg.message == 0x0312 and int(msg.wParam) == HOTKEY_ID:  # WM_HOTKEY
                     self.widget._emergency_stop()
                     return True, 0
+                if msg.message == 0x0312 and int(msg.wParam) == GROWTH_HOTKEY_ID:
+                    QTimer.singleShot(0, self.widget._show_growth_card)
+                    return True, 0
+                if msg.message == 0x0312 and int(msg.wParam) == CHAT_HOTKEY_ID:
+                    QTimer.singleShot(0, self.widget._open_conversation)
+                    return True, 0
                 if msg.message != 0x0020:  # WM_SETCURSOR
                     return False, 0
                 hwnd = int(msg.hWnd) if msg.hWnd else 0
@@ -364,6 +370,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
 
     class CompanionWindow(QWidget, ActionRuntime, VoiceRuntime, CompanionRuntime, ConversationRuntime, PublicLearningRuntime, PresentationRuntime):
         cloud_reply = Signal(dict)
+        proactive_reply = Signal(dict)
         learning_result = Signal(dict)
         learning_progress = Signal(dict)
         online_result = Signal(dict)
@@ -537,6 +544,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             self.comfort_until_ms = 0
             self.cloud_config = load_config()
             self.cloud_busy = False
+            self.proactive_cloud_allowed = bool(
+                self.cloud_config.get("proactive_smart") is True
+                and self.cloud_config.get("endpoint") and self.cloud_config.get("model"))
+            self._proactive_cloud_busy = False
+            self.proactive_reply.connect(self._on_proactive_reply)
             self.fatigue = 0.0
             self.last_interaction_ms = self._now_ms()
             self.pending_neural = None
@@ -754,6 +766,20 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     self._open_conversation()
                 elif command == 'open-growth':
                     self._show_growth_card()
+                elif command == 'open-evolution':
+                    self._show_evolution_status()
+                elif command == 'open-research':
+                    self._open_research_dialog()
+                elif command == 'open-memory-curation':
+                    self._open_memory_curation_dialog()
+                elif command == 'open-persona':
+                    self._open_persona_dialog()
+                elif command == 'stop-research-scheduler':
+                    self._stop_research_scheduler()
+                elif command == 'stop-memory-health':
+                    self._stop_memory_health()
+                elif command == 'stop-persona-health':
+                    self._stop_persona_health()
                 elif command == 'open-menu':
                     from types import SimpleNamespace
                     self.contextMenuEvent(SimpleNamespace(globalPos=QCursor.pos))
@@ -1325,11 +1351,41 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
             if self.growth_dialog is not None and self.growth_dialog.isVisible():
                 self.growth_dialog.update_neural(self.brain.info())
 
+        def _feedback_loop(self, action_name: str, liked: bool) -> None:
+            """Close the loop: explicit feedback nudges traits and memory."""
+            if not action_name:
+                return
+            try:
+                before = self.personality.snapshot()
+                self.personality.feedback(liked)
+                after = self.personality.snapshot()
+                evidence = []
+                for key in ("warmth", "curiosity", "playfulness", "steadiness", "expressiveness"):
+                    if before.get("traits", {}).get(key) != after.get("traits", {}).get(key):
+                        evidence.append({
+                            "kind": "feedback", "trait": key, "action": action_name,
+                            "liked": bool(liked), "at": int(time.time()),
+                        })
+                self._record_persona_history(evidence, reason="feedback")
+                self.memory.remember_feedback(action_name, liked)
+            except Exception:
+                # A feedback click must never break the pet; the bounded
+                # action-preference write remains the primary record.
+                return
+            if self.growth_dialog is not None and self.growth_dialog.isVisible():
+                self.growth_dialog.update_personality(self.personality.snapshot())
+                self.growth_dialog.update_memory(self.memory.snapshot())
+
         def _neural_feedback(self, reward: float) -> None:
             self.last_interaction_ms = self._now_ms()
             action_name = self.last_action_name
             has_pref = bool(action_name and self.last_action_ms and
                             self._now_ms() - self.last_action_ms <= 120000)
+            feedback_name = action_name
+            if not feedback_name and self.last_neural:
+                feedback_name = self.last_neural[1]
+            if feedback_name:
+                self._feedback_loop(feedback_name, reward > 0)
             if has_pref:
                 self.action_preferences.observe(
                     action_name, 'liked' if reward > 0 else 'disliked')
@@ -2568,10 +2624,15 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
     application.setQuitOnLastWindowClosed(False)
     inbox = Inbox()
     window = CompanionWindow()
+    QTimer.singleShot(1800, window._restore_research_scheduler)
+    QTimer.singleShot(2200, window._restore_memory_health)
+    QTimer.singleShot(2600, window._restore_persona_health)
+    QTimer.singleShot(2800, window._restore_autonomous_learning)
     application.aboutToQuit.connect(window._shutdown_voice)
     application.aboutToQuit.connect(window.brain.close)
     application.aboutToQuit.connect(window.emotion.close)
     application.aboutToQuit.connect(window.learner.save)
+    application.aboutToQuit.connect(window._shutdown_research_scheduler)
     glove_filter = GloveCursorFilter(window, window.glove_open_h, window.glove_closed_h)
     application.installNativeEventFilter(glove_filter)
     inbox.message.connect(window.apply_message)

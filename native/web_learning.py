@@ -1,4 +1,4 @@
-"""Read-only public emotional-cue updates, with no private query or payload.
+﻿"""Read-only public emotional-cue updates, with no private query or payload.
 
 Automation uses only a fixed Unicode CLDR Chinese annotation source; it cannot
 follow downloaded instructions, links, or arbitrary search queries. The legacy

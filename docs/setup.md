@@ -6,7 +6,7 @@
 
 Windows 10/11、DSH 桌面版、Node.js ≥ 22.19。把仓库放到 `%USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth`，重启 DSH，在设置 → 插件中启用「云岚养成」。仓库用于 GitHub 分发，`package.json` 为 `private`，不发布 npm 包。
 
-**自包含发行版（0.32.0+）**：如果使用 `tools/package-self-contained.ps1` 生成的包，只需安装 DSH 和该插件，不需要另行安装 `dsh-dafeiyu` 或 Python；打包、体积和授权见 [自包含插件](self-contained.md)。
+**自包含发行版（1.0.0+）**：如果使用 `tools/package-self-contained.ps1` 生成的包，只需安装 DSH 和该插件，不需要另行安装 `dsh-dafeiyu` 或 Python；打包、体积和授权见 [自包含插件](self-contained.md)。
 
 **Web 与原生是两个入口。** 0.28.0 更新设置 → 内置插件 → 云岚养成；原生七页成长卡、跑跳、语音和电脑操作依赖可选的原生 helper 补丁，最近补丁版本为 0.27.1。原生仅适配 `dsh-dafeiyu@0.1.23` desktop profile；其他上游版本不能直接覆盖。
 
@@ -96,7 +96,7 @@ npm run preview:client
 输出是 `rest / run / hop / talk` 四类概率；硬性安全条件（工作、拖动、指针在附近、减少动态）由桌宠先过滤，网络只能在允许的动作里选，**不能解锁动作或权限**。
 
 - 每完成一次跑/跳，会拿到一个正向结果奖励；摔倒得到负向结果奖励。
-- 右键「喜欢刚才的动作 / 这个动作不太行」是**明确反馈**，权重高于结果反馈，会真正改权重。
+- 右键「喜欢刚才的动作 / 这个动作不太行」是**明确反馈**，权重高于结果反馈，会真正改权重；同时给五维人格一个有界微调，并写入一条动作偏好记忆。下次动作选择、对话语气和记忆召回都会读到这次反馈。
 - 每次观察最多 3 步带动量裁剪的反向传播；参数有界，NaN/Infinity/损坏文件会被保护，不覆盖最后一个可用版本。
 - 成长卡「本领」显示样本数、更新数、版本和状态，并提供**回滚上一版 / 重置网络**；重置只清网络，不删等级或互动记忆。
 - 模型只保存数字向量、动作索引、奖励和来源枚举，**不保存聊天原文、名字或屏幕内容**。
@@ -218,6 +218,24 @@ node tools/growth.mjs path
 
 `DSH_DAFEIYU_GROWTH_FILE` 可覆盖路径；`DSH_DAFEIYU_BEHAVIOR_FILE`、`DSH_DAFEIYU_NEURAL_FILE`、`DSH_DAFEIYU_EMOTION_FILE`、`DSH_DAFEIYU_CLOUD_FILE` 分别覆盖对应文件；`DSH_DAFEIYU_LEARNING_FILE` 覆盖自动学习计划文件，`DSH_DAFEIYU_ONLINE_FILE` 覆盖动态公开资料计划；`DSH_DAFEIYU_TRAINING_FILE`、`DSH_DAFEIYU_KNOWLEDGE_FILE`、`DSH_DAFEIYU_COMPANION_FILE` 分别覆盖新存档路径。`DSH_DAFEIYU_CLOUD_KEY` 可提供不落盘的密钥。
 
+## 备份与恢复
+
+备份是**显式操作**，不会在后台偷偷保留已删除的记忆。只复制白名单内的本地状态文件（`profile.json`、`growth.json`、`memory.json`、`personality.json`、`continuity.json`、`behavior.json`、`training.json`、`knowledge.json` 等），不包含 `cloud.json`/`realtime.json` 的 Key、日志、模型或截图；单个文件超过 4MB 或不可读时备份会明确失败，不会假装完整。备份里可能含明文的称呼/喜好，请自己保管。
+
+```powershell
+# 创建快照（默认 ~/.dsh/dsh-dafeiyu-growth/backups）
+python native/state_backup.py backup --label manual
+
+# 查看、校验
+python native/state_backup.py list
+python native/state_backup.py verify <快照目录>
+
+# 恢复；会先自动创建 before-restore 安全快照，必须显式 --yes
+python native/state_backup.py restore <快照目录> --yes
+```
+
+`native/soak_state.py --cycles 90` 是可重复的合成数据验收：模拟成长、记忆、人格与连续性跨天写入、重启重载、备份校验；只使用临时目录，不读真实档案。
+
 ## 界面
 
 - 没有对话时，气泡收成一行小胶囊：`Lv.等级 · 阶段`、`当前/下一级` 经验和进度条；点一下就展开完整卡片，再点一下（或点右上角箭头）收起。收起状态会记住，下次启动保持。
@@ -242,7 +260,7 @@ node tools/growth.mjs path
 
 激活文件缺省不存在；存在但字段/路径无效时核心失败关闭，不会悄悄回退旧形象。安装前需准备固定运行时（`prepared-3c99b1b`，含 `verify.mjs` 回执）和独立的 Electron 运行时副本。首次安装会把当前上游 Helper 备份到 `native/backup/`（不提交、不随 npm 发布）；若当前已是补丁版本且没有备份，`-Rollback` 需先重装 dsh-dafeiyu 0.1.23。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23。升级不删除成长数据。
 
-测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（0.29.1 本次原生回归为 **921 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`native/test_action_preferences.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
+测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（1.0.0 本次原生回归为 **1056 项通过**，Node **102 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`native/test_action_preferences.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
 
 ## 自查结论与已知限制
 

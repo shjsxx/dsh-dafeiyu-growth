@@ -18,6 +18,8 @@ from memory_reply import compose_public_answer
 from emotion_model import LABELS
 from reactions import detect_reaction
 from companion_context import CompanionContext
+from naturalization import naturalize
+from relationship import RelationshipStore
 from retrieval_review import RetrievalReviewStore
 from retrieval_review_ui import RetrievalReviewDialog
 from PySide6.QtWidgets import QDialog
@@ -48,6 +50,73 @@ class ConversationRuntime:
             self.dialogue_context = CompanionContext()
         return self.dialogue_context
 
+    def _relationship_store(self):
+        store = getattr(self, 'relationship_store', None)
+        if store is None:
+            memory = getattr(self, 'memory', None)
+            path = memory.path.with_name('relationship.json') if memory is not None else None
+            store = RelationshipStore(path)
+            self.relationship_store = store
+        return store
+
+    def _seed_dialogue_context(self):
+        store = self._relationship_store()
+        store.seed_context(self._dialogue_context())
+        self.last_topic = store.last_topic()
+
+    def _relationship_answer(self, text):
+        try:
+            return self._relationship_store().recall_answer(text)
+        except (AttributeError, OSError, TypeError, ValueError):
+            return ""
+
+    def _apply_cloud_preference(self):
+        config = getattr(self, 'cloud_config', {}) or {}
+        if (self.conversation is not None and config.get('prefer_cloud') is True
+                and config.get('endpoint') and config.get('model')):
+            self.conversation.cloud_button.setChecked(True)
+
+    def _refresh_proactive_cloud_permission(self):
+        config = getattr(self, 'cloud_config', {}) or {}
+        self.proactive_cloud_allowed = bool(
+            config.get('proactive_smart') is True
+            and config.get('endpoint') and config.get('model'))
+
+    def _offer_relationship_opening(self):
+        """Offer at most one gentle callback per relationship revision."""
+        if self.conversation is None:
+            return
+        try:
+            store = self._relationship_store()
+            line = store.opening_line()
+            if not line:
+                return
+            self.conversation.show_reply(line, "关系记忆 · 本地", private_context=True)
+            store.mark_opening()
+            self.last_topic = store.last_topic()
+        except (OSError, ValueError, TypeError):
+            pass
+
+    def _invite_to_chat(self, text):
+        """Open a replyable chat window for a proactive line and focus input."""
+        self._ensure_conversation()
+        dialog = self.conversation
+        if dialog is None:
+            return
+        self._apply_cloud_preference()
+        was_visible = dialog.isVisible()
+        self._refresh_online_ui()
+        dialog.show_proactive(text, "云岚主动搭话 · 可直接回复")
+        if not was_visible:
+            self._place_conversation(dialog)
+        self.chat_open = True
+        dialog.raise_()
+        dialog.activateWindow()
+        try:
+            dialog.input.setFocus()
+        except AttributeError:
+            pass
+
     def _reset_conversation_context(self):
         """Forget RAM-only context and invalidate outstanding model requests.
 
@@ -70,6 +139,10 @@ class ConversationRuntime:
 
     def _record_exchange(self, text, answer, mood='neutral', *, private_context=False):
         self._dialogue_context().record(text, answer, mood=mood)
+        try:
+            self._relationship_store().remember(self._dialogue_context(), mood)
+        except (OSError, ValueError, TypeError):
+            pass
         self.last_user_text = str(text)[:200]
         self.last_reply_text = str(answer)[:300]
         self._last_reply_private = bool(private_context)
@@ -91,6 +164,7 @@ class ConversationRuntime:
     def _ensure_conversation(self) -> None:
         if self.conversation is None:
             self._reset_conversation_context()
+            self._seed_dialogue_context()
             self._review_group = uuid.uuid4().hex
             dialog = ConversationDialog(self)
             dialog.local_submitted.connect(self._conversation_local)
@@ -111,9 +185,12 @@ class ConversationRuntime:
         self._ensure_conversation()
         self.cloud_config = load_config()
         self.conversation.set_cloud_state(self.cloud_config)
+        self._refresh_proactive_cloud_permission()
+        self._apply_cloud_preference()
         self._refresh_online_ui()
         self.conversation.show()
         self._place_conversation(self.conversation)
+        self._offer_relationship_opening()
         self.conversation.raise_()
         self.conversation.activateWindow()
         self.chat_open = True
@@ -197,6 +274,13 @@ class ConversationRuntime:
                 and not meta.startswith(("记忆引擎", "本地对话", "本地上下文")):
             reply = dict(reply, text=self.personality.decorate(
                 str(reply.get("text", "")), mood, bool(self.memory.recent(1))))
+        if reply.get("action") is None and not meta.startswith(("记忆引擎", "云端")):
+            store = self._relationship_store()
+            reply = dict(reply, text=naturalize(
+                str(reply.get("text", "")), user_text=text, mood=mood,
+                last_reply=self.last_reply_text,
+                topics=store.snapshot().get("topics") or [],
+                seed=store.snapshot().get("revision", 0)))
         if any(word in text for word in ("实时动态", "最新动态", "最新地震", "联网动态")):
             snap = self.online_state.snapshot()
             if snap.get("summary"):
@@ -256,6 +340,11 @@ class ConversationRuntime:
             dialog.show_reply(answer, '本地上下文 · 未发送模型', private_context=private_context)
             self._record_exchange(text, answer, private_context=private_context)
             return
+        relationship_answer = self._relationship_answer(text)
+        if relationship_answer:
+            dialog.show_reply(relationship_answer, '关系记忆 · 本地 · 未发送云端', private_context=True)
+            self._record_exchange(text, relationship_answer, private_context=True)
+            return
         if is_meta_question(text):
             answer = meta_reply(text, self.last_user_text, self.last_reply_text)
             private_context = getattr(self, '_last_reply_private', False)
@@ -298,6 +387,7 @@ class ConversationRuntime:
         if authorized:
             # This request's own local retrieval, not a stale earlier turn.
             hits = self.memory.recall(text, 5, kinds=('preference', 'habit', 'diary'))
+            hits = list(hits) + self._relationship_store().memory_context(limit=3)
             self._capture_retrieval(text, hits)
         request_id = uuid.uuid4().hex
         context = {'policy': self.personality.personality_policy(proposal['intent']),
@@ -325,10 +415,12 @@ class ConversationRuntime:
             self.chat_open = False
         if accepted:
             self.cloud_config = load_config()
+            self._refresh_proactive_cloud_permission()
             if self.growth_dialog is not None:
                 self.growth_dialog.update_cloud(self.cloud_config)
             if self.conversation is not None:
                 self.conversation.set_cloud_state(self.cloud_config)
+                self._apply_cloud_preference()
             self._show_overlay("云端接口已保存在本机。", "密钥使用 Windows DPAPI 加密，不会写入聊天记录", "SUCCESS", 4200)
             self._sync_bubble_size()
             self.update()

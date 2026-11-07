@@ -530,6 +530,10 @@ class GrowthDialog(QDialog):
     online_enabled_changed = Signal(bool)
     online_refresh_requested = Signal()
     memory_clear_requested = Signal()
+    evolution_status_requested = Signal()
+    research_requested = Signal()
+    memory_curation_requested = Signal()
+    persona_requested = Signal()
 
     """A passive nonmodal growth journal: only open_near explicitly shows it."""
 
@@ -1126,6 +1130,65 @@ class GrowthDialog(QDialog):
         data_page.addWidget(self.data_panel)
         self.voice_data_panel = VoiceDataPanel(self)
         data_page.addWidget(self.voice_data_panel)
+        self._heading(data_page, "受控进化", "本机 · 明确批准")
+        self.evolution_card, evolution_box = self._card("evolutionCard")
+        evolution_box.setContentsMargins(16, 15, 16, 15)
+        evolution_box.setSpacing(9)
+        lead_row = QHBoxLayout()
+        lead_row.setSpacing(8)
+        lead = _label("所有改变，都要你点头。", "evolutionLead", False)
+        lead_row.addWidget(lead, 1)
+        lead_row.addWidget(_label("只读检查", "evolutionBadge", False))
+        evolution_box.addLayout(lead_row)
+        evolution_box.addWidget(_label(
+            "研究、记忆整理、人格反思与回滚都不会自动执行。",
+            "evolutionSub"))
+        self.evolution_audit_value, self.evolution_hosts_value, self.evolution_research_value = (
+            _label("待检查", "evolutionStatValue", False),
+            _label("待检查", "evolutionStatValue", False),
+            _label("待检查", "evolutionStatValue", False),
+        )
+        stats = QGridLayout()
+        stats.setHorizontalSpacing(7)
+        stats.setVerticalSpacing(0)
+        for column, (caption, value) in enumerate((
+            ("审计链", self.evolution_audit_value),
+            ("公开来源", self.evolution_hosts_value),
+            ("研究任务", self.evolution_research_value),
+        )):
+            tile = QFrame()
+            tile.setProperty("evolutionStat", True)
+            tile_box = QVBoxLayout(tile)
+            tile_box.setContentsMargins(10, 7, 10, 8)
+            tile_box.setSpacing(1)
+            tile_box.addWidget(_label(caption, "evolutionStatLabel", False))
+            tile_box.addWidget(value)
+            stats.addWidget(tile, 0, column)
+        evolution_box.addLayout(stats)
+        self.evolution_status_button = QPushButton("进化状态\n查看审计与边界")
+        self.research_button = QPushButton("研究任务\n提出公开来源计划")
+        self.memory_curation_button = QPushButton("记忆整理\n去重与归档建议")
+        self.persona_button = QPushButton("人格反思\n漂移与回滚")
+        evolution_actions = QGridLayout()
+        evolution_actions.setSpacing(7)
+        for index, (button, signal, kind, glyph) in enumerate((
+            (self.evolution_status_button, self.evolution_status_requested, "status", "shield"),
+            (self.research_button, self.research_requested, "research", "spark"),
+            (self.memory_curation_button, self.memory_curation_requested, "memory", "history"),
+            (self.persona_button, self.persona_requested, "persona", "emotion"),
+        )):
+            button.setAutoDefault(False)
+            button.setProperty("evolutionAction", True)
+            button.setIcon(theme_icon(glyph, size=18))
+            button.setMinimumHeight(56)
+            button.clicked.connect(
+                lambda _checked=False, k=kind: self._request_evolution(k))
+            evolution_actions.addWidget(button, index // 2, index % 2)
+        evolution_box.addLayout(evolution_actions)
+        self.evolution_feedback = _label(
+            "尚未检查。点击「进化状态」查看当前边界。", "evolutionDetail")
+        evolution_box.addWidget(self.evolution_feedback)
+        data_page.addWidget(self.evolution_card)
         data_page.addStretch()
         self._emotion_snapshot, self._companion_snapshot, self._training_snapshot = {}, {}, {}
         self._state_snapshot, self._behavior_snapshot = {}, {}
@@ -1200,6 +1263,48 @@ class GrowthDialog(QDialog):
         self.page_scrolls.append(scroll)
         return box
 
+    def _request_evolution(self, kind):
+        """Prefer the owning window's method; emit only when used standalone."""
+        mapping = {
+            "status": ("_show_evolution_status", self.evolution_status_requested),
+            "research": ("_open_research_dialog", self.research_requested),
+            "memory": ("_open_memory_curation_dialog", self.memory_curation_requested),
+            "persona": ("_open_persona_dialog", self.persona_requested),
+        }
+        method_name, signal = mapping.get(kind, ("", None))
+        self.evolution_feedback.setText("正在打开…")
+        parent = self.parent()
+        method = getattr(parent, method_name, None) if method_name else None
+        try:
+            if callable(method):
+                method()
+            elif signal is not None:
+                signal.emit()
+            if self.evolution_feedback.text() == "正在打开…":
+                self.evolution_feedback.setText("已打开；可查看详情。")
+        except Exception as error:
+            self.evolution_feedback.setText(f"打开失败：{error}")
+
+    def show_evolution_status(self, text, data=None):
+        """Render status inside the journal, never in a hidden modal window."""
+        self.evolution_feedback.setText(text)
+        self.evolution_feedback.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.evolution_feedback.setWordWrap(True)
+        if isinstance(data, dict):
+            audit = data.get("audit") or {}
+            research = data.get("research") or {}
+            self.evolution_audit_value.setText("正常" if audit.get("ok") else "需检查")
+            self.evolution_audit_value.setToolTip(f"{audit.get('events', 0)} 条审计记录")
+            self.evolution_hosts_value.setText(str(data.get("hosts", 0)))
+            self.evolution_hosts_value.setToolTip("公开 HTTPS 白名单来源")
+            self.evolution_research_value.setText(str(research.get("total", 0)))
+            self.evolution_research_value.setToolTip("尚未完成的研究任务")
+        self.tabs.setCurrentWidget(self.page_scrolls[6])
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self.page_scrolls[6].ensureWidgetVisible(self.evolution_feedback)
+
     def _confirm_memory_clear(self):
         answer = QMessageBox.question(
             self, "清除记忆引擎",
@@ -1253,7 +1358,8 @@ class GrowthDialog(QDialog):
             self.forget_requested.emit()
 
     def report_memory_status(self, ok):
-        self.memory_status.setText("互动记忆已从本地清除。练习和等级仍然保留。" if ok else "暂时无法写入本地文件；未确认磁盘删除成功，请稍后重试。")
+        self.memory_status.setText(("互动记忆已从本地清除；已学动作偏好与人格倾向保留。" if ok
+                                    else "暂时无法写入本地文件；未确认磁盘删除成功，请稍后重试。"))
 
     def update_neural(self, info):
         """Show training health without exposing weights or user content."""
@@ -1318,12 +1424,15 @@ class GrowthDialog(QDialog):
         confidence = max(0.0, min(1.0, _number(info.get("confidence"))))
         learned = _fmt(_count(info.get("learned")))
         lexicon = _fmt(_count(info.get("lexicon")))
+        web_learning = _count(info.get("webLearning"))
         status = info.get("status") if isinstance(info.get("status"), str) else "new"
         source = info.get("source") if isinstance(info.get("source"), str) else ""
         lines = [
             f"现在：{label} · 启发式线索分数 {round(confidence * 100)}%" if confidence > 0 else "现在：尚无明确的情绪线索",
             f"已学线索 {learned} 条 · 公开词典词 {lexicon} 条",
         ]
+        if web_learning:
+            lines.append(f"网页学习记录 {web_learning} 条（已同步训练/情感）")
         self.emotion_label.setToolTip(
             "个人情绪学习保存哈希特征和数字权重，不保存原句；公开词条会存入词典。"
             + (f"\n最近公开来源：{source}" if source else "")

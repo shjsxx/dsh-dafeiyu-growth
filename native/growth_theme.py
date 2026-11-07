@@ -122,6 +122,17 @@ QLabel#emotionFootnote, QLabel#footerHint { color:#627B84; font-size:12px; }
 QLabel#feelingCaption { color:#627B84; font-size:12px; }
 QLabel#feelingValue { color:#17343D; font-size:19px; font-weight:700; }
 QFrame#companionFeelingCard { background:#EFF8F5; border:1px solid #D1E6DF; border-radius:16px; }
+QFrame#evolutionCard { background:qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #F5FBF8, stop:1 #FFFFFF); border:1px solid #CFE5DF; border-radius:16px; }
+QLabel#evolutionLead { color:#17343D; font-size:15px; font-weight:700; }
+QLabel#evolutionSub { color:#627B84; font-size:12px; }
+QLabel#evolutionBadge { color:#187E83; background:#EAF6F1; border:1px solid #D2E8DE; border-radius:7px; padding:4px 8px; font-size:11px; font-weight:600; }
+QFrame[evolutionStat='true'] { background:#F3F9F6; border:1px solid #DCEBE5; border-radius:10px; }
+QLabel#evolutionStatLabel { color:#6C858B; font-size:11px; }
+QLabel#evolutionStatValue { color:#11595F; font-size:18px; font-weight:700; }
+QPushButton[evolutionAction='true'] { background:#FFFFFF; border:1px solid #D6E6E1; border-radius:11px; color:#284E58; text-align:left; padding:9px 11px; font-size:12px; }
+QPushButton[evolutionAction='true']:hover { background:#EAF6F2; border-color:#9FCBC3; }
+QPushButton[evolutionAction='true']:pressed { background:#DDEEE8; border-color:#187E83; }
+QLabel#evolutionDetail { background:#F7FBF9; border:1px solid #DCEBE5; border-radius:10px; padding:9px 10px; color:#435E68; font-size:12px; }
 QFrame#feelingTile { background:#FFFFFF; border:1px solid #D9E6E8; border-radius:12px; }
 QFrame#moodOrb { background:transparent; border:none; }
 QProgressBar { border:none; background:#E3EDEE; border-radius:3px; }

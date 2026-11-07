@@ -83,10 +83,24 @@ class CompanionRuntime:
     def _sync_personality(self) -> None:
         self.personality.update(self.learning.companion.snapshot(), self.emotion.snapshot(),
                                 self.growth_state)
+        self._record_persona_history(reason="state")
         mood = self.emotion.current().get("label", "neutral")
         has_memory = bool(self.memory.recent(1, kinds=("preference", "habit", "diary", "culture")))
         if self.growth_dialog is not None:
             self.growth_dialog.update_personality(self.personality.snapshot(mood, has_memory))
+
+    def _record_persona_history(self, evidence=(), reason="state") -> None:
+        """Record changed trait snapshots without storing user text."""
+        try:
+            from persona_history import PersonaHistory
+            history = getattr(self, "persona_history", None)
+            if history is None:
+                history = PersonaHistory()
+                self.persona_history = history
+            history.record(self.personality.snapshot(), evidence=evidence, reason=reason)
+        except (OSError, ValueError, TypeError):
+            # A history write must never break the pet or block personality sync.
+            pass
 
 
     def _personality_talk(self, base: str) -> str:
@@ -113,6 +127,10 @@ class CompanionRuntime:
 
     def _clear_memory_engine(self) -> None:
         self._reset_conversation_context()
+        try:
+            self._relationship_store().clear()
+        except (OSError, ValueError, TypeError):
+            pass
         ok = self.memory.clear()
         from retrieval_review import RetrievalReviewStore
         reviews_ok = RetrievalReviewStore().clear()
@@ -161,6 +179,10 @@ class CompanionRuntime:
 
     def _forget_memory(self) -> None:
         self._reset_conversation_context()
+        try:
+            self._relationship_store().clear()
+        except (OSError, ValueError, TypeError):
+            pass
         ok = self.learner.forget_user()
         preference_ok = self.memory.clear_preferences()
         from retrieval_review import RetrievalReviewStore
@@ -189,6 +211,10 @@ class CompanionRuntime:
             self.growth_dialog.online_enabled_changed.connect(self._set_online_enabled)
             self.growth_dialog.online_refresh_requested.connect(lambda: self._start_online(manual=True))
             self.growth_dialog.memory_clear_requested.connect(self._clear_memory_engine)
+            self.growth_dialog.evolution_status_requested.connect(self._show_evolution_status)
+            self.growth_dialog.research_requested.connect(self._open_research_dialog)
+            self.growth_dialog.memory_curation_requested.connect(self._open_memory_curation_dialog)
+            self.growth_dialog.persona_requested.connect(self._open_persona_dialog)
         self._sync_personality()
         self._sync_continuity()
         self.growth_dialog.update_state(self.growth_state)
@@ -200,4 +226,300 @@ class CompanionRuntime:
         self.growth_dialog.update_memory(self.memory.snapshot())
         self._refresh_learning_ui()
         self.growth_dialog.open_near(self)
+
+    def _show_evolution_status(self) -> None:
+        """Render the read-only status inside the growth card itself."""
+        try:
+            status = self._get_evolution_service().status()
+            audit = status.get("audit") or {}
+            research = status.get("research") or {}
+            hosts = (status.get("network") or {}).get("hosts") or []
+            statuses = research.get("statuses") or {}
+            status_line = "、".join(f"{key} {value}" for key, value in sorted(statuses.items())) or "无"
+            text = (
+                "只读检查 · 不改动任何数据\n"
+                f"审计链：{'正常' if audit.get('ok') else '需要检查'} · {audit.get('events', 0)} 条记录\n"
+                f"联网：仅公开白名单（{len(hosts)} 个来源），按任务预算\n"
+                f"研究任务：{research.get('total', 0)} 个 · {status_line}\n"
+                "记忆：只生成整理建议，不自动删除\n"
+                "人格：核心不变项锁定，单次漂移有上限\n"
+                "研究、整理执行和人格回滚都需要你明确批准。"
+            )
+            recent = status.get("auditRecent") or []
+            metrics = status.get("metrics") or {}
+            if metrics:
+                research_metrics = metrics.get("research") or {}
+                memory_metrics = metrics.get("memory") or {}
+                persona_metrics = metrics.get("persona") or {}
+                automation = metrics.get("automation") or {}
+                rate = research_metrics.get("successRate")
+                rate_text = "暂无" if rate is None else f"{float(rate) * 100:.0f}%"
+                text += (
+                    "\n本地运行指标：\n"
+                    f"研究：完成 {research_metrics.get('done', 0)} / 任务 {research_metrics.get('total', 0)}"
+                    f" · 成功率 {rate_text} · 引用 {research_metrics.get('citations', 0)}\n"
+                    f"记忆：{memory_metrics.get('total', 0)} 条 · 修订 r{memory_metrics.get('revision', 0)}\n"
+                    f"人格：历史 {persona_metrics.get('historyEntries', 0)} 条"
+                    f" · 最近状态 {persona_metrics.get('lastReviewStatus') or '无'}\n"
+                    "自动：研究 {researchScheduler} · 记忆 {memoryHealth} · 人格 {personaHealth}".format(
+                        researchScheduler="开" if automation.get("researchScheduler") else "关",
+                        memoryHealth="开" if automation.get("memoryHealth") else "关",
+                        personaHealth="开" if automation.get("personaHealth") else "关")
+                )
+            if recent:
+                from datetime import datetime
+                labels = {"research": "研究", "memory": "记忆", "persona": "人格",
+                          "network": "联网", "deletion": "删除"}
+                lines = ["", "最近审计："]
+                for row in recent[-6:]:
+                    try:
+                        when = datetime.fromtimestamp(int(row.get("at", 0))).strftime("%m-%d %H:%M")
+                    except (OSError, OverflowError, ValueError):
+                        when = "时间未知"
+                    kind = labels.get(str(row.get("kind")), str(row.get("kind") or "事件"))
+                    decision = str(row.get("decision") or "")
+                    summary = str(row.get("summary") or row.get("reason") or "")[:80]
+                    lines.append(f"· {when} {kind}/{decision} · {summary}")
+                text += "\n".join(lines)
+        except Exception as error:
+            text = f"受控进化 · 暂时无法读取状态\n{error}"
+            data = None
+        else:
+            data = {"audit": audit, "hosts": len(hosts), "research": research}
+        if self.growth_dialog is not None:
+            self.growth_dialog.show_evolution_status(text, data)
+        else:
+            self._show_overlay(text.splitlines()[0], "请先打开成长卡", "ERROR", 4200)
+
+    def _get_evolution_service(self):
+        service = getattr(self, "evolution_service", None)
+        if service is None:
+            from evolution_service import EvolutionService
+            service = EvolutionService()
+            self.evolution_service = service
+        return service
+
+    def _get_research_scheduler(self):
+        host = getattr(self, "research_scheduler_host", None)
+        if host is None:
+            from research_runtime import ResearchSchedulerHost
+            from research_scheduler import ResearchSchedulerConfig
+            host = ResearchSchedulerHost(
+                self._get_evolution_service(), self,
+                config=ResearchSchedulerConfig())
+            self.research_scheduler_host = host
+        return host
+
+    def _restore_research_scheduler(self):
+        """Restore only a previous explicit opt-in; absence stays disabled."""
+        try:
+            from research_scheduler import ResearchSchedulerConfig
+            config = ResearchSchedulerConfig()
+            if not config.enabled:
+                return
+            host = self._get_research_scheduler()
+            host.configure(True, config.interval)
+        except Exception:
+            pass
+
+    def _stop_research_scheduler(self):
+        host = getattr(self, "research_scheduler_host", None)
+        if host is not None:
+            state = host.state()
+            host.configure(False, state.get("interval", 60))
+        else:
+            try:
+                from research_scheduler import ResearchSchedulerConfig
+                config = ResearchSchedulerConfig()
+                config.set(False, config.interval)
+            except Exception:
+                pass
+        self._show_overlay("自动研究已停止", "不会自动取新任务；当前运行中的任务会完成",
+                           "SUCCESS", 4200)
+
+    def _set_research_scheduler(self, enabled, interval):
+        """Explicit global scheduler toggle; survives closing the review dialog."""
+        host = self._get_research_scheduler()
+        host.configure(enabled, interval)
+        return host.state()
+
+    def _get_memory_health_host(self):
+        host = getattr(self, "memory_health_host", None)
+        if host is None:
+            from memory_health import MemoryHealthConfig, MemoryHealthHost
+            host = MemoryHealthHost(
+                self._get_evolution_service(), self.memory,
+                config=MemoryHealthConfig(), parent=self)
+            self.memory_health_host = host
+        return host
+
+    def _restore_memory_health(self):
+        """Restore only a previous explicit opt-in; absence stays disabled."""
+        try:
+            from memory_health import MemoryHealthConfig
+            config = MemoryHealthConfig()
+            if not config.enabled:
+                return
+            self._get_memory_health_host().configure(True, config.interval)
+        except Exception:
+            pass
+
+    def _stop_memory_health(self):
+        host = getattr(self, "memory_health_host", None)
+        if host is not None:
+            state = host.state()
+            host.configure(False, state.get("interval", 21600))
+        else:
+            try:
+                from memory_health import MemoryHealthConfig
+                config = MemoryHealthConfig()
+                config.set(False, config.interval)
+            except Exception:
+                pass
+        self._show_overlay("记忆周期扫描已停止", "不会后台扫描；记忆没有被修改或删除",
+                           "SUCCESS", 4200)
+
+    def _get_persona_health_host(self):
+        host = getattr(self, "persona_health_host", None)
+        if host is None:
+            from persona_health import PersonaHealthConfig, PersonaHealthHost
+            from persona_history import PersonaHistory
+            history = getattr(self, "persona_history", None)
+            if history is None:
+                history = PersonaHistory()
+                self.persona_history = history
+            host = PersonaHealthHost(
+                self._get_evolution_service(), self.personality, history,
+                config=PersonaHealthConfig(), parent=self)
+            host.review_needed.connect(self._on_persona_review_needed)
+            self.persona_health_host = host
+        return host
+
+    def _restore_persona_health(self):
+        try:
+            from persona_health import PersonaHealthConfig
+            config = PersonaHealthConfig()
+            if not config.enabled:
+                return
+            self._get_persona_health_host().configure(True, config.interval)
+        except Exception:
+            pass
+
+    def _stop_persona_health(self):
+        host = getattr(self, "persona_health_host", None)
+        if host is not None:
+            state = host.state()
+            host.configure(False, state.get("interval", 21600))
+        else:
+            try:
+                from persona_health import PersonaHealthConfig
+                config = PersonaHealthConfig()
+                config.set(False, config.interval)
+            except Exception:
+                pass
+        self._show_overlay("人格周期检查已停止", "不会自动检查或修改人格",
+                           "SUCCESS", 4200)
+
+    def _on_persona_review_needed(self, result):
+        """Notify only; rollback and any persona change remain explicit."""
+        summary = str((result or {}).get("summary") or "人格变化超过检查阈值")[:100]
+        self._show_overlay("人格变化需要复核", summary, "ERROR", 5200)
+
+    def _research_scheduler_state(self):
+        host = getattr(self, "research_scheduler_host", None)
+        return host.state() if host is not None else {
+            "enabled": False, "interval": 60, "busy": False,
+            "last": "未启用；只取已批准任务。", "lastTask": "",
+        }
+
+    def _shutdown_research_scheduler(self) -> None:
+        host = getattr(self, "research_scheduler_host", None)
+        if host is not None:
+            host.shutdown()
+        auto = getattr(self, "autonomous_learning_host", None)
+        if auto is not None:
+            auto.shutdown()
+        health = getattr(self, "memory_health_host", None)
+        if health is not None:
+            health.shutdown()
+        persona_health = getattr(self, "persona_health_host", None)
+        if persona_health is not None:
+            persona_health.shutdown()
+
+    def _get_autonomous_learning_host(self):
+        host = getattr(self, "autonomous_learning_host", None)
+        if host is None:
+            from autonomous_learning import AutonomousLearningHost
+            from owner_web_learning import WebLearningService
+            # Share the live model instances: separate TrainingJournal instances
+            # writing one file trigger the journal's concurrent-writer guard.
+            service = WebLearningService(memory=self.memory, emotion=self.emotion,
+                                         journal=self.learning.journal)
+            host = AutonomousLearningHost(service=service, parent=self)
+            self.autonomous_learning_host = host
+        return host
+
+    def _restore_autonomous_learning(self):
+        host = self._get_autonomous_learning_host()
+        if host.config.enabled:
+            host.configure(True, host.config.interval, host.config.batch)
+
+    def _keep_evolution_dialog(self, dialog) -> None:
+        """Keep a non-modal review window alive and above the journal."""
+        dialogs = getattr(self, "_evolution_dialogs", None)
+        if dialogs is None:
+            dialogs = []
+            self._evolution_dialogs = dialogs
+        dialogs.append(dialog)
+        def drop(*_args):
+            if dialog in dialogs:
+                dialogs.remove(dialog)
+        dialog.destroyed.connect(drop)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _open_research_dialog(self) -> None:
+        """Open the explicit research plan dialog; never auto-start a task."""
+        self._stop_motion()
+        try:
+            from PySide6.QtCore import Qt
+            from research_ui import ResearchDialog
+            dialog = ResearchDialog(None, service=self._get_evolution_service(),
+                                    scheduler_host=self._get_research_scheduler(),
+                                    autonomous_host=self._get_autonomous_learning_host())
+            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dialog.setModal(False)
+            self._keep_evolution_dialog(dialog)
+        except Exception as error:
+            self._show_overlay("研究界面暂时不可用", str(error), "ERROR", 4200)
+
+    def _open_memory_curation_dialog(self) -> None:
+        """Open the proposal-only memory curation review; never auto-delete."""
+        self._stop_motion()
+        try:
+            from PySide6.QtCore import Qt
+            from memory_curation_ui import MemoryCurationDialog
+            dialog = MemoryCurationDialog(None, service=self._get_evolution_service(),
+                                           health_host=self._get_memory_health_host())
+            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dialog.setModal(False)
+            self._keep_evolution_dialog(dialog)
+        except Exception as error:
+            self._show_overlay("整理界面暂时不可用", str(error), "ERROR", 4200)
+
+    def _open_persona_dialog(self) -> None:
+        """Open the reflection/rollback review; never auto-change personality."""
+        self._stop_motion()
+        try:
+            from PySide6.QtCore import Qt
+            from persona_ui import PersonaReflectionDialog
+            dialog = PersonaReflectionDialog(
+                None, service=self._get_evolution_service(),
+                health_host=self._get_persona_health_host())
+            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dialog.setModal(False)
+            self._keep_evolution_dialog(dialog)
+        except Exception as error:
+            self._show_overlay("反思界面暂时不可用", str(error), "ERROR", 4200)
 

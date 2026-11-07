@@ -39,6 +39,14 @@ cloud.json
 memory.json
 growth.json
 personality.json
+relationship.json
+persona-history.json
+research-scheduler.json
+memory-health.json
+persona-health.json
+web-sources.json
+auto-learning.json
+web-learning-cache/
 continuity.json
 embedding_rerank.json
 profile.json

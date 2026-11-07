@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$RuntimeSource = (Join-Path $env:USERPROFILE '.dsh\yunlan-dsh-pet-runtime'),
   [string]$HelperSource = (Join-Path $PSScriptRoot '..\native\dist-onedir\dsh-dafeiyu-helper'),
   [string]$Out = (Join-Path $PSScriptRoot '..\dist\self-contained'),
@@ -51,6 +51,12 @@ function CopyTree([string]$From, [string]$To) {
 }
 foreach ($name in 'src','lib','web','desktop','docs','tools') {
   CopyTree (Join-Path $root $name) (Join-Path $outPath $name)
+}
+# Private screenshots are intentionally excluded from the source package and
+# must not leak into the self-contained release either.
+foreach ($private in @('dialogue-fix.png','menu.png','reaction-bored.png','reaction-cry.png','reaction-sleepy.png')) {
+  $path = Join-Path $outPath ('docs\screenshots\' + $private)
+  if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
 }
 foreach ($name in 'package.json','cordis.patch.yml','README.md','CHANGELOG.md','LICENSE','ASSET_LICENSE.md','NOTICE.md','SECURITY.md','CONTRIBUTING.md','requirements-native.txt','requirements-dev.txt') {
   $source = Join-Path $root $name
@@ -129,3 +135,4 @@ if ($Zip) {
   Write-Output ("Zip: {0} ({1:N1}MB)" -f $zipPath, ((Get-Item $zipPath).Length/1MB))
 }
 exit 0
+
