@@ -16,6 +16,7 @@
 - 发布包自动设置 `nativeBundle: true`、`private: false` 和混合授权字段；保留 MIT 代码许可与 CC BY-NC-SA 素材许可。
 - 新增 `test/native-supervisor.test.js`；102 项 Node、930 项 Python 测试通过。
 - 修复拖动时左右闪现：拖拽期间禁止 turn/click/睡眠等非拖拽动画抢前台，并锁定 `facing` 不翻转；只允许拖拽动画切换前台。
+- 修复桌宠不显示：自选网站学习覆盖了旧 `web_learning.py`，缺少 `fetch_builtin_lexicon`，helper 启动即退出；现将新功能拆到 `owner_web_learning.py`，恢复旧公开词典 API，并新增启动导入回归测试；全量 1051 Python / 102 Node 通过。
 - v1.0 自选网站学习：新增显式网站来源列表和单页学习；支持任意公开 host（拒绝 localhost/内网/私网）、robots.txt、手动重定向校验、512KB/12000字上限；每次抓取必须同时写训练日志和情感 `webLearning` 记录后才写入本地知识；新增 9 项测试；全量 1049 Python / 102 Node 通过。
 - 主动智能细节：主动消息现在会带上关系话题的结构化细节（最多 3 个短细节），不再只带话题名；仍不含原句、文件或工具；全量 1054 Python / 102 Node 通过。
 - 修复“上次聊了啥”云岚说看不到记录：现在本地关系记忆先接管这类问题；仅当用户勾选“本次允许模型使用记忆摘要”时，才把结构化话题/细节/情绪加入云端上下文；新增 3 项测试；全量 1054 Python / 102 Node 通过。

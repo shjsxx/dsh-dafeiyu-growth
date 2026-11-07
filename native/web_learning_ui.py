@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
-from web_learning import WebLearningService
+from owner_web_learning import WebLearningService
 
 STYLE = """
 QDialog { background: #F4F7F8; }

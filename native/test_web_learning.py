@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from emotion_model import EmotionModel
-from web_learning import (
+from owner_web_learning import (
     FetchResult, UserWebSources, WebArticleFetcher, WebLearningError, WebLearningService,
     normalize_url,
 )

@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from web_learning import UserWebSources, WebArticleFetcher, WebLearningService
+from owner_web_learning import UserWebSources, WebArticleFetcher, WebLearningService
 from web_learning_ui import WebLearningDialog
 
 APP = QApplication.instance() or QApplication([])
