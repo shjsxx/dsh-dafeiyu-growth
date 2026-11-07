@@ -13,6 +13,7 @@ from realtime_runtime import RealtimeRuntime
 
 HOTKEY_ID = 0x594C
 GROWTH_HOTKEY_ID = 0x594D
+CHAT_HOTKEY_ID = 0x594E
 
 
 class VoiceRuntime(RealtimeRuntime):
@@ -30,8 +31,10 @@ class VoiceRuntime(RealtimeRuntime):
         self.operation_row = None
         self.safety_hotkey = False
         self.growth_hotkey = False
+        self.chat_hotkey = False
         self._init_realtime_runtime()
         self._register_growth_hotkey()
+        self._register_chat_hotkey()
         self.voice_event.connect(self._on_voice_event)
 
     def _register_safety_hotkey(self):
@@ -60,6 +63,25 @@ class VoiceRuntime(RealtimeRuntime):
         except Exception:
             self.growth_hotkey = False
         return self.growth_hotkey
+
+    def _register_chat_hotkey(self):
+        if self.chat_hotkey:
+            return True
+        if sys.platform != 'win32':
+            return False
+        try:
+            import ctypes
+            self.chat_hotkey = bool(ctypes.windll.user32.RegisterHotKey(
+                None, CHAT_HOTKEY_ID, 0x0001 | 0x0002 | 0x4000, 0x43))
+        except Exception:
+            self.chat_hotkey = False
+        return self.chat_hotkey
+
+    def _release_chat_hotkey(self):
+        if self.chat_hotkey and sys.platform == 'win32':
+            import ctypes
+            ctypes.windll.user32.UnregisterHotKey(None, CHAT_HOTKEY_ID)
+        self.chat_hotkey = False
 
     def _release_growth_hotkey(self):
         if self.growth_hotkey and sys.platform == 'win32':
@@ -358,6 +380,7 @@ class VoiceRuntime(RealtimeRuntime):
         if self.voice_engine:
             self.voice_engine.close()
         self._release_growth_hotkey()
+        self._release_chat_hotkey()
         if self.safety_hotkey and sys.platform == 'win32':
             import ctypes
             ctypes.windll.user32.UnregisterHotKey(None, HOTKEY_ID)

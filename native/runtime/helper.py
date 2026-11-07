@@ -278,7 +278,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
         from cloud_chat import load_config, ask_cloud
         from cloud_ui import CloudSettingsDialog
         from conversation_ui import ConversationDialog
-        from voice_runtime import VoiceRuntime, HOTKEY_ID, GROWTH_HOTKEY_ID
+        from voice_runtime import VoiceRuntime, HOTKEY_ID, GROWTH_HOTKEY_ID, CHAT_HOTKEY_ID
         from learning_state import PublicLearningState
         from live_online import LiveOnlineState, fetch_live_facts
         from learning_hub import LearningHub
@@ -346,6 +346,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None, rende
                     return True, 0
                 if msg.message == 0x0312 and int(msg.wParam) == GROWTH_HOTKEY_ID:
                     QTimer.singleShot(0, self.widget._show_growth_card)
+                    return True, 0
+                if msg.message == 0x0312 and int(msg.wParam) == CHAT_HOTKEY_ID:
+                    QTimer.singleShot(0, self.widget._open_conversation)
                     return True, 0
                 if msg.message != 0x0020:  # WM_SETCURSOR
                     return False, 0
