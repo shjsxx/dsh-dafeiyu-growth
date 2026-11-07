@@ -450,7 +450,12 @@ class CompanionRuntime:
         host = getattr(self, "autonomous_learning_host", None)
         if host is None:
             from autonomous_learning import AutonomousLearningHost
-            host = AutonomousLearningHost(parent=self)
+            from owner_web_learning import WebLearningService
+            # Share the live model instances: separate TrainingJournal instances
+            # writing one file trigger the journal's concurrent-writer guard.
+            service = WebLearningService(memory=self.memory, emotion=self.emotion,
+                                         journal=self.learning.journal)
+            host = AutonomousLearningHost(service=service, parent=self)
             self.autonomous_learning_host = host
         return host
 

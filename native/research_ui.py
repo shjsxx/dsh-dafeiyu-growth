@@ -199,7 +199,8 @@ class ResearchDialog(QDialog):
 
     def open_web_learning(self):
         from web_learning_ui import WebLearningDialog
-        dialog = WebLearningDialog(self, autonomous_host=self._autonomous_host)
+        service = getattr(self._autonomous_host, "service", None) if self._autonomous_host else None
+        dialog = WebLearningDialog(self, service=service, autonomous_host=self._autonomous_host)
         dialog.exec()
 
     def plan(self):
