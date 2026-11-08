@@ -100,18 +100,23 @@ DSH 设置 → 内置插件 → 云岚养成。
 
 ## 安装
 
-**最省事：一键安装（推荐）**
+**最省事：图形安装器（推荐）**
 
-- GitHub 用户：[下载 `install-yunlan-github.cmd`](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.1.0/install-yunlan-github.cmd)
-- Gitee 用户：[下载 `install-yunlan-gitee.cmd`](https://gitee.com/gyk2016/dafeiyu-ai-growth/releases/download/v1.1.0/install-yunlan-gitee.cmd)
+- GitHub 用户：[下载 `YunlanSetup.exe`](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.1.0/YunlanSetup.exe)
+- Gitee 用户：[下载 `YunlanSetup.exe`](https://gitee.com/gyk2016/dafeiyu-ai-growth/releases/download/v1.1.0/YunlanSetup.exe)
 
-先退出 DeepSeek Harness，双击对应脚本。它会自动下载、校验 SHA-256、解压并安装到：
+先退出 DeepSeek Harness，双击安装器，选择 GitHub 或 Gitee，点击「开始安装」。安装器会自动下载、校验 SHA-256、解压并安装到：
 
 ```text
 %USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth
 ```
 
 不会删除已有的本地数据。完成后重启 DSH，在 **设置 → 插件** 启用「云岚养成」。
+
+**命令行一键安装（备用）**
+
+- GitHub 用户：[下载 `install-yunlan-github.cmd`](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.1.0/install-yunlan-github.cmd)
+- Gitee 用户：[下载 `install-yunlan-gitee.cmd`](https://gitee.com/gyk2016/dafeiyu-ai-growth/releases/download/v1.1.0/install-yunlan-gitee.cmd)
 
 **手动安装（备用）**
 
