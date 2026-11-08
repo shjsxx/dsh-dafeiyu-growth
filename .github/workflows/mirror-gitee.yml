@@ -36,7 +36,7 @@ jobs:
           EOF
           chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
           git config --local credential.helper ''
-          git remote add gitee https://gitee.com/gyk2016/dsh-dafeiyu-growth.git
+          git remote add gitee https://gitee.com/gyk2016/dafeiyu-ai-growth.git
           git config --local core.askPass "$RUNNER_TEMP/gitee-askpass.sh"
 
       - name: Refuse empty secret

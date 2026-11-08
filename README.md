@@ -10,6 +10,8 @@
 
 <code>v1.1.0</code> <code>Windows 10/11</code> <code>DeepSeek Harness</code> <code>本地优先</code> <code>MIT code / CC BY-NC-SA assets</code>
 
+**Gitee：** [大肥鱼智能养成](https://gitee.com/gyk2016/dafeiyu-ai-growth) · **GitHub：** [dsh-dafeiyu-growth](https://github.com/shjsxx/dsh-dafeiyu-growth)
+
 **快速导航：** [她是什么](#她是什么) · [成长系统](#成长系统) · [界面一览](#界面一览) · [安装](#安装) · [隐私边界](#隐私边界) · [文档](#文档导航) · [更新记录](CHANGELOG.md)
 
 ---
