@@ -6,7 +6,7 @@
 
 Windows 10/11、DSH 桌面版、Node.js ≥ 22.19。把仓库放到 `%USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth`，重启 DSH，在设置 → 插件中启用「云岚养成」。仓库用于 GitHub 分发，`package.json` 为 `private`，不发布 npm 包。
 
-**自包含发行版（1.0.0+）**：如果使用 `tools/package-self-contained.ps1` 生成的包，只需安装 DSH 和该插件，不需要另行安装 `dsh-dafeiyu` 或 Python；打包、体积和授权见 [自包含插件](self-contained.md)。
+**自包含发行版（1.1.0+）**：如果使用 `tools/package-self-contained.ps1` 生成的包，只需安装 DSH 和该插件，不需要另行安装 `dsh-dafeiyu` 或 Python；打包、体积和授权见 [自包含插件](self-contained.md)。
 
 **Web 与原生是两个入口。** 0.28.0 更新设置 → 内置插件 → 云岚养成；原生七页成长卡、跑跳、语音和电脑操作依赖可选的原生 helper 补丁，最近补丁版本为 0.27.1。原生仅适配 `dsh-dafeiyu@0.1.23` desktop profile；其他上游版本不能直接覆盖。
 
@@ -260,7 +260,7 @@ python native/state_backup.py restore <快照目录> --yes
 
 激活文件缺省不存在；存在但字段/路径无效时核心失败关闭，不会悄悄回退旧形象。安装前需准备固定运行时（`prepared-3c99b1b`，含 `verify.mjs` 回执）和独立的 Electron 运行时副本。首次安装会把当前上游 Helper 备份到 `native/backup/`（不提交、不随 npm 发布）；若当前已是补丁版本且没有备份，`-Rollback` 需先重装 dsh-dafeiyu 0.1.23。升级或重装 dsh-dafeiyu 会覆盖此本地补丁；脚本仅接受 0.1.23。升级不删除成长数据。
 
-测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（1.0.0 本次原生回归为 **1056 项通过**，Node **102 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`native/test_action_preferences.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
+测试：`npm test`（Node 测试）；`python -m unittest discover -s native -p "test_*.py" -v`（1.1.0 本次原生回归为 **1061 项通过**，Node **102 项通过**；需 PySide6）。传输/宿主专项测试见 `native/test_external_renderer.py`、`native/test_action_preferences.py`、`test/control-channel.test.js`、`test/presentation-host.test.js`。`python tools/core-bridge-smoke.py` 使用临时存档与真实 Electron 窗口，不读取真实档案。
 
 ## 自查结论与已知限制
 

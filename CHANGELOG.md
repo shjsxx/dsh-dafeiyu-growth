@@ -2,7 +2,7 @@
 
 [返回首页](README.md) · [安装与开发](docs/setup.md) · [界面图鉴](docs/gallery.md)
 
-## 待发布 · 网页知识容量与去重
+## v1.1.0 · 网页知识容量与模型升级
 
 - 新增独立 `web-knowledge.json`：最多 2000 条、32MB，不占私人记忆的 600 条容量。
 - 私人记忆上限提升到 1200 条 / 2MB。
@@ -13,7 +13,7 @@
 - 自主选源会跳过已学 URL，减少重复 `no_change`。
 - 全量 1061 Python / 102 Node 通过。
 
-## 待发布 · 模型 A/B 评估
+### 模型 A/B 评估
 
 - 8 个合成场景 × 3 个模型实测；`deepseek-chat` 综合最稳，`deepseek-reasoner` 适合复杂规划但更慢，`deepseek-flash` 不作为默认。
 - 默认云端模型切换为 `deepseek-chat`，默认输出上限提升到 **800 tokens**；256 tokens 下长计划会空返回/截断。

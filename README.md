@@ -8,7 +8,7 @@
 
 云岚不是只会弹窗的桌宠。你与 DSH 的每一次协作，会慢慢变成她的等级、本领、回忆和一点点自己的偏好；她也会在桌面上走动、发呆、回应你的摸头和点击。成长数据默认留在本地，想聊天时再单独授权云端。
 
-<code>v1.0.0</code> <code>Windows 10/11</code> <code>DeepSeek Harness</code> <code>本地优先</code> <code>MIT code / CC BY-NC-SA assets</code>
+<code>v1.1.0</code> <code>Windows 10/11</code> <code>DeepSeek Harness</code> <code>本地优先</code> <code>MIT code / CC BY-NC-SA assets</code>
 
 **快速导航：** [她是什么](#她是什么) · [成长系统](#成长系统) · [界面一览](#界面一览) · [安装](#安装) · [隐私边界](#隐私边界) · [文档](#文档导航) · [更新记录](CHANGELOG.md)
 
@@ -100,7 +100,7 @@ DSH 设置 → 内置插件 → 云岚养成。
 
 **最省事：自包含包（推荐给只想用桌宠的人）**
 
-[下载云岚 v1.0.0 Windows x64 自包含包](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.0.0/dsh-dafeiyu-growth-v1.0.0-windows-x64.zip)
+[下载云岚 v1.1.0 Windows x64 自包含包](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.1.0/dsh-dafeiyu-growth-v1.1.0-windows-x64.zip)
 
 解压后，把 zip 里的 `desktop`、`runtime`、`package.json` 等文件**直接放进**：
 
@@ -108,8 +108,8 @@ DSH 设置 → 内置插件 → 云岚养成。
 %USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth
 ```
 
-不要再套一层 `dsh-dafeiyu-growth-v1.0.0-windows-x64\` 文件夹。  
-校验值：`4D80492B7B4D958CE70E020D88135FB9196B3C6DD4C2AD41EA4C84A9E7AF433B`
+不要再套一层 `dsh-dafeiyu-growth-v1.1.0-windows-x64\` 文件夹。  
+校验值：`4B85E4AC87744ED424947ACE15716D52C0D14CE8699CE18632EBCA43237E76B0`
 
 重启 DSH 桌面版，在 **设置 → 插件** 启用「云岚养成」。包内已带 Electron、固定渲染器、onedir helper 与运行依赖；安装后不再依赖单独的 `dsh-dafeiyu`。详见 [自包含打包与安装](docs/self-contained.md)。
 
@@ -153,6 +153,7 @@ npm test
 
 ## 最近更新
 
+- **1.1.0**：独立网页知识库、1200 条私人记忆、URL/正文去重、低质量淘汰、200 条情感网页记录；默认模型切换为 `deepseek-chat`，输出预算 800 tokens。
 - **1.0.0**：受控进化、关系记忆、自然化表达、智能云端模式、主动智能消息、自选网站学习、自主选源与训练/情感双记录。
 - **0.32.0**：DSH-only 自包含插件、native supervisor、onedir helper、素材审计、单实例锁、拖拽/切换闪现修复、气泡清晰度修复。
 - **0.31.0**：运动模型仪表与动作偏好散点图。
