@@ -43,6 +43,9 @@ class FakeService:
         self.learned.append(url)
         return {"ok": True, "title": "First article", "chars": 10, "added": 1}
 
+    def is_seen(self, url):
+        return False
+
 
 class AutonomousLearningTests(unittest.TestCase):
     def test_parse_rss_and_atom_are_bounded(self):

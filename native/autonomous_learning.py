@@ -186,6 +186,8 @@ class AutonomousLearner:
             for item in items[:MAX_ITEMS]:
                 try:
                     link = item["link"]
+                    if self.service.is_seen(link):
+                        continue
                     if not self.service.sources.allows(link):
                         if not self.service.add_source(link).get("ok"):
                             continue

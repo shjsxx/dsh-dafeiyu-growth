@@ -63,6 +63,7 @@ SECOND_PERSON = re.compile(r"(?:你|您|他|她|它)")
 QUESTION = re.compile(r"[?？]\s*$|(?:吗|呢|么)\s*[。.!！]?\s*$")
 WORD_RUN = re.compile(r"[\u4e00-\u9fffA-Za-z0-9]+")
 FEATURE_CAP = 640
+WEB_LEARNING_LIMIT = 200
 LR = 0.12
 
 
@@ -173,7 +174,7 @@ class EmotionModel:
             host = raw.get("sourceHost")
             self.source_host = host[:120] if isinstance(host, str) else ""
             rows = []
-            for item in raw.get("webLearning", [])[-20:] if isinstance(raw.get("webLearning"), list) else []:
+            for item in raw.get("webLearning", [])[-WEB_LEARNING_LIMIT:] if isinstance(raw.get("webLearning"), list) else []:
                 if not isinstance(item, dict):
                     continue
                 row_status = item.get("status")
@@ -208,7 +209,7 @@ class EmotionModel:
             "adaptation_passes": self.adaptation_passes,
             "lexiconCount": self.lexicon_count,
             "sourceHost": self.source_host,
-            "webLearning": list(self.web_learning[-20:]),
+            "webLearning": list(self.web_learning[-WEB_LEARNING_LIMIT:]),
             "extraCues": {emotion: sorted(words) for emotion, words in self.extra_cues.items()},
             "mood": self.mood,
             "moodConfidence": self.mood_confidence,
@@ -291,7 +292,7 @@ class EmotionModel:
             "title": " ".join(str(title or "").split())[:60],
             "chars": max(0, int(chars)),
             "status": status,
-        }])[-20:]
+        }])[-WEB_LEARNING_LIMIT:]
         self.events += 1
         if self.save():
             return True

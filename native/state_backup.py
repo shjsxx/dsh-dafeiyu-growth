@@ -41,6 +41,7 @@ STATE_FILES = (
     "knowledge.json",
     "learning.json",
     "web-sources.json",
+    "web-knowledge.json",
     "auto-learning.json",
     "online.json",
     "companion.json",
@@ -50,6 +51,8 @@ STATE_FILES = (
     "layout.json",
 )
 MAX_FILE_BYTES = 4 * 1024 * 1024
+MAX_LARGE_FILE_BYTES = 40 * 1024 * 1024
+LARGE_FILES = frozenset({"web-knowledge.json"})
 MAX_SNAPSHOTS = 20
 
 
@@ -99,7 +102,7 @@ class StateBackup:
                 size = path.stat().st_size
             except OSError as error:
                 raise BackupError(f"state file is unreadable: {name}") from error
-            if size > MAX_FILE_BYTES:
+            if size > (MAX_LARGE_FILE_BYTES if name in LARGE_FILES else MAX_FILE_BYTES):
                 raise BackupError(f"state file is too large for a bounded backup: {name}")
             result.append(path)
         return result
@@ -229,7 +232,7 @@ class StateBackup:
             temporary = target.with_name(target.name + f".{os.getpid()}.restore.tmp")
             try:
                 data = source.read_bytes()
-                if not data or len(data) > MAX_FILE_BYTES:
+                if not data or len(data) > (MAX_LARGE_FILE_BYTES if name in LARGE_FILES else MAX_FILE_BYTES):
                     raise BackupError(f"snapshot file is empty or too large: {name}")
                 temporary.write_bytes(data)
                 os.replace(temporary, target)

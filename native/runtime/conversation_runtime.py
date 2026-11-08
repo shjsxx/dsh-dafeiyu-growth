@@ -388,6 +388,8 @@ class ConversationRuntime:
             # This request's own local retrieval, not a stale earlier turn.
             hits = self.memory.recall(text, 5, kinds=('preference', 'habit', 'diary'))
             hits = list(hits) + self._relationship_store().memory_context(limit=3)
+            if self._is_web_knowledge_query(text):
+                hits = list(hits) + self._web_knowledge_store().search(text, 3)
             self._capture_retrieval(text, hits)
         request_id = uuid.uuid4().hex
         context = {'policy': self.personality.personality_policy(proposal['intent']),

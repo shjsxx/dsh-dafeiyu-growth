@@ -188,7 +188,7 @@ class WebLearningDialog(QDialog):
     def _done(self, result):
         result = result if isinstance(result, dict) else {}
         if result.get("ok"):
-            note = "已写入知识库" if result.get("added") else "已记录，无新增知识"
+            note = "已写入独立网页知识库" if result.get("knowledgeAdded") else "已记录，无新增网页知识"
             self.log.appendPlainText(
                 f"完成：{result.get('title') or result.get('host')} · {result.get('chars', 0)} 字 · {note}")
             self.log.appendPlainText(f"预览：{str(result.get('text') or '')[:300]}")

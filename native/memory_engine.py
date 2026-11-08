@@ -25,8 +25,8 @@ from semantic_memory import similarity as semantic_similarity
 from embedding_backend import EmbeddingBackend
 
 VERSION = 1
-MAX_BYTES = 512 * 1024
-MAX_RECORDS = 600
+MAX_BYTES = 2 * 1024 * 1024
+MAX_RECORDS = 1200
 MAX_TEXT = 240
 MAX_SOURCE = 60
 KIND_WEIGHT = {"preference": 82, "habit": 72, "diary": 58, "public": 46, "culture": 62}

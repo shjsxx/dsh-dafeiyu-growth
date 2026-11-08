@@ -61,7 +61,35 @@ class CompanionRuntime:
             hits = self.memory.recent(3, kinds=("preference", "habit", "diary"))
         answer = compose_memory_answer(
             text, self.learner.data.get("userName", ""), self.learner.data.get("likes", []), hits)
-        return (answer, "记忆引擎 · 本地记忆") if answer else (None, "")
+        if answer:
+            return (answer, "记忆引擎 · 本地记忆")
+        if self._is_web_knowledge_query(text):
+            web_hits = self._web_knowledge_store().search(text, 3)
+            if web_hits:
+                best = web_hits[0]
+                body = str(best.get("text") or "").strip()[:420]
+                title = str(best.get("title") or "网页知识").strip()[:80]
+                if body:
+                    return (f"{title}：{body}", "网页知识库 · 本地来源")
+        return (None, "")
+
+    @staticmethod
+    def _is_web_knowledge_query(text):
+        value = str(text or "")
+        return any(marker in value for marker in (
+            "介绍", "是什么", "为什么", "怎么", "如何", "原理", "区别", "知识",
+            "学习", "解释", "讲讲", "科普", "吗", "？", "?"))
+
+    def _web_knowledge_store(self):
+        store = getattr(self, "web_knowledge_store", None)
+        if store is None:
+            from web_knowledge import WebKnowledgeStore
+            memory = getattr(self, "memory", None)
+            path = memory.path.with_name("web-knowledge.json") if memory is not None else None
+            store = WebKnowledgeStore(path=path)
+            self.web_knowledge_store = store
+        return store
+
 
 
     def _sync_continuity(self) -> None:
@@ -454,7 +482,8 @@ class CompanionRuntime:
             # Share the live model instances: separate TrainingJournal instances
             # writing one file trigger the journal's concurrent-writer guard.
             service = WebLearningService(memory=self.memory, emotion=self.emotion,
-                                         journal=self.learning.journal)
+                                         journal=self.learning.journal,
+                                         knowledge=self._web_knowledge_store())
             host = AutonomousLearningHost(service=service, parent=self)
             self.autonomous_learning_host = host
         return host

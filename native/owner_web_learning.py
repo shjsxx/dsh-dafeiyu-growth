@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from web_scout import extract_page
+from web_knowledge import WebKnowledgeStore
 
 VERSION = 1
 MAX_SOURCES = 100
@@ -326,7 +327,7 @@ class WebLearningService:
     """Fetch an owner-selected page, record it, then add one public summary."""
 
     def __init__(self, data_dir=None, sources=None, fetcher=None, memory=None,
-                 emotion=None, journal=None):
+                 emotion=None, journal=None, knowledge=None):
         from emotion_model import EmotionModel
         from memory_engine import MemoryEngine
         from training_journal import TrainingJournal
@@ -337,6 +338,7 @@ class WebLearningService:
         self.memory = memory or MemoryEngine(root / "memory.json")
         self.emotion = emotion or EmotionModel(root / "emotion.json")
         self.journal = journal or TrainingJournal(root / "training.json")
+        self.knowledge = knowledge or WebKnowledgeStore(data_dir=root)
 
     def add_source(self, url):
         try:
@@ -348,6 +350,8 @@ class WebLearningService:
 
     def learn(self, url):
         """A fetch is not learning until both records exist and memory accepts it."""
+        if self.knowledge.has_url(url):
+            return {"ok": False, "error": "duplicate_url"}
         try:
             article = self.fetcher.fetch(url)
         except (WebLearningError, OSError, ValueError) as error:
@@ -363,20 +367,27 @@ class WebLearningService:
                 self.journal.finish(event_id, "failed", {"bytes": article.get("bytes", 0),
                                                           "characters": len(text)}, error="storage")
                 return {"ok": False, "error": "emotion_record_failed"}
+            knowledge = self.knowledge.add(
+                article.get("url") or url, title=title, text=text, summary=text[:600],
+                host=host, category=article.get("category", ""),
+                fetched_at=article.get("fetchedAt"))
             added = self.memory.ingest_external({
                 "topic": title[:60],
                 "text": text[:600],
                 "sourceLabel": "你指定的网站：" + host,
                 "kind": "public",
             })
-            status = "success" if added else "no_change"
+            knowledge_added = 1 if knowledge.get("ok") else 0
+            status = "success" if (knowledge_added or added) else "no_change"
             self.journal.finish(event_id, status, {
                 "bytes": int(article.get("bytes") or 0),
                 "characters": len(text),
-                "added": int(added),
+                "added": int(bool(knowledge_added or added)),
             })
             return {"ok": True, "title": title, "host": host,
-                    "chars": len(text), "added": int(added),
+                    "chars": len(text), "added": int(bool(added)),
+                    "knowledgeAdded": knowledge_added,
+                    "knowledgeReason": "" if knowledge.get("ok") else knowledge.get("reason", ""),
                     "text": text[:600], "status": status}
         except (OSError, TypeError, ValueError) as error:
             self.journal.finish(event_id, "failed", {"bytes": article.get("bytes", 0),
@@ -388,3 +399,6 @@ class WebLearningService:
             return list(self.emotion.snapshot().get("webLearningRecent") or [])
         except Exception:
             return []
+
+    def is_seen(self, url):
+        return self.knowledge.has_url(url)

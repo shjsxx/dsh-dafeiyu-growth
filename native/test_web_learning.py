@@ -158,6 +158,11 @@ class WebLearningTests(unittest.TestCase):
         result = service.learn("https://example.com/article")
         self.assertTrue(result["ok"])
         self.assertEqual(result["added"], 1)
+        self.assertEqual(result["knowledgeAdded"], 1)
+        self.assertEqual(service.knowledge.stats()["total"], 1)
+        duplicate = service.learn("https://example.com/article?utm_source=x")
+        self.assertFalse(duplicate["ok"])
+        self.assertEqual(duplicate["error"], "duplicate_url")
         journal = TrainingJournal(self.root / "training.json", read_only=True)
         events = [row for row in journal.data["events"] if row["source"] == "user_web"]
         self.assertEqual(len(events), 1)
