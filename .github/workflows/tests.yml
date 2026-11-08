@@ -36,7 +36,7 @@ jobs:
           if ($files -notcontains 'native/live_online.py') { throw 'live_online.py missing from package' }
           if ($files -notcontains 'requirements-native.txt') { throw 'requirements-native.txt missing from package' }
           if ($files -notcontains 'web/App.jsx') { throw 'Web source missing from package' }
-          $privatePattern = 'native/(verification|backup|dist|\.build)/|(?:^|/)(?:dialogue-fix|menu|reaction-(?:cry|sleepy|bored))\.png$|(?:^|/)(?:cloud|realtime|growth|memory|profile|personality|training|behavior|neural|emotion|learning|online|knowledge|companion|continuity|embedding_rerank|relationship|persona-history|research-scheduler|memory-health|persona-health|auto-learning|web-sources)\.json$|retrieval_reviews|yunlan-growth-summary|(?:^|/)\.env(?:\.|$)|\.(?:key|pem|pfx|p12|sqlite3?|db|jsonl|wav|pcm|onnx|safetensors|pt|pth|bak|log)$'
+          $privatePattern = 'native/(verification|backup|dist|\.build)/|(?:^|/)(?:dialogue-fix|menu|reaction-(?:cry|sleepy|bored))\.png$|(?:^|/)(?:cloud|realtime|growth|memory|profile|personality|training|behavior|neural|emotion|learning|online|knowledge|web-knowledge|companion|continuity|embedding_rerank|relationship|persona-history|research-scheduler|memory-health|persona-health|auto-learning|web-sources)\.json$|retrieval_reviews|yunlan-growth-summary|(?:^|/)\.env(?:\.|$)|\.(?:key|pem|pfx|p12|sqlite3?|db|jsonl|wav|pcm|onnx|safetensors|pt|pth|bak|log)$'
           if ($files -match $privatePattern) { throw 'Private artifacts must not enter package' }
           $manifest = Get-Content -Raw package.json | ConvertFrom-Json
           foreach ($image in @($files | Where-Object { $_ -like 'docs/screenshots/*.png' })) {

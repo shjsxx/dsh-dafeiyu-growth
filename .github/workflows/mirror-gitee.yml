@@ -1,0 +1,59 @@
+name: mirror-gitee
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-gitee-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITEE_USERNAME: gyk2016
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Gitee credentials
+        run: |
+          cat > "$RUNNER_TEMP/gitee-askpass.sh" <<'EOF'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' "$GITEE_USERNAME" ;;
+            *Password*) printf '%s\n' "$GITEE_TOKEN" ;;
+          esac
+          EOF
+          chmod 700 "$RUNNER_TEMP/gitee-askpass.sh"
+          git config --local credential.helper ''
+          git remote add gitee https://gitee.com/gyk2016/dsh-dafeiyu-growth.git
+          git config --local core.askPass "$RUNNER_TEMP/gitee-askpass.sh"
+
+      - name: Refuse empty secret
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "GITEE_TOKEN secret is not configured" >&2
+            exit 1
+          fi
+
+      - name: Push main
+        if: github.ref == 'refs/heads/main'
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: git push gitee HEAD:refs/heads/main
+
+      - name: Push tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: git push gitee "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
