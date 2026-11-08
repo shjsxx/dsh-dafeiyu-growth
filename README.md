@@ -100,7 +100,20 @@ DSH 设置 → 内置插件 → 云岚养成。
 
 ## 安装
 
-**最省事：自包含包（推荐给只想用桌宠的人）**
+**最省事：一键安装（推荐）**
+
+- GitHub 用户：[下载 `install-yunlan-github.cmd`](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.1.0/install-yunlan-github.cmd)
+- Gitee 用户：[下载 `install-yunlan-gitee.cmd`](https://gitee.com/gyk2016/dafeiyu-ai-growth/releases/download/v1.1.0/install-yunlan-gitee.cmd)
+
+先退出 DeepSeek Harness，双击对应脚本。它会自动下载、校验 SHA-256、解压并安装到：
+
+```text
+%USERPROFILE%\.dsh\plugins\dsh-dafeiyu-growth
+```
+
+不会删除已有的本地数据。完成后重启 DSH，在 **设置 → 插件** 启用「云岚养成」。
+
+**手动安装（备用）**
 
 [下载云岚 v1.1.0 Windows x64 自包含包](https://github.com/shjsxx/dsh-dafeiyu-growth/releases/download/v1.1.0/dsh-dafeiyu-growth-v1.1.0-windows-x64.zip)
 
