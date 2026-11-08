@@ -53,7 +53,7 @@ class CloudSettingsDialog(QDialog):
         self.model.setPlaceholderText("模型名，例如 deepseek-chat / deepseek-reasoner")
         self.tokens = QSpinBox()
         self.tokens.setRange(16, 1024)
-        self.tokens.setValue(int(self.config.get("max_tokens", 256) or 256))
+        self.tokens.setValue(int(self.config.get("max_tokens", 800) or 800))
         self.tokens.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.key = QLineEdit()
         self.key.setEchoMode(QLineEdit.EchoMode.Password)

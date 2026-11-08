@@ -28,6 +28,7 @@ from pathlib import Path
 VERSION = 1
 MAX_TEXT = 2000
 MAX_RESPONSE = 128 * 1024
+DEFAULT_MAX_TOKENS = 800
 MAX_TOKENS = 1024
 MIN_TOKENS = 16
 SYSTEM_PROMPT = (
@@ -151,7 +152,7 @@ def load_config(path=None, env=None):
     config = {
         "endpoint": "",
         "model": "",
-        "max_tokens": 256,
+        "max_tokens": DEFAULT_MAX_TOKENS,
         "key": "",
         "key_saved": False,
         "prefer_cloud": False,
@@ -174,9 +175,9 @@ def load_config(path=None, env=None):
         config["prefer_cloud"] = raw.get("prefer_cloud") is True
         config["proactive_smart"] = raw.get("proactive_smart") is True
         try:
-            config["max_tokens"] = _validate_tokens(raw.get("max_tokens", 256))
+            config["max_tokens"] = _validate_tokens(raw.get("max_tokens", DEFAULT_MAX_TOKENS))
         except CloudConfigError:
-            config["max_tokens"] = 256
+            config["max_tokens"] = DEFAULT_MAX_TOKENS
         protected = raw.get("key_protected")
         key_endpoint = raw.get("key_endpoint")
         if isinstance(protected, str) and protected:
@@ -306,7 +307,7 @@ def ask_cloud(config, text, timeout=30.0, history=None, *, companion_policy=None
         model = str(config.get("model", "")).strip()
         if not model:
             raise CloudConfigError("model is required")
-        tokens = _validate_tokens(int(config.get("max_tokens", 256)))
+        tokens = _validate_tokens(int(config.get("max_tokens", DEFAULT_MAX_TOKENS)))
     except (CloudConfigError, TypeError, ValueError) as error:
         return {"ok": False, "error": str(error)}
     approved = str(text or "").strip()
