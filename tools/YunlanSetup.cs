@@ -30,7 +30,7 @@ internal static class Program
     {
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
         var silent = args.Any(x => x.Equals("--silent", StringComparison.OrdinalIgnoreCase));
-        var source = ArgValue(args, "--source") ?? "github";
+        var source = ArgValue(args, "--source") ?? "gitee";
         var target = ArgValue(args, "--target") ?? DefaultTarget();
         var localZip = ArgValue(args, "--zip");
         var allowRunning = args.Any(x => x.Equals("--allow-running", StringComparison.OrdinalIgnoreCase));
@@ -110,8 +110,8 @@ internal sealed class InstallerForm : Form
 
         Controls.Add(new Label { Text = "下载源", AutoSize = true, Location = new Point(24, 92) });
         source.DropDownStyle = ComboBoxStyle.DropDownList;
-        source.Items.AddRange(new object[] { "GitHub（单包，推荐）", "Gitee（四卷，国内）" });
-        source.SelectedIndex = initialSource.Equals("gitee", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        source.Items.AddRange(new object[] { "GitHub（单包）", "Gitee（四卷，国内推荐）" });
+        source.SelectedIndex = initialSource.Equals("github", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
         source.Location = new Point(92, 88);
         source.Width = 230;
         Controls.Add(source);
@@ -240,7 +240,20 @@ internal static class Installer
                 if (source.Equals("gitee", StringComparison.OrdinalIgnoreCase))
                     await DownloadGiteeAsync(zip, log, progress);
                 else
-                    await DownloadAsync(Program.GithubUrl, zip, log, progress);
+                {
+                    var githubOk = false;
+                    try
+                    {
+                        await DownloadAsync(Program.GithubUrl, zip, log, progress);
+                        githubOk = true;
+                    }
+                    catch (Exception error)
+                    {
+                        log("GitHub 下载失败：" + error.Message);
+                        log("自动改用 Gitee 镜像...");
+                    }
+                    if (!githubOk) await DownloadGiteeAsync(zip, log, progress);
+                }
             }
             else
             {
