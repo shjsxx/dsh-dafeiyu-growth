@@ -9,5 +9,18 @@ export const growthFixture = () => ({version:1, level:12,xp:4900,into:60,need:92
   diary:[{kind:'review',text:'合成演示：一起完成一次检查，记下这段安静的同行。',at:'2026-10-02T08:00:00Z',level:12},
     {kind:'stage',text:'合成演示：进入御风阶段，能自己穿过云层。',at:'2026-10-01T08:00:00Z',level:10}],
   createdAt:'2026-09-01T00:00:00Z',updatedAt:'2026-10-02T08:00:00Z',
+  insights:{
+    memory:{total:621,private:39,preference:12,habit:9,diary:18,public:575,culture:7},
+    web:{total:214,max:2000,hosts:38,recent:[
+      {title:'为什么天空是蓝色的：瑞利散射的直观解释',host:'science.example',at:'2026-10-02T07:00:00Z'},
+      {title:'线性代数复习：从矩阵到特征值',host:'learn.example',at:'2026-10-01T09:00:00Z'},
+      {title:'如何把一次长对话整理成可回看的笔记',host:'notes.example',at:'2026-09-30T12:00:00Z'},
+    ]},
+    cloud:{configured:true,model:'deepseek-chat',maxTokens:800,prefer:true,proactive:true},
+    autoLearn:{enabled:true,interval:15,batch:3},
+    relationship:{topics:7,episodes:12},
+    emotion:{webLearning:35,label:'neutral'},
+    sources:{sites:8},
+  },
   storageHealth:{ok:true,readable:true,writable:true},
 })

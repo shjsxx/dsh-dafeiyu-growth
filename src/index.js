@@ -9,10 +9,12 @@
 // A queue file lets the CLI (tools/growth.mjs) write diary entries while the
 // host is running, without having to discover the random WebUI port.
 import { existsSync, readFileSync, renameSync, unlinkSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { createHash } from 'node:crypto'
 import {
   addDiary, derive, levelFromXp, loadProfile, observe, resetProfile, stageOf,
 } from './growth.js'
+import { collectInsights } from './insights.js'
 import { createStore, defaultProfilePath, queuePathForProfile } from './store.js'
 import { NativeSupervisor, pluginRootFrom } from './native-supervisor.js'
 
@@ -203,7 +205,7 @@ export async function apply(ctx, config = {}) {
     ctx.logger?.warn?.(`[dsh-dafeiyu-growth] session events unavailable: ${error?.message ?? error}`)
   }
 
-  const state = () => ({ ...derive(profile), storageHealth: store.health() })
+  const state = () => ({ ...derive(profile), insights: collectInsights(dirname(profilePath)), storageHealth: store.health() })
 
   const stateHandler = (req, res) => {
     if (!isLoopback(req) || !isSameOrigin(req)) return json(res, 403, { ok: false, error: 'local same-origin only' })

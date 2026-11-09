@@ -4,9 +4,10 @@ import {Button, Icon, formatDate} from './components/Primitives.jsx'
 import {Overview} from './components/Overview.jsx'
 import {Journal} from './components/Journal.jsx'
 import {DataPanel} from './components/DataPanel.jsx'
+import {LearningPanel, MemoryPanel} from './components/Insights.jsx'
 import styles from './styles.css'
 
-const tabs = [['overview','成长概览'], ['journal','成长回顾'], ['data','数据与隐私']]
+const tabs = [['overview','成长概览'], ['memory','记忆'], ['learning','学习'], ['journal','成长回顾'], ['data','数据与隐私']]
 
 function Header({refresh, loading, refreshing, busy, state}) {
   return <header className="ylg-header"><div><div className="ylg-brand"><span className="ylg-brand-mark"><Icon name="cloud" size={20}/></span><span>云岚 <i>/</i> 成长手记</span></div><h2>一起，慢慢长大。</h2><p>把每一次真实的同行，留成看得见的成长。</p></div><div className="ylg-header-actions"><span className={`ylg-local-pill ${state?.storageHealth.ok === false ? 'is-warning':''}`}><span/>{state?.storageHealth.ok === false ? '存储需检查':'仅本地记录'}</span><Button icon="refresh" className={refreshing ? 'is-refreshing':''} disabled={loading || refreshing || busy} onClick={() => void refresh()} aria-label={refreshing ? '正在刷新成长数据':'刷新成长数据'}>{refreshing ? '刷新中':'刷新'}</Button></div></header>
@@ -17,7 +18,7 @@ function Loading() {
 }
 
 export function SettingsDashboard() {
-  const {state, loading, refreshing, busy, error, actionError, lastUpdated, refresh, reset} = useGrowthDashboard()
+  const {state, loading, refreshing, busy, error, actionError, lastUpdated, refresh, reset, addDiary} = useGrowthDashboard()
   const [selected, setSelected] = useState('overview')
   const [notice, setNotice] = useState('')
   const id = useId()
@@ -37,7 +38,12 @@ export function SettingsDashboard() {
       {loading && !state ? <Loading/> : !state ? <div className="ylg-no-data"><Icon name="cloud" size={36}/><h3>稍等一下，云还在路上</h3><p>请确认插件已启用，然后重新读取。不会用示例数字替代你的记录。</p><Button icon="refresh" onClick={() => void refresh()} disabled={refreshing}>重新读取</Button></div> : <>
         <nav className="ylg-tabs" role="tablist" aria-label="成长内容" onKeyDown={keyNav}>{tabs.map(([key,label]) => <button ref={element => { tabRefs.current[key] = element }} type="button" role="tab" key={key} id={`${id}-tab-${key}`} aria-controls={`${id}-panel-${key}`} aria-selected={selected === key} tabIndex={selected === key ? 0 : -1} disabled={busy} onClick={() => choose(key)}>{label}{key === 'journal' && state.diary.length > 0 && <span className="ylg-tab-count">{state.diary.length}</span>}</button>)}</nav>
         {tabs.map(([key]) => <div role="tabpanel" tabIndex={0} key={key} id={`${id}-panel-${key}`} aria-labelledby={`${id}-tab-${key}`} hidden={selected !== key} className="ylg-tabpanel">
-          {selected === key && (key === 'overview' ? <Overview state={state} onJournal={() => { choose('journal'); tabRefs.current.journal?.focus() }}/> : key === 'journal' ? <Journal diary={state.diary}/> : <DataPanel state={state} busy={busy} reset={reset} actionError={actionError} onNotice={setNotice}/>)}
+          {selected === key && (key === 'overview'
+            ? <Overview state={state} busy={busy} onSaveDiary={addDiary} onJournal={() => { choose('journal'); tabRefs.current.journal?.focus() }} onMemory={() => { choose('memory'); tabRefs.current.memory?.focus() }} onLearning={() => { choose('learning'); tabRefs.current.learning?.focus() }} onData={() => { choose('data'); tabRefs.current.data?.focus() }}/>
+            : key === 'memory' ? <MemoryPanel insights={state.insights}/>
+            : key === 'learning' ? <LearningPanel insights={state.insights}/>
+            : key === 'journal' ? <Journal diary={state.diary}/>
+            : <DataPanel state={state} busy={busy} reset={reset} actionError={actionError} onNotice={setNotice}/>)}
         </div>)}
         <div className="ylg-notice" role="status" aria-live="polite">{notice}</div>
         <footer className="ylg-footer"><span><Icon name="shield" size={13}/> 本地统计 · 非通用模型训练</span><span>{refreshing ? '正在同步本机记录…' : lastUpdated ? `读取于 ${formatDate(new Date(lastUpdated).toISOString(), true)}` : '等待本机数据'}</span></footer>

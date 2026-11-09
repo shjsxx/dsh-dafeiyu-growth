@@ -24,18 +24,19 @@ export function createGrowthController({ api = createGrowthApi(), intervalMs = 1
     timer = setTimer(() => { timer = null; void refresh() }, Math.max(100, Number.isFinite(intervalMs) ? intervalMs : 15000))
   }
   const invalidate = () => { generation += 1; if (operation) { clearTimer(operation.deadline); operation.abort.abort() }; operation = null; clearPoll() }
-  async function perform(kind) {
+  async function perform(kind, payload) {
     if (!active) return false
     if (kind === 'refresh' && (!visible() || snapshot.busy)) return false
-    if (kind === 'reset' && snapshot.busy) return false
+    if (kind !== 'refresh' && snapshot.busy) return false
     if (kind === 'refresh' && operation) return operation.promise
-    if (kind === 'reset') invalidate()
+    if (kind === 'reset' || kind === 'diary') invalidate()
     clearPoll()
     const token = ++generation
     const abort = new AbortController()
     const current = { abort, promise: null }
     operation = current
-    emit(kind === 'reset' ? { busy: true, refreshing: false, actionError: null } : { loading: snapshot.state === null, refreshing: snapshot.state !== null, error: null })
+    emit(kind === 'refresh' ? { loading: snapshot.state === null, refreshing: snapshot.state !== null, error: null }
+      : { busy: true, refreshing: false, actionError: null })
     current.promise = (async () => {
       let deadline
       const cancelled = new Promise((_, reject) => {
@@ -44,16 +45,21 @@ export function createGrowthController({ api = createGrowthApi(), intervalMs = 1
         current.deadline = deadline
       })
       try {
-        const raw = await Promise.race([Promise.resolve().then(() => {
-          if (abort.signal.aborted) throw { code: 'aborted' }
-          return api[kind === 'reset' ? 'reset' : 'getState']({ signal: abort.signal })
-        }), cancelled])
+        const request = kind === 'refresh'
+          ? Promise.resolve().then(() => {
+              if (abort.signal.aborted) throw { code: 'aborted' }
+              return api.getState({ signal: abort.signal })
+            })
+          : kind === 'reset'
+            ? api.reset({ signal: abort.signal })
+            : api.addDiary(payload, { signal: abort.signal })
+        const raw = await Promise.race([request, cancelled])
         if (!active || token !== generation) return false
-        emit({ state: createDashboardModel(raw, { now: now() }), lastUpdated: now(), error: null, ...(kind === 'reset' ? { actionError: null } : {}) })
+        emit({ state: createDashboardModel(raw, { now: now() }), lastUpdated: now(), error: null, ...(kind === 'refresh' ? {} : { actionError: null }) })
         return true
       } catch (error) {
         if (!active || token !== generation) return false
-        if (error?.code !== 'aborted') emit(kind === 'reset' ? { actionError: safeError(error, true) } : { error: safeError(error, false) })
+        if (error?.code !== 'aborted') emit(kind === 'refresh' ? { error: safeError(error, false) } : { actionError: kind === 'reset' ? safeError(error, true) : '回顾未保存；请检查本地服务后重试。' })
         return false
       } finally {
         clearTimer(deadline)
@@ -68,6 +74,7 @@ export function createGrowthController({ api = createGrowthApi(), intervalMs = 1
   }
   function refresh() { return perform('refresh') }
   function reset() { return perform('reset') }
+  function addDiary(text) { return perform('diary', text) }
   const onVisibility = () => {
     clearPoll()
     if (!active) return
@@ -80,7 +87,7 @@ export function createGrowthController({ api = createGrowthApi(), intervalMs = 1
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     start() { if (active) return; active = true; documentImpl?.addEventListener?.('visibilitychange', onVisibility); if (visible()) void refresh() },
     stop() { active = false; invalidate(); snapshot = { ...snapshot, loading: snapshot.state === null, refreshing: false, busy: false }; documentImpl?.removeEventListener?.('visibilitychange', onVisibility) },
-    refresh, reset,
+    refresh, reset, addDiary,
   }
 }
 
@@ -95,5 +102,5 @@ export function useGrowthDashboard(options = {}) {
     setSnapshot(controller.getSnapshot())
     return () => { unsubscribe(); controller.stop() }
   }, [controller])
-  return { ...snapshot, refresh: controller.refresh, reset: controller.reset }
+  return { ...snapshot, refresh: controller.refresh, reset: controller.reset, addDiary: controller.addDiary }
 }

@@ -56,11 +56,42 @@ export function normalizeGrowth(raw) {
     storageHealth: { ok: healthKnown ? health.ok : null, readable: typeof health.readable === 'boolean' ? health.readable : null, writable: typeof health.writable === 'boolean' ? health.writable : null, error: healthKnown && !health.ok ? '本地档案读写异常，请检查存储权限与可用空间。' : null },
   }
 }
+function normalizeInsights(raw) {
+  const source = record(raw)
+  const memory = record(source.memory)
+  const web = record(source.web)
+  const cloud = record(source.cloud)
+  const auto = record(source.autoLearn)
+  const relationship = record(source.relationship)
+  const emotion = record(source.emotion)
+  const sources = record(source.sources)
+  const memoryCounts = {}
+  for (const key of ['total', 'private', 'preference', 'habit', 'diary', 'public', 'culture']) memoryCounts[key] = count(memory[key])
+  return {
+    memory: memoryCounts,
+    web: {
+      total: count(web.total), max: Math.max(1, count(web.max, 2000)), hosts: count(web.hosts),
+      recent: (Array.isArray(web.recent) ? web.recent : []).slice(0, 4).flatMap(row => {
+        const item = record(row); const title = text(item.title, 100)
+        if (!title) return []
+        return [{ title, host: text(item.host, 80), at: normalizeTimestamp(item.at) }]
+      }),
+    },
+    cloud: {
+      configured: cloud.configured === true, model: text(cloud.model, 80),
+      maxTokens: count(cloud.maxTokens, 800), prefer: cloud.prefer === true, proactive: cloud.proactive === true,
+    },
+    autoLearn: { enabled: auto.enabled === true, interval: count(auto.interval, 15), batch: count(auto.batch, 3) },
+    relationship: { topics: count(relationship.topics), episodes: count(relationship.episodes) },
+    emotion: { webLearning: count(emotion.webLearning), label: text(emotion.label, 24) || 'neutral' },
+    sources: { sites: count(sources.sites) },
+  }
+}
 export function createDashboardModel(raw, { now = Date.now() } = {}) {
   const state = normalizeGrowth(raw)
   const time = now instanceof Date ? now.getTime() : now
   const created = state.createdAt ? Date.parse(state.createdAt) : NaN
-  return { ...state, ageDays: Number.isFinite(time) && Number.isFinite(created) ? Math.max(0, Math.floor((time - created) / 86400000)) : 0,
+  return { ...state, insights: normalizeInsights(raw?.insights), ageDays: Number.isFinite(time) && Number.isFinite(created) ? Math.max(0, Math.floor((time - created) / 86400000)) : 0,
     hasActivity: state.counters.events > 0,
     learningDescription: '根据真实会话的计数与简单分布归纳习惯，不是模型训练，也不会修改 AI 权重。' }
 }

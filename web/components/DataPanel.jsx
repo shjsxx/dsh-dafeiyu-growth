@@ -52,7 +52,7 @@ export function DataPanel({state, busy, reset, actionError, onNotice}) {
   const stats = [['累计经验',state.xp], ['会话事件',c.events], ['对话轮次',c.turns], ['成功轮次',c.okTurns],
     ['出错轮次',c.errorTurns], ['工具调用',c.toolCalls], ['工具报错',c.toolErrors], ['错误后恢复',c.recoveries], ['审批次数',c.approvals]]
   return <div className="ylg-data-panel">
-    <Section title="数据留在你的设备上" note="这个页面只读取当前 DSH 的本地成长统计">
+    <Section title="数据留在你的设备上" note="只读取本机统计与结构计数，不展示记忆原文、Key 或会话内容">
       <div className="ylg-privacy-message"><Icon name="shield" size={25}/><p>不会因为打开这个页面而上传会话或开启云端模型。桌宠聊天、语音和记忆的权限仍由各自窗口单独管理。</p></div>
       <dl className="ylg-detail-stats">{stats.map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{formatNumber(value)}</dd></div>)}</dl>
       <div className="ylg-date-row"><span>开始记录 · {formatDate(state.createdAt)}</span><span>档案更新 · {formatDate(state.updatedAt, true)}</span></div>
