@@ -36,12 +36,12 @@ function TodaySignals({state, onMemory, onLearning}) {
   return <div className="ylg-signals" aria-label="今日状态摘要">
     <button type="button" className="ylg-signal" onClick={() => onMemory?.()}>
       <span className="ylg-signal-icon"><Icon name="heart" size={16}/></span>
-      <span><small>她记得</small><strong>{formatNumber(insights.memory.private)}</strong><em>条私人记忆</em></span>
+      <span><small>她记得</small><strong>{insights.available ? formatNumber(insights.memory.private) : '—'}</strong><em>{insights.available ? '条私人记忆' : '等待重启加载'}</em></span>
       <Icon name="arrow" size={14}/>
     </button>
     <button type="button" className="ylg-signal" onClick={() => onLearning?.()}>
       <span className="ylg-signal-icon"><Icon name="book" size={16}/></span>
-      <span><small>她学过</small><strong>{formatNumber(insights.web.total)}</strong><em>条网页知识</em></span>
+      <span><small>她学过</small><strong>{insights.available ? formatNumber(insights.web.total) : '—'}</strong><em>{insights.available ? '条网页知识' : '等待重启加载'}</em></span>
       <Icon name="arrow" size={14}/>
     </button>
     <div className="ylg-signal is-static">
@@ -50,7 +50,7 @@ function TodaySignals({state, onMemory, onLearning}) {
     </div>
     <div className="ylg-signal is-static">
       <span className="ylg-signal-icon"><Icon name="cloud" size={16}/></span>
-      <span><small>云端</small><strong>{insights.cloud.configured ? '就绪' : '本地'}</strong><em>{insights.cloud.configured ? (insights.cloud.model || '已配置') : '未配置'}</em></span>
+      <span><small>云端</small><strong>{!insights.available ? '—' : insights.cloud.configured ? '就绪' : '本地'}</strong><em>{!insights.available ? '等待重启加载' : insights.cloud.configured ? (insights.cloud.model || '已配置') : '未配置'}</em></span>
     </div>
   </div>
 }

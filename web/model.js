@@ -68,6 +68,7 @@ function normalizeInsights(raw) {
   const memoryCounts = {}
   for (const key of ['total', 'private', 'preference', 'habit', 'diary', 'public', 'culture']) memoryCounts[key] = count(memory[key])
   return {
+    available: Boolean(raw && typeof raw === 'object' && ('memory' in raw || 'web' in raw || 'cloud' in raw)),
     memory: memoryCounts,
     web: {
       total: count(web.total), max: Math.max(1, count(web.max, 2000)), hosts: count(web.hosts),

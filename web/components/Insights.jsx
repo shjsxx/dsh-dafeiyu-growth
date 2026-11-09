@@ -51,6 +51,7 @@ function CloudLine({cloud}) {
 
 export function MemorySummary({insights, onMore}) {
   const memory = insights.memory
+  if (!insights.available) return <Section title="她记得的" note="面板数据需要重启一次 DSH 后才能读取"><EmptyState icon="heart" title="记忆面板等待加载">重启 DeepSeek Harness 后，这里会显示本机记忆分类，不会上传原文。</EmptyState></Section>
   return <Section title="她记得的" note="只在本机保存；这里只显示分类和计数" action={<Button className="ylg-text-button" icon="arrow" onClick={onMore}>记忆详情</Button>}>
     <div className="ylg-mini-grid">
       <MiniStat icon="heart" label="私人记忆" value={memory.private}/>
@@ -64,6 +65,7 @@ export function MemorySummary({insights, onMore}) {
 export function LearningSummary({insights, onMore}) {
   const web = insights.web
   const auto = insights.autoLearn
+  if (!insights.available) return <Section title="她最近在学" note="面板数据需要重启一次 DSH 后才能读取"><EmptyState icon="leaf" title="学习面板等待加载">重启后这里会显示网页知识容量、来源计数和自主选源状态。</EmptyState></Section>
   return <Section title="她最近在学" note="自主选源只读公开页面，不抓取你的私人内容" action={<Button className="ylg-text-button" icon="arrow" onClick={onMore}>学习详情</Button>}>
     <div className="ylg-mini-grid">
       <MiniStat icon="book" label="网页知识" value={web.total} note={`上限 ${formatNumber(web.max)}`}/>
@@ -76,6 +78,7 @@ export function LearningSummary({insights, onMore}) {
 
 export function CloudSummary({insights, onMore}) {
   const cloud = insights.cloud
+  if (!insights.available) return <Section title="她和云端的边界" note="面板数据需要重启一次 DSH 后才能读取"><EmptyState icon="cloud" title="云端状态等待加载">重启后这里会显示模型、输出预算与记忆授权边界。</EmptyState></Section>
   return <Section title="她和云端的边界" note="云端、记忆和自主选源分别开关，不静默继承" action={<Button className="ylg-text-button" icon="arrow" onClick={onMore}>隐私与设置</Button>}>
     <CloudLine cloud={cloud}/>
     <div className="ylg-boundary-list">
@@ -110,6 +113,7 @@ export function QuickDiary({onSave, busy}) {
 }
 
 export function MemoryPanel({insights}) {
+  if (!insights.available) return <div className="ylg-detail-panel"><Section title="记忆结构" note="需要重启一次 DSH 才能读取面板数据"><EmptyState icon="heart" title="记忆面板等待加载">当前后端仍是旧版本，重启 DSH 后即可读取分类计数；不会上传原文。</EmptyState></Section></div>
   const memory = insights.memory
   return <div className="ylg-detail-panel">
     <Section title="记忆结构" note="分类计数来自本地 memory.json；不展示原文">
@@ -137,6 +141,7 @@ export function MemoryPanel({insights}) {
 }
 
 export function LearningPanel({insights}) {
+  if (!insights.available) return <div className="ylg-detail-panel"><Section title="独立网页知识" note="需要重启一次 DSH 才能读取面板数据"><EmptyState icon="leaf" title="学习面板等待加载">当前后端仍是旧版本，重启 DSH 后会显示网页知识、来源和自主选源状态。</EmptyState></Section></div>
   const web = insights.web
   const auto = insights.autoLearn
   return <div className="ylg-detail-panel">
